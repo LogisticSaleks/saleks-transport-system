@@ -205,6 +205,8 @@ await prisma.customerTariff.upsert({
   },
 });
 
+console.log("Seeded MSI tariff: €1.50 per km on TOTAL_ROUTE");
+
 const manualCustomerNames = [
   "Eucon",
   "Maersk",
