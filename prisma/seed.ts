@@ -1,0 +1,107 @@
+import dotenv from "dotenv";
+import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+dotenv.config({ path: ".env.local" });
+
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not set");
+}
+
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
+
+async function main() {
+  console.log("Start seeding...");
+
+  const customer = await prisma.customer.upsert({
+    where: { name: "Vepco Transport B.V." },
+    update: {},
+    create: {
+      name: "Vepco Transport B.V.",
+      status: "ACTIVE",
+      billableKmLogic: "ONE_WAY",
+      notes: "Initial test customer for Saleks Transport System.",
+    },
+  });
+
+  const truck = await prisma.truck.upsert({
+    where: { licensePlate: "04-BRS-7" },
+    update: {},
+    create: {
+      name: "Saleks 1",
+      licensePlate: "04-BRS-7",
+      vin: "WMA06XZZ9HM741490",
+      status: "ACTIVE",
+      notes: "Initial test truck.",
+    },
+  });
+
+  const driver = await prisma.driver.create({
+    data: {
+      firstName: "Test",
+      lastName: "Driver",
+      status: "ACTIVE",
+      notes: "Initial test driver.",
+    },
+  });
+
+  const pickupAddress = await prisma.address.create({
+    data: {
+      name: "RWG Container Terminal",
+      street: "Amoerweg 50",
+      city: "Maasvlakte Rotterdam",
+      postalCode: "3199 KD",
+      country: "NL",
+      type: "TERMINAL",
+      notes: "Initial test terminal address.",
+    },
+  });
+
+  const deliveryAddress = await prisma.address.create({
+    data: {
+      name: "CCT Moerdijk",
+      city: "Moerdijk",
+      country: "NL",
+      type: "TERMINAL",
+      notes: "Initial test delivery address.",
+    },
+  });
+
+  await prisma.course.create({
+    data: {
+      courseNumber: "TEST-001",
+      customerId: customer.id,
+      truckId: truck.id,
+      driverId: driver.id,
+      pickupAddressId: pickupAddress.id,
+      deliveryAddressId: deliveryAddress.id,
+      status: "PLANNED",
+      plannedDate: new Date(),
+      containerNumber: "TEST1234567",
+      referenceNumber: "SEED-TEST-001",
+      totalKm: 150,
+      billableKm: 75,
+      nonBillableKm: 75,
+      kmSource: "manual_seed",
+      manualKmOverride: true,
+      kmOverrideNotes: "Seed test course with one-way billable kilometers.",
+      agreedPrice: 299,
+      notes: "Initial seeded test course.",
+    },
+  });
+
+  console.log("Seeding finished.");
+}
+
+main()
+  .catch((error) => {
+    console.error("Seeding failed:");
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

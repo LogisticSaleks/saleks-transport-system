@@ -87,7 +87,7 @@ enum DocumentType {
 
 model Customer {
   id                 String                  @id @default(cuid())
-  name               String
+  name               String                  @unique
   email              String?
   phone              String?
   vatNumber          String?
