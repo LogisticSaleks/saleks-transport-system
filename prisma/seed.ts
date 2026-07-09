@@ -16,6 +16,24 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("Start seeding...");
 
+  const company = await prisma.company.upsert({
+  where: { name: "Saleks" },
+  update: {
+    legalName: "Saleks",
+    status: "ACTIVE",
+    notes: "Main company for Saleks Transport System.",
+  },
+  create: {
+    name: "Saleks",
+    legalName: "Saleks",
+    country: "BG",
+    status: "ACTIVE",
+    notes: "Main company for Saleks Transport System.",
+  },
+});
+
+console.log(`Seeded company: ${company.name}`);
+
   const customer = await prisma.customer.upsert({
     where: { name: "Vepco Transport B.V." },
     update: {},
@@ -70,28 +88,48 @@ async function main() {
     },
   });
 
-  await prisma.course.create({
-    data: {
-      courseNumber: "TEST-001",
-      customerId: customer.id,
-      truckId: truck.id,
-      driverId: driver.id,
-      pickupAddressId: pickupAddress.id,
-      deliveryAddressId: deliveryAddress.id,
-      status: "PLANNED",
-      plannedDate: new Date(),
-      containerNumber: "TEST1234567",
-      referenceNumber: "SEED-TEST-001",
-      totalKm: 150,
-      billableKm: 75,
-      nonBillableKm: 75,
-      kmSource: "manual_seed",
-      manualKmOverride: true,
-      kmOverrideNotes: "Seed test course with one-way billable kilometers.",
-      agreedPrice: 299,
-      notes: "Initial seeded test course.",
-    },
-  });
+await prisma.course.upsert({
+  where: { courseNumber: "TEST-001" },
+  update: {
+    customerId: customer.id,
+    truckId: truck.id,
+    driverId: driver.id,
+    pickupAddressId: pickupAddress.id,
+    deliveryAddressId: deliveryAddress.id,
+    status: "PLANNED",
+    plannedDate: new Date(),
+    containerNumber: "TEST1234567",
+    referenceNumber: "SEED-TEST-001",
+    totalKm: 150,
+    billableKm: 75,
+    nonBillableKm: 75,
+    kmSource: "manual_seed",
+    manualKmOverride: true,
+    kmOverrideNotes: "Seed test course with one-way billable kilometers.",
+    agreedPrice: 299,
+    notes: "Initial seeded test course.",
+  },
+  create: {
+    courseNumber: "TEST-001",
+    customerId: customer.id,
+    truckId: truck.id,
+    driverId: driver.id,
+    pickupAddressId: pickupAddress.id,
+    deliveryAddressId: deliveryAddress.id,
+    status: "PLANNED",
+    plannedDate: new Date(),
+    containerNumber: "TEST1234567",
+    referenceNumber: "SEED-TEST-001",
+    totalKm: 150,
+    billableKm: 75,
+    nonBillableKm: 75,
+    kmSource: "manual_seed",
+    manualKmOverride: true,
+    kmOverrideNotes: "Seed test course with one-way billable kilometers.",
+    agreedPrice: 299,
+    notes: "Initial seeded test course.",
+  },
+});
 
   console.log("Seeding finished.");
 }
