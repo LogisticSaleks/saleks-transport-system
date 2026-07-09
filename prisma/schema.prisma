@@ -56,11 +56,13 @@ enum CustomerBillableKmLogic {
 }
 
 enum TariffType {
+  FIXED_TABLE_UPPER_BOUND
   DISTANCE_TABLE
   PRICE_PER_KM
   FIXED_PRICE
   SHUNT
   WAITING_TIME
+  MANUAL
 }
 
 enum CostType {
@@ -235,6 +237,7 @@ model CustomerTariff {
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
+  @@unique([customerId, name])
   @@index([customerId])
   @@index([type])
 }

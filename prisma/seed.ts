@@ -34,16 +34,131 @@ async function main() {
 
 console.log(`Seeded company: ${company.name}`);
 
-  const customer = await prisma.customer.upsert({
-    where: { name: "Vepco Transport B.V." },
-    update: {},
-    create: {
-      name: "Vepco Transport B.V.",
+const vepco = await prisma.customer.upsert({
+  where: { name: "Vepco Transport B.V." },
+  update: {
+    status: "ACTIVE",
+    billableKmLogic: "ONE_WAY",
+    notes: "Seed customer. Uses fixed upper-bound tariff table and one-way billable kilometers.",
+  },
+  create: {
+    name: "Vepco Transport B.V.",
+    status: "ACTIVE",
+    billableKmLogic: "ONE_WAY",
+    notes: "Seed customer. Uses fixed upper-bound tariff table and one-way billable kilometers.",
+  },
+});
+
+await prisma.customerTariff.upsert({
+  where: {
+    customerId_name: {
+      customerId: vepco.id,
+      name: "Vepco fixed upper-bound table",
+    },
+  },
+  update: {
+    type: "FIXED_TABLE_UPPER_BOUND",
+    billableKmLogic: "ONE_WAY",
+    isActive: true,
+    notes: "Vepco tariff logic: fixed price table by upper kilometer bound, billed one-way.",
+  },
+  create: {
+    customerId: vepco.id,
+    name: "Vepco fixed upper-bound table",
+    type: "FIXED_TABLE_UPPER_BOUND",
+    billableKmLogic: "ONE_WAY",
+    isActive: true,
+    notes: "Vepco tariff logic: fixed price table by upper kilometer bound, billed one-way.",
+  },
+});
+
+const msi = await prisma.customer.upsert({
+  where: { name: "MSI Transport B.V." },
+  update: {
+    status: "ACTIVE",
+    billableKmLogic: "TOTAL_ROUTE",
+    notes: "Seed customer. Uses price per kilometer on total route kilometers.",
+  },
+  create: {
+    name: "MSI Transport B.V.",
+    status: "ACTIVE",
+    billableKmLogic: "TOTAL_ROUTE",
+    notes: "Seed customer. Uses price per kilometer on total route kilometers.",
+  },
+});
+
+await prisma.customerTariff.upsert({
+  where: {
+    customerId_name: {
+      customerId: msi.id,
+      name: "MSI price per km",
+    },
+  },
+  update: {
+    type: "PRICE_PER_KM",
+    billableKmLogic: "TOTAL_ROUTE",
+    pricePerKm: 1.5,
+    isActive: true,
+    notes: "MSI tariff logic: price per kilometer, total route kilometers.",
+  },
+  create: {
+    customerId: msi.id,
+    name: "MSI price per km",
+    type: "PRICE_PER_KM",
+    billableKmLogic: "TOTAL_ROUTE",
+    pricePerKm: 1.5,
+    isActive: true,
+    notes: "MSI tariff logic: price per kilometer, total route kilometers.",
+  },
+});
+
+const manualCustomerNames = [
+  "Eucon",
+  "Maersk",
+  "MSC",
+];
+
+for (const customerName of manualCustomerNames) {
+  const manualCustomer = await prisma.customer.upsert({
+    where: { name: customerName },
+    update: {
       status: "ACTIVE",
-      billableKmLogic: "ONE_WAY",
-      notes: "Initial test customer for Saleks Transport System.",
+      billableKmLogic: "MANUAL",
+      notes: "Seed customer. Manual pricing until customer-specific tariff is configured.",
+    },
+    create: {
+      name: customerName,
+      status: "ACTIVE",
+      billableKmLogic: "MANUAL",
+      notes: "Seed customer. Manual pricing until customer-specific tariff is configured.",
     },
   });
+
+  await prisma.customerTariff.upsert({
+    where: {
+      customerId_name: {
+        customerId: manualCustomer.id,
+        name: `${customerName} manual pricing`,
+      },
+    },
+    update: {
+      type: "MANUAL",
+      billableKmLogic: "MANUAL",
+      isActive: true,
+      notes: "Manual pricing placeholder.",
+    },
+    create: {
+      customerId: manualCustomer.id,
+      name: `${customerName} manual pricing`,
+      type: "MANUAL",
+      billableKmLogic: "MANUAL",
+      isActive: true,
+      notes: "Manual pricing placeholder.",
+    },
+  });
+}
+
+console.log("Seeded customers: Vepco, MSI, Eucon, Maersk, MSC");
 
   const truck = await prisma.truck.upsert({
     where: { licensePlate: "04-BRS-7" },
@@ -91,7 +206,7 @@ console.log(`Seeded company: ${company.name}`);
 await prisma.course.upsert({
   where: { courseNumber: "TEST-001" },
   update: {
-    customerId: customer.id,
+    customerId: vepco.id,
     truckId: truck.id,
     driverId: driver.id,
     pickupAddressId: pickupAddress.id,
@@ -111,7 +226,7 @@ await prisma.course.upsert({
   },
   create: {
     courseNumber: "TEST-001",
-    customerId: customer.id,
+    customerId: vepco.id,
     truckId: truck.id,
     driverId: driver.id,
     pickupAddressId: pickupAddress.id,
