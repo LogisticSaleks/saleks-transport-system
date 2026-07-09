@@ -82,28 +82,88 @@ const vepco = await prisma.customer.upsert({
   },
 });
 
-await prisma.customerTariff.upsert({
-  where: {
-    customerId_name: {
-      customerId: vepco.id,
-      name: "Vepco fixed upper-bound table",
+const vepcoTariffs = [
+  { name: "Vepco under 10 km", minKm: 0, maxKm: 9.99, fixedPrice: 90 },
+  { name: "Vepco 10 km", minKm: 10, maxKm: 10, fixedPrice: 194 },
+
+  { name: "Vepco 11-15 km", minKm: 11, maxKm: 15, fixedPrice: 214 },
+  { name: "Vepco 16-20 km", minKm: 16, maxKm: 20, fixedPrice: 218 },
+  { name: "Vepco 21-25 km", minKm: 21, maxKm: 25, fixedPrice: 231 },
+  { name: "Vepco 26-30 km", minKm: 26, maxKm: 30, fixedPrice: 240 },
+  { name: "Vepco 31-35 km", minKm: 31, maxKm: 35, fixedPrice: 244 },
+  { name: "Vepco 36-40 km", minKm: 36, maxKm: 40, fixedPrice: 249 },
+  { name: "Vepco 41-45 km", minKm: 41, maxKm: 45, fixedPrice: 253 },
+  { name: "Vepco 46-50 km", minKm: 46, maxKm: 50, fixedPrice: 262 },
+  { name: "Vepco 51-55 km", minKm: 51, maxKm: 55, fixedPrice: 270 },
+  { name: "Vepco 56-60 km", minKm: 56, maxKm: 60, fixedPrice: 279 },
+  { name: "Vepco 61-65 km", minKm: 61, maxKm: 65, fixedPrice: 283 },
+  { name: "Vepco 66-70 km", minKm: 66, maxKm: 70, fixedPrice: 292 },
+  { name: "Vepco 71-75 km", minKm: 71, maxKm: 75, fixedPrice: 299 },
+  { name: "Vepco 76-80 km", minKm: 76, maxKm: 80, fixedPrice: 306 },
+  { name: "Vepco 81-85 km", minKm: 81, maxKm: 85, fixedPrice: 311 },
+  { name: "Vepco 86-90 km", minKm: 86, maxKm: 90, fixedPrice: 315 },
+  { name: "Vepco 91-95 km", minKm: 91, maxKm: 95, fixedPrice: 320 },
+  { name: "Vepco 96-100 km", minKm: 96, maxKm: 100, fixedPrice: 325 },
+  { name: "Vepco 101-110 km", minKm: 101, maxKm: 110, fixedPrice: 341 },
+  { name: "Vepco 111-120 km", minKm: 111, maxKm: 120, fixedPrice: 361 },
+  { name: "Vepco 121-130 km", minKm: 121, maxKm: 130, fixedPrice: 377 },
+  { name: "Vepco 131-140 km", minKm: 131, maxKm: 140, fixedPrice: 393 },
+  { name: "Vepco 141-150 km", minKm: 141, maxKm: 150, fixedPrice: 410 },
+  { name: "Vepco 151-160 km", minKm: 151, maxKm: 160, fixedPrice: 434 },
+  { name: "Vepco 161-170 km", minKm: 161, maxKm: 170, fixedPrice: 459 },
+  { name: "Vepco 171-180 km", minKm: 171, maxKm: 180, fixedPrice: 484 },
+  { name: "Vepco 181-190 km", minKm: 181, maxKm: 190, fixedPrice: 509 },
+  { name: "Vepco 191-200 km", minKm: 191, maxKm: 200, fixedPrice: 535 },
+  { name: "Vepco 201-210 km", minKm: 201, maxKm: 210, fixedPrice: 559 },
+  { name: "Vepco 211-220 km", minKm: 211, maxKm: 220, fixedPrice: 585 },
+  { name: "Vepco 221-230 km", minKm: 221, maxKm: 230, fixedPrice: 601 },
+  { name: "Vepco 231-240 km", minKm: 231, maxKm: 240, fixedPrice: 619 },
+  { name: "Vepco 241-250 km", minKm: 241, maxKm: 250, fixedPrice: 635 },
+  { name: "Vepco 251-260 km", minKm: 251, maxKm: 260, fixedPrice: 652 },
+  { name: "Vepco 261-270 km", minKm: 261, maxKm: 270, fixedPrice: 666 },
+  { name: "Vepco 271-280 km", minKm: 271, maxKm: 280, fixedPrice: 682 },
+  { name: "Vepco 281-290 km", minKm: 281, maxKm: 290, fixedPrice: 698 },
+  { name: "Vepco 291-300 km", minKm: 291, maxKm: 300, fixedPrice: 715 },
+];
+
+for (const tariff of vepcoTariffs) {
+  await prisma.customerTariff.upsert({
+    where: {
+      customerId_name: {
+        customerId: vepco.id,
+        name: tariff.name,
+      },
     },
-  },
-  update: {
-    type: "FIXED_TABLE_UPPER_BOUND",
-    billableKmLogic: "ONE_WAY",
-    isActive: true,
-    notes: "Vepco tariff logic: fixed price table by upper kilometer bound, billed one-way.",
-  },
-  create: {
-    customerId: vepco.id,
-    name: "Vepco fixed upper-bound table",
-    type: "FIXED_TABLE_UPPER_BOUND",
-    billableKmLogic: "ONE_WAY",
-    isActive: true,
-    notes: "Vepco tariff logic: fixed price table by upper kilometer bound, billed one-way.",
-  },
-});
+    update: {
+      type: "FIXED_TABLE_UPPER_BOUND",
+      billableKmLogic: "ONE_WAY",
+      minKm: tariff.minKm,
+      maxKm: tariff.maxKm,
+      fixedPrice: tariff.fixedPrice,
+      pricePerKm: null,
+      waitingHourlyRate: null,
+      portFeeIncluded: false,
+      isActive: true,
+      notes: "Vepco upper-bound tariff. Applied to BILLABLE_KM only.",
+    },
+    create: {
+      customerId: vepco.id,
+      name: tariff.name,
+      type: "FIXED_TABLE_UPPER_BOUND",
+      billableKmLogic: "ONE_WAY",
+      minKm: tariff.minKm,
+      maxKm: tariff.maxKm,
+      fixedPrice: tariff.fixedPrice,
+      pricePerKm: null,
+      waitingHourlyRate: null,
+      portFeeIncluded: false,
+      isActive: true,
+      notes: "Vepco upper-bound tariff. Applied to BILLABLE_KM only.",
+    },
+  });
+}
+
+console.log(`Seeded Vepco tariffs: ${vepcoTariffs.length}`);
 
 const msi = await prisma.customer.upsert({
   where: { name: "MSI Transport B.V." },
