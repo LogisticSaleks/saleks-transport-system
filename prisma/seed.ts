@@ -13,6 +13,39 @@ if (!connectionString) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
+type SeedAddressInput = {
+  name: string;
+  street?: string;
+  city: string;
+  postalCode?: string;
+  country: string;
+  type: "TERMINAL" | "DEPOT" | "CUSTOMER_SITE" | "PORT" | "OTHER";
+  portCode?: string;
+  terminalCode?: string;
+  notes?: string;
+};
+
+async function seedAddress(data: SeedAddressInput) {
+  const existingAddress = await prisma.address.findFirst({
+    where: {
+      name: data.name,
+      city: data.city,
+      country: data.country,
+    },
+  });
+
+  if (existingAddress) {
+    return prisma.address.update({
+      where: { id: existingAddress.id },
+      data,
+    });
+  }
+
+  return prisma.address.create({
+    data,
+  });
+}
+
 async function main() {
   console.log("Start seeding...");
 
@@ -160,6 +193,112 @@ for (const customerName of manualCustomerNames) {
 
 console.log("Seeded customers: Vepco, MSI, Eucon, Maersk, MSC");
 
+const ectDelta = await seedAddress({
+  name: "ECT Delta",
+  city: "Maasvlakte Rotterdam",
+  country: "NL",
+  type: "TERMINAL",
+  terminalCode: "ECT_DELTA",
+  notes: "Seed address. Exact street/postal code can be confirmed later.",
+});
+
+const rwg = await seedAddress({
+  name: "RWG Container Terminal",
+  street: "Amoerweg 50",
+  city: "Maasvlakte Rotterdam",
+  postalCode: "3199 KD",
+  country: "NL",
+  type: "TERMINAL",
+  terminalCode: "RWG",
+  notes: "Seed address.",
+});
+
+const apmtII = await seedAddress({
+  name: "APMT II",
+  street: "Europaweg 910",
+  city: "Maasvlakte Rotterdam",
+  country: "NL",
+  type: "TERMINAL",
+  terminalCode: "APMT_II",
+  notes: "Seed address.",
+});
+
+const cctMoerdijk = await seedAddress({
+  name: "CCT Moerdijk",
+  city: "Moerdijk",
+  country: "NL",
+  type: "TERMINAL",
+  terminalCode: "CCT_MOERDIJK",
+  notes: "Seed address.",
+});
+
+const alconet = await seedAddress({
+  name: "Alconet",
+  city: "Rotterdam",
+  country: "NL",
+  type: "DEPOT",
+  notes: "Seed address. Exact street/postal code can be confirmed later.",
+});
+
+const waalhaven = await seedAddress({
+  name: "Waalhaven",
+  city: "Rotterdam",
+  country: "NL",
+  type: "PORT",
+  portCode: "WAALHAVEN",
+  notes: "Seed address.",
+});
+
+const stolthavenMoerdijk = await seedAddress({
+  name: "Stolthaven Moerdijk",
+  street: "Middenweg 30",
+  city: "Moerdijk",
+  country: "NL",
+  type: "DEPOT",
+  notes: "Seed address.",
+});
+
+const nedcargoWaddinxveen = await seedAddress({
+  name: "Nedcargo Waddinxveen",
+  city: "Waddinxveen",
+  country: "NL",
+  type: "CUSTOMER_SITE",
+  notes: "Seed address. Exact street/postal code can be confirmed later.",
+});
+
+const rdcAlphen = await seedAddress({
+  name: "RDC Alphen",
+  city: "Alphen aan den Rijn",
+  country: "NL",
+  type: "CUSTOMER_SITE",
+  notes: "Seed address. Exact street/postal code can be confirmed later.",
+});
+
+const dsvMoerdijk = await seedAddress({
+  name: "DSV Moerdijk",
+  street: "Exportweg 3",
+  city: "Moerdijk",
+  postalCode: "4782 JA",
+  country: "NL",
+  type: "CUSTOMER_SITE",
+  notes: "Seed address.",
+});
+
+console.log(
+  `Seeded addresses: ${[
+    ectDelta.name,
+    rwg.name,
+    apmtII.name,
+    cctMoerdijk.name,
+    alconet.name,
+    waalhaven.name,
+    stolthavenMoerdijk.name,
+    nedcargoWaddinxveen.name,
+    rdcAlphen.name,
+    dsvMoerdijk.name,
+  ].join(", ")}`
+);
+
 const truckSeeds = [
   {
     name: "Saleks 1",
@@ -233,27 +372,8 @@ console.log(`Seeded trucks: ${seededTrucks.map((truck) => truck.name).join(", ")
     },
   });
 
-  const pickupAddress = await prisma.address.create({
-    data: {
-      name: "RWG Container Terminal",
-      street: "Amoerweg 50",
-      city: "Maasvlakte Rotterdam",
-      postalCode: "3199 KD",
-      country: "NL",
-      type: "TERMINAL",
-      notes: "Initial test terminal address.",
-    },
-  });
-
-  const deliveryAddress = await prisma.address.create({
-    data: {
-      name: "CCT Moerdijk",
-      city: "Moerdijk",
-      country: "NL",
-      type: "TERMINAL",
-      notes: "Initial test delivery address.",
-    },
-  });
+const pickupAddress = rwg;
+const deliveryAddress = cctMoerdijk;
 
 await prisma.course.upsert({
   where: { courseNumber: "TEST-001" },
