@@ -46,8 +46,100 @@ async function seedAddress(data: SeedAddressInput) {
   });
 }
 
+type SeedSettingInput = {
+  key: string;
+  value: string;
+  valueType: "STRING" | "NUMBER" | "BOOLEAN" | "JSON";
+  description: string;
+  group: string;
+  isPublic?: boolean;
+};
+
+async function seedSetting(data: SeedSettingInput) {
+  return prisma.appSetting.upsert({
+    where: { key: data.key },
+    update: {
+      value: data.value,
+      valueType: data.valueType,
+      description: data.description,
+      group: data.group,
+      isPublic: data.isPublic ?? false,
+    },
+    create: {
+      key: data.key,
+      value: data.value,
+      valueType: data.valueType,
+      description: data.description,
+      group: data.group,
+      isPublic: data.isPublic ?? false,
+    },
+  });
+}
+
 async function main() {
   console.log("Start seeding...");
+
+  const settings = [
+  {
+    key: "fuel.price_per_liter",
+    value: "1.55",
+    valueType: "NUMBER" as const,
+    description: "Default diesel fuel price per liter in EUR.",
+    group: "fuel",
+  },
+  {
+    key: "fuel.default_consumption_l_per_100km",
+    value: "30",
+    valueType: "NUMBER" as const,
+    description: "Default truck fuel consumption in liters per 100 km.",
+    group: "fuel",
+  },
+  {
+    key: "waiting.price_per_hour",
+    value: "50",
+    valueType: "NUMBER" as const,
+    description: "Default waiting price per hour in EUR.",
+    group: "waiting",
+  },
+  {
+    key: "waiting.free_hours",
+    value: "2",
+    valueType: "NUMBER" as const,
+    description: "Default free waiting hours before charging waiting time.",
+    group: "waiting",
+  },
+  {
+    key: "tariff.msi.price_per_km",
+    value: "1.50",
+    valueType: "NUMBER" as const,
+    description: "MSI default price per total route kilometer in EUR.",
+    group: "tariff",
+  },
+  {
+    key: "margin.thresholds",
+    value: JSON.stringify({
+      criticalPercent: 5,
+      warningPercent: 15,
+      targetPercent: 25,
+    }),
+    valueType: "JSON" as const,
+    description: "Margin thresholds for profitability warnings.",
+    group: "finance",
+  },
+  {
+    key: "route_cache.days",
+    value: "30",
+    valueType: "NUMBER" as const,
+    description: "Number of days to keep cached route calculations.",
+    group: "routing",
+  },
+];
+
+for (const setting of settings) {
+  await seedSetting(setting);
+}
+
+console.log(`Seeded settings: ${settings.length}`);
 
   const company = await prisma.company.upsert({
   where: { name: "Saleks" },

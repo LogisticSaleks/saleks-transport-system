@@ -92,6 +92,13 @@ enum DocumentType {
   OTHER
 }
 
+enum SettingValueType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
 model Company {
   id                 String        @id @default(cuid())
   name               String        @unique
@@ -114,6 +121,22 @@ model Company {
   updatedAt          DateTime      @updatedAt
 
   @@index([status])
+}
+
+model AppSetting {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  value       String
+  valueType   SettingValueType @default(STRING)
+  description String?
+  group       String?
+  isPublic    Boolean          @default(false)
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([group])
+  @@index([key])
 }
 
 model Customer {
