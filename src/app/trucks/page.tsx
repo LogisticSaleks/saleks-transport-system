@@ -1,16 +1,11 @@
-import { AuthGuard } from "@/components/auth/AuthGuard";
+import { AppShell } from "@/components/layout/AppShell";
 
 export default function TrucksPage() {
   return (
-    <AuthGuard>
-      <main className="min-h-screen bg-slate-100 p-8">
-        <div className="mx-auto max-w-5xl rounded-2xl bg-white p-8 shadow">
-          <h1 className="text-2xl font-bold text-slate-900">Trucks</h1>
-          <p className="mt-2 text-slate-600">
-            Trucks placeholder for Saleks Transport System.
-          </p>
-        </div>
-      </main>
-    </AuthGuard>
+    <AppShell title="Trucks">
+      <p className="text-slate-600">
+        Trucks placeholder for Saleks Transport System.
+      </p>
+    </AppShell>
   );
 }
