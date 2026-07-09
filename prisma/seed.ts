@@ -160,17 +160,69 @@ for (const customerName of manualCustomerNames) {
 
 console.log("Seeded customers: Vepco, MSI, Eucon, Maersk, MSC");
 
-  const truck = await prisma.truck.upsert({
-    where: { licensePlate: "04-BRS-7" },
-    update: {},
-    create: {
-      name: "Saleks 1",
-      licensePlate: "04-BRS-7",
-      vin: "WMA06XZZ9HM741490",
+const truckSeeds = [
+  {
+    name: "Saleks 1",
+    licensePlate: "04-BRS-7",
+    vin: "WMA06XZZ9HM741490",
+    notes: "Seed truck: Saleks 1.",
+  },
+  {
+    name: "Saleks 2",
+    licensePlate: "SALEKS-2",
+    notes: "Seed truck: Saleks 2.",
+  },
+  {
+    name: "Saleks 3",
+    licensePlate: "SALEKS-3",
+    notes: "Seed truck: Saleks 3.",
+  },
+  {
+    name: "Saleks 4",
+    licensePlate: "SALEKS-4",
+    notes: "Seed truck: Saleks 4.",
+  },
+  {
+    name: "Saleks 5",
+    licensePlate: "SALEKS-5",
+    notes: "Seed truck: Saleks 5.",
+  },
+];
+
+const seededTrucks = [];
+
+for (const truckSeed of truckSeeds) {
+  const seededTruck = await prisma.truck.upsert({
+    where: { licensePlate: truckSeed.licensePlate },
+    update: {
+      name: truckSeed.name,
+      vin: truckSeed.vin,
       status: "ACTIVE",
-      notes: "Initial test truck.",
+      euroClass: "Euro 6",
+      defaultFuelConsumptionLPer100Km: 30,
+      notes: truckSeed.notes,
+    },
+    create: {
+      name: truckSeed.name,
+      licensePlate: truckSeed.licensePlate,
+      vin: truckSeed.vin,
+      status: "ACTIVE",
+      euroClass: "Euro 6",
+      defaultFuelConsumptionLPer100Km: 30,
+      notes: truckSeed.notes,
     },
   });
+
+  seededTrucks.push(seededTruck);
+}
+
+const saleks1 = seededTrucks.find((truck) => truck.name === "Saleks 1");
+
+if (!saleks1) {
+  throw new Error("Saleks 1 was not seeded");
+}
+
+console.log(`Seeded trucks: ${seededTrucks.map((truck) => truck.name).join(", ")}`);
 
   const driver = await prisma.driver.create({
     data: {
@@ -207,7 +259,7 @@ await prisma.course.upsert({
   where: { courseNumber: "TEST-001" },
   update: {
     customerId: vepco.id,
-    truckId: truck.id,
+    truckId: saleks1.id,
     driverId: driver.id,
     pickupAddressId: pickupAddress.id,
     deliveryAddressId: deliveryAddress.id,
@@ -227,7 +279,7 @@ await prisma.course.upsert({
   create: {
     courseNumber: "TEST-001",
     customerId: vepco.id,
-    truckId: truck.id,
+    truckId: saleks1.id,
     driverId: driver.id,
     pickupAddressId: pickupAddress.id,
     deliveryAddressId: deliveryAddress.id,

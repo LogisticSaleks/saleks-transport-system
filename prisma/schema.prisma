@@ -183,20 +183,25 @@ model CustomerAddress {
 }
 
 model Truck {
-  id                 String       @id @default(cuid())
-  name               String
-  licensePlate       String       @unique
-  vin                String?
-  status             TruckStatus  @default(ACTIVE)
-  notes              String?
+  id                              String       @id @default(cuid())
+  name                            String
+  licensePlate                    String       @unique
+  vin                             String?
+  status                          TruckStatus  @default(ACTIVE)
 
-  courses            Course[]
-  costs              Cost[]
+  euroClass                       String       @default("Euro 6")
+  defaultFuelConsumptionLPer100Km Decimal      @default(30) @db.Decimal(10, 2)
 
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  notes                           String?
+
+  courses                         Course[]
+  costs                           Cost[]
+
+  createdAt                       DateTime     @default(now())
+  updatedAt                       DateTime     @updatedAt
 
   @@index([name])
+  @@index([status])
 }
 
 model Driver {
