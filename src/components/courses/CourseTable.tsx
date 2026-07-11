@@ -11,16 +11,21 @@ function createEmptyCourseRow(id: number): CourseRowData {
   return {
     id,
     truck: "",
+    customer: "",
+    courseType: "",
     pickup: "",
     loadingUnloading: "",
     extraAddress: "",
     returnAddress: "",
     kilometers: "",
+    billableKilometers: "",
     containerNumber: "",
     waitingMinutes: "",
     price: "",
     tollFee: "",
     portFee: "",
+    profit: "",
+    status: "",
   };
 }
 
@@ -50,7 +55,7 @@ export default function CourseTable() {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="min-w-0 space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">
@@ -71,25 +76,33 @@ export default function CourseTable() {
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[2050px] table-fixed border-collapse text-sm">
+      <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <table className="min-w-[3120px] table-fixed border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="w-14 border-b border-r border-slate-200 px-3 py-3 text-center font-semibold text-slate-700">
+              <th className="sticky left-0 z-20 w-14 min-w-14 border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-center font-semibold text-slate-700">
                 #
               </th>
 
               {COURSE_COLUMNS.map((column) => (
                 <th
                   key={column.key}
-                  className="w-40 border-b border-r border-slate-200 px-3 py-3 text-left font-semibold text-slate-700"
+                  style={{
+                    width: column.width,
+                    minWidth: column.width,
+                  }}
+                  className="whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 text-left font-semibold text-slate-700"
                 >
                   {column.label}
                 </th>
               ))}
 
-              <th className="w-32 border-b border-slate-200 px-3 py-3 text-left font-semibold text-slate-700">
-                Actions
+              <th className="sticky right-[120px] z-20 w-[130px] min-w-[130px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-left font-semibold text-slate-700">
+                Запази
+              </th>
+
+              <th className="sticky right-0 z-20 w-[120px] min-w-[120px] whitespace-nowrap border-b border-slate-200 bg-slate-100 px-3 py-3 text-left font-semibold text-slate-700">
+                Детайли
               </th>
             </tr>
           </thead>
@@ -106,6 +119,11 @@ export default function CourseTable() {
           </tbody>
         </table>
       </div>
+
+      <p className="text-xs text-slate-500">
+        Използвай хоризонталния скрол, за да видиш всички
+        колони.
+      </p>
     </section>
   );
 }
