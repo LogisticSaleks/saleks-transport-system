@@ -1,8 +1,15 @@
 "use client";
 
+export type CustomerTariffOption = {
+  type: string;
+  pricePerKm: number | null;
+  fixedPrice: number | null;
+};
+
 export type CustomerOption = {
   id: string;
   name: string;
+  tariffs: readonly CustomerTariffOption[];
 };
 
 type CustomerSelectProps = {

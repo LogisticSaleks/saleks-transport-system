@@ -12,7 +12,7 @@ type AddressForDeduplication = {
 };
 
 export default async function CoursesPage() {
-  const [trucks, customers, rawAddresses] =
+  const [trucks, rawCustomers, rawAddresses] =
     await Promise.all([
       prisma.truck.findMany({
         where: {
@@ -40,6 +40,19 @@ export default async function CoursesPage() {
         select: {
           id: true,
           name: true,
+          tariffs: {
+            where: {
+              isActive: true,
+            },
+            select: {
+              type: true,
+              pricePerKm: true,
+              fixedPrice: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
         },
         orderBy: {
           name: "asc",
@@ -66,6 +79,22 @@ export default async function CoursesPage() {
         ],
       }),
     ]);
+
+  const customers = rawCustomers.map((customer) => ({
+    id: customer.id,
+    name: customer.name,
+    tariffs: customer.tariffs.map((tariff) => ({
+      type: tariff.type,
+      pricePerKm:
+        tariff.pricePerKm === null
+          ? null
+          : Number(tariff.pricePerKm),
+      fixedPrice:
+        tariff.fixedPrice === null
+          ? null
+          : Number(tariff.fixedPrice),
+    })),
+  }));
 
   const addresses = Array.from(
     new Map(

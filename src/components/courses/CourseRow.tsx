@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import {
+  calculateCourse,
+  type CoursePricingMethod,
+} from "@/lib/calculations/calculateCourse";
+import { calculationSettings } from "@/lib/settings/calculationSettings";
 
 import AddressAutocomplete, {
   type AddressOption,
@@ -22,8 +28,8 @@ export type CourseRowData = {
   loadingUnloadingAddressId: string;
   extraAddressId: string;
   returnAddressId: string;
-  kilometers: string;
-  billableKilometers: string;
+  totalKm: string;
+  billableKm: string;
   containerNumber: string;
   waitingMinutes: string;
   price: string;
@@ -103,7 +109,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
     width: 240,
   },
   {
-    key: "kilometers",
+    key: "totalKm",
     label: "Км",
     inputType: "number",
     placeholder: "0",
@@ -112,7 +118,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
     width: 110,
   },
   {
-    key: "billableKilometers",
+    key: "billableKm",
     label: "Платими км",
     inputType: "number",
     placeholder: "0",
@@ -188,6 +194,13 @@ type CourseRowProps = {
   onSave: (row: CourseRowData) => void;
 };
 
+type ResolvedPricing = {
+  method: CoursePricingMethod;
+  pricePerKm: number | null;
+  fixedPrice: number | null;
+  isAutomatic: boolean;
+};
+
 export default function CourseRow({
   rowNumber,
   initialRow,
@@ -200,6 +213,83 @@ export default function CourseRow({
     useState<CourseRowData>(initialRow);
 
   const [isSaved, setIsSaved] = useState(false);
+
+  const selectedCustomer = useMemo(
+    () =>
+      customerOptions.find(
+        (customer) => customer.id === draft.customerId,
+      ),
+    [customerOptions, draft.customerId],
+  );
+
+  const pricing = useMemo(
+    () =>
+      resolveCustomerPricing(
+        selectedCustomer,
+        draft.courseType,
+      ),
+    [selectedCustomer, draft.courseType],
+  );
+
+  const calculation = useMemo(() => {
+    const totalKm = parseRequiredNumber(draft.totalKm);
+    const billableKm = parseRequiredNumber(
+      draft.billableKm,
+    );
+
+    if (totalKm === null || billableKm === null) {
+      return null;
+    }
+
+    const manualPrice = parseRequiredNumber(draft.price);
+
+    if (
+      pricing.method === "MANUAL" &&
+      manualPrice === null
+    ) {
+      return null;
+    }
+
+    const settings = {
+      ...calculationSettings,
+      msi: {
+        ...calculationSettings.msi,
+        pricePerKm:
+          pricing.pricePerKm ??
+          calculationSettings.msi.pricePerKm,
+      },
+    };
+
+    try {
+      return calculateCourse({
+        routeLegs: [
+          {
+            distanceKm: totalKm,
+            tollCost: 0,
+            isBillable: true,
+          },
+        ],
+        billableKmLogic: "MANUAL",
+        pricingMethod: pricing.method,
+        manualBillableKm: billableKm,
+        fixedPrice: pricing.fixedPrice ?? undefined,
+        manualPrice:
+          pricing.method === "MANUAL"
+            ? manualPrice ?? undefined
+            : undefined,
+        manualTollOverride: parseOptionalNumber(
+          draft.tollFee,
+        ),
+        waitingMinutes: parseOptionalNumber(
+          draft.waitingMinutes,
+        ),
+        portCost: parseOptionalNumber(draft.portFee),
+        settings,
+      });
+    } catch {
+      return null;
+    }
+  }, [draft, pricing]);
 
   function handleCellChange(
     field: EditableCourseField,
@@ -214,7 +304,23 @@ export default function CourseRow({
   }
 
   function handleSave(): void {
-    onSave(draft);
+    const savedRow: CourseRowData = {
+      ...draft,
+      price:
+        calculation?.price !== null &&
+        calculation?.price !== undefined
+          ? formatMoney(calculation.price)
+          : draft.price,
+      profit:
+        calculation?.profit !== null &&
+        calculation?.profit !== undefined
+          ? formatMoney(calculation.profit)
+          : "",
+      status: calculation?.status ?? "",
+    };
+
+    setDraft(savedRow);
+    onSave(savedRow);
     setIsSaved(true);
   }
 
@@ -279,6 +385,62 @@ export default function CourseRow({
                 )
               }
             />
+          ) : column.key === "price" ? (
+            <input
+              type="number"
+              value={
+                pricing.isAutomatic
+                  ? calculation?.price !== null &&
+                    calculation?.price !== undefined
+                    ? formatMoney(calculation.price)
+                    : ""
+                  : draft.price
+              }
+              min={0}
+              step={0.01}
+              readOnly={pricing.isAutomatic}
+              placeholder={
+                pricing.isAutomatic
+                  ? "Автоматично"
+                  : "0.00"
+              }
+              aria-label={`Цена (€), ред ${rowNumber}`}
+              onChange={(event) =>
+                handleCellChange(
+                  "price",
+                  event.target.value,
+                )
+              }
+              className={[
+                "h-10 w-full rounded border px-2 outline-none transition",
+                pricing.isAutomatic
+                  ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
+                  : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
+              ].join(" ")}
+            />
+          ) : column.key === "profit" ? (
+            <input
+              type="text"
+              value={
+                calculation?.profit !== null &&
+                calculation?.profit !== undefined
+                  ? formatMoney(calculation.profit)
+                  : ""
+              }
+              readOnly
+              placeholder="Автоматично"
+              aria-label={`Печалба, ред ${rowNumber}`}
+              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+            />
+          ) : column.key === "status" ? (
+            <input
+              type="text"
+              value={calculation?.status ?? ""}
+              readOnly
+              placeholder="Автоматично"
+              aria-label={`Статус, ред ${rowNumber}`}
+              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+            />
           ) : (
             <input
               type={column.inputType ?? "text"}
@@ -297,8 +459,8 @@ export default function CourseRow({
               className={[
                 "h-10 w-full rounded border px-2 outline-none transition",
                 column.readOnly
-                  ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500 placeholder:text-slate-400"
-                  : "border-transparent bg-transparent text-slate-900 placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
+                  ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
+                  : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
               ].join(" ")}
             />
           )}
@@ -335,6 +497,135 @@ export default function CourseRow({
       </td>
     </tr>
   );
+}
+
+function resolveCustomerPricing(
+  customer: CustomerOption | undefined,
+  courseType: string,
+): ResolvedPricing {
+  if (!customer) {
+    return {
+      method: "MANUAL",
+      pricePerKm: null,
+      fixedPrice: null,
+      isAutomatic: false,
+    };
+  }
+
+  if (courseType === "SHUNT") {
+    const shuntTariff = customer.tariffs.find(
+      (tariff) =>
+        tariff.type === "SHUNT" &&
+        tariff.fixedPrice !== null,
+    );
+
+    if (
+      shuntTariff &&
+      shuntTariff.fixedPrice !== null
+    ) {
+      return {
+        method: "FIXED_PRICE",
+        pricePerKm: null,
+        fixedPrice: shuntTariff.fixedPrice,
+        isAutomatic: true,
+      };
+    }
+  }
+
+  const tableTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "FIXED_TABLE_UPPER_BOUND" ||
+      tariff.type === "DISTANCE_TABLE",
+  );
+
+  if (tableTariff) {
+    return {
+      method: "VEPCO",
+      pricePerKm: null,
+      fixedPrice: null,
+      isAutomatic: true,
+    };
+  }
+
+  const pricePerKmTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "PRICE_PER_KM" &&
+      tariff.pricePerKm !== null,
+  );
+
+  if (
+    pricePerKmTariff &&
+    pricePerKmTariff.pricePerKm !== null
+  ) {
+    return {
+      method: "MSI",
+      pricePerKm: pricePerKmTariff.pricePerKm,
+      fixedPrice: null,
+      isAutomatic: true,
+    };
+  }
+
+  const fixedPriceTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "FIXED_PRICE" &&
+      tariff.fixedPrice !== null,
+  );
+
+  if (
+    fixedPriceTariff &&
+    fixedPriceTariff.fixedPrice !== null
+  ) {
+    return {
+      method: "FIXED_PRICE",
+      pricePerKm: null,
+      fixedPrice: fixedPriceTariff.fixedPrice,
+      isAutomatic: true,
+    };
+  }
+
+  return {
+    method: "MANUAL",
+    pricePerKm: null,
+    fixedPrice: null,
+    isAutomatic: false,
+  };
+}
+
+function parseRequiredNumber(
+  value: string,
+): number | null {
+  if (value.trim() === "") {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  if (
+    !Number.isFinite(parsedValue) ||
+    parsedValue < 0
+  ) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
+function parseOptionalNumber(value: string): number {
+  const parsedValue = Number(value);
+
+  if (
+    value.trim() === "" ||
+    !Number.isFinite(parsedValue) ||
+    parsedValue < 0
+  ) {
+    return 0;
+  }
+
+  return parsedValue;
+}
+
+function formatMoney(value: number): string {
+  return value.toFixed(2);
 }
 
 function isAddressField(
