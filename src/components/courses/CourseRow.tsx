@@ -15,6 +15,7 @@ import CourseTypeSelect from "./CourseTypeSelect";
 import CustomerSelect, {
   type CustomerOption,
 } from "./CustomerSelect";
+import ManualMarker from "./ManualMarker";
 import StatusBadge from "./StatusBadge";
 import TruckSelect, {
   type TruckOption,
@@ -53,6 +54,8 @@ type AddressField =
   | "extraAddressId"
   | "returnAddressId";
 
+type ManualKmField = "totalKm" | "billableKm";
+
 export type CourseColumn = {
   key: EditableCourseField;
   label: string;
@@ -71,11 +74,28 @@ type ResolvedPricing = {
   isAutomatic: boolean;
 };
 
+type NumberInputWithMarkerProps = {
+  value: string;
+  label: string;
+  rowNumber: number;
+  placeholder?: string;
+  min?: number;
+  step?: number;
+  readOnly?: boolean;
+  showMarker: boolean;
+  onChange?: (value: string) => void;
+};
+
 const ADDRESS_FIELDS: readonly AddressField[] = [
   "pickupAddressId",
   "loadingUnloadingAddressId",
   "extraAddressId",
   "returnAddressId",
+];
+
+const MANUAL_KM_FIELDS: readonly ManualKmField[] = [
+  "totalKm",
+  "billableKm",
 ];
 
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
@@ -438,9 +458,23 @@ export default function CourseRow({
                 )
               }
             />
+          ) : isManualKmField(column.key) ? (
+            <NumberInputWithMarker
+              value={draft[column.key]}
+              label={column.label}
+              rowNumber={rowNumber}
+              placeholder={column.placeholder}
+              min={column.min}
+              step={column.step}
+              showMarker={
+                draft[column.key].trim() !== ""
+              }
+              onChange={(value) =>
+                handleCellChange(column.key, value)
+              }
+            />
           ) : column.key === "price" ? (
-            <input
-              type="number"
+            <NumberInputWithMarker
               value={
                 pricing.isAutomatic
                   ? calculation?.price !== null &&
@@ -449,27 +483,36 @@ export default function CourseRow({
                     : ""
                   : draft.price
               }
-              min={0}
-              step={0.01}
-              readOnly={pricing.isAutomatic}
+              label={column.label}
+              rowNumber={rowNumber}
               placeholder={
                 pricing.isAutomatic
                   ? "Автоматично"
                   : "0.00"
               }
-              aria-label={`Цена (€), ред ${rowNumber}`}
-              onChange={(event) =>
-                handleCellChange(
-                  "price",
-                  event.target.value,
-                )
+              min={0}
+              step={0.01}
+              readOnly={pricing.isAutomatic}
+              showMarker={
+                !pricing.isAutomatic &&
+                draft.price.trim() !== ""
               }
-              className={[
-                "h-10 w-full rounded border px-2 outline-none transition",
-                pricing.isAutomatic
-                  ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
-                  : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
-              ].join(" ")}
+              onChange={(value) =>
+                handleCellChange("price", value)
+              }
+            />
+          ) : column.key === "tollFee" ? (
+            <NumberInputWithMarker
+              value={draft.tollFee}
+              label={column.label}
+              rowNumber={rowNumber}
+              placeholder={column.placeholder}
+              min={column.min}
+              step={column.step}
+              showMarker={draft.tollFee.trim() !== ""}
+              onChange={(value) =>
+                handleCellChange("tollFee", value)
+              }
             />
           ) : column.key === "fuelCost" ? (
             <input
@@ -576,6 +619,46 @@ export default function CourseRow({
         </button>
       </td>
     </tr>
+  );
+}
+
+function NumberInputWithMarker({
+  value,
+  label,
+  rowNumber,
+  placeholder,
+  min,
+  step,
+  readOnly = false,
+  showMarker,
+  onChange,
+}: NumberInputWithMarkerProps) {
+  return (
+    <div className="relative">
+      <input
+        type="number"
+        value={value}
+        min={min}
+        step={step}
+        readOnly={readOnly}
+        placeholder={placeholder}
+        aria-label={`${label}, ред ${rowNumber}`}
+        onChange={(event) =>
+          onChange?.(event.target.value)
+        }
+        className={[
+          "h-10 w-full rounded border px-2 pr-12 outline-none transition",
+          readOnly
+            ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
+            : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
+        ].join(" ")}
+      />
+
+      <ManualMarker
+        visible={showMarker}
+        fieldLabel={label}
+      />
+    </div>
   );
 }
 
@@ -716,5 +799,13 @@ function isAddressField(
 ): field is AddressField {
   return (
     ADDRESS_FIELDS as readonly EditableCourseField[]
+  ).includes(field);
+}
+
+function isManualKmField(
+  field: EditableCourseField,
+): field is ManualKmField {
+  return (
+    MANUAL_KM_FIELDS as readonly EditableCourseField[]
   ).includes(field);
 }
