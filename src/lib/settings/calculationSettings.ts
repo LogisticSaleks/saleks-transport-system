@@ -10,6 +10,10 @@ export type CalculationSettings = {
     freeWaitingHours: number;
     pricePerHour: number;
   };
+  pricingStatus: {
+    lowProfitMarginPercent: number;
+    breakEvenTolerance: number;
+  };
 };
 
 /**
@@ -29,5 +33,9 @@ export const calculationSettings: CalculationSettings = {
   waiting: {
     freeWaitingHours: 2,
     pricePerHour: 50,
+  },
+  pricingStatus: {
+    lowProfitMarginPercent: 10,
+    breakEvenTolerance: 0.01,
   },
 };
