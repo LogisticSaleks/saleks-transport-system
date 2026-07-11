@@ -6,12 +6,19 @@ import CourseRow, {
   COURSE_COLUMNS,
   type CourseRowData,
 } from "./CourseRow";
+import type { CustomerOption } from "./CustomerSelect";
+import type { TruckOption } from "./TruckSelect";
+
+type CourseTableProps = {
+  trucks: readonly TruckOption[];
+  customers: readonly CustomerOption[];
+};
 
 function createEmptyCourseRow(id: number): CourseRowData {
   return {
     id,
-    truck: "",
-    customer: "",
+    truckId: "",
+    customerId: "",
     courseType: "",
     pickup: "",
     loadingUnloading: "",
@@ -29,7 +36,10 @@ function createEmptyCourseRow(id: number): CourseRowData {
   };
 }
 
-export default function CourseTable() {
+export default function CourseTable({
+  trucks,
+  customers,
+}: CourseTableProps) {
   const nextRowId = useRef(2);
 
   const [rows, setRows] = useState<CourseRowData[]>([
@@ -113,6 +123,8 @@ export default function CourseTable() {
                 key={row.id}
                 rowNumber={rowIndex + 1}
                 initialRow={row}
+                truckOptions={trucks}
+                customerOptions={customers}
                 onSave={handleSaveRow}
               />
             ))}

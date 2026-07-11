@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 
+import CourseTypeSelect from "./CourseTypeSelect";
+import CustomerSelect, {
+  type CustomerOption,
+} from "./CustomerSelect";
+import TruckSelect, {
+  type TruckOption,
+} from "./TruckSelect";
+
 export type CourseRowData = {
   id: number;
-  truck: string;
-  customer: string;
+  truckId: string;
+  customerId: string;
   courseType: string;
   pickup: string;
   loadingUnloading: string;
@@ -30,34 +38,28 @@ export type EditableCourseField = Exclude<
 export type CourseColumn = {
   key: EditableCourseField;
   label: string;
-  type?: "text" | "number" | "select";
+  inputType?: "text" | "number";
   placeholder?: string;
   min?: number;
   step?: number;
-  options?: readonly string[];
   readOnly?: boolean;
   width: number;
 };
 
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
-    key: "truck",
+    key: "truckId",
     label: "Камион",
-    placeholder: "Избери камион",
-    width: 150,
+    width: 170,
   },
   {
-    key: "customer",
+    key: "customerId",
     label: "Клиент",
-    placeholder: "Избери клиент",
     width: 170,
   },
   {
     key: "courseType",
     label: "Тип",
-    type: "select",
-    placeholder: "Избери тип",
-    options: ["ROUND_TRIP", "SHUNT"],
     width: 140,
   },
   {
@@ -87,7 +89,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "kilometers",
     label: "Км",
-    type: "number",
+    inputType: "number",
     placeholder: "0",
     min: 0,
     step: 0.1,
@@ -96,7 +98,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "billableKilometers",
     label: "Платими км",
-    type: "number",
+    inputType: "number",
     placeholder: "0",
     min: 0,
     step: 0.1,
@@ -111,7 +113,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "waitingMinutes",
     label: "Престой (мин)",
-    type: "number",
+    inputType: "number",
     placeholder: "0",
     min: 0,
     step: 1,
@@ -120,7 +122,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "price",
     label: "Цена (€)",
-    type: "number",
+    inputType: "number",
     placeholder: "0.00",
     min: 0,
     step: 0.01,
@@ -129,7 +131,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "tollFee",
     label: "Тол (€)",
-    type: "number",
+    inputType: "number",
     placeholder: "0.00",
     min: 0,
     step: 0.01,
@@ -138,7 +140,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "portFee",
     label: "Пристанище (€)",
-    type: "number",
+    inputType: "number",
     placeholder: "0.00",
     min: 0,
     step: 0.01,
@@ -147,7 +149,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "profit",
     label: "Печалба (€)",
-    type: "number",
+    inputType: "number",
     placeholder: "Автоматично",
     readOnly: true,
     width: 135,
@@ -164,12 +166,16 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
 type CourseRowProps = {
   rowNumber: number;
   initialRow: CourseRowData;
+  truckOptions: readonly TruckOption[];
+  customerOptions: readonly CustomerOption[];
   onSave: (row: CourseRowData) => void;
 };
 
 export default function CourseRow({
   rowNumber,
   initialRow,
+  truckOptions,
+  customerOptions,
   onSave,
 }: CourseRowProps) {
   const [draft, setDraft] =
@@ -209,35 +215,38 @@ export default function CourseRow({
           }}
           className="border-b border-r border-slate-200 p-1"
         >
-          {column.type === "select" ? (
-            <select
-              value={draft[column.key]}
-              aria-label={`${column.label}, ред ${rowNumber}`}
-              onChange={(event) =>
+          {column.key === "truckId" ? (
+            <TruckSelect
+              value={draft.truckId}
+              trucks={truckOptions}
+              rowNumber={rowNumber}
+              onChange={(truckId) =>
+                handleCellChange("truckId", truckId)
+              }
+            />
+          ) : column.key === "customerId" ? (
+            <CustomerSelect
+              value={draft.customerId}
+              customers={customerOptions}
+              rowNumber={rowNumber}
+              onChange={(customerId) =>
+                handleCellChange("customerId", customerId)
+              }
+            />
+          ) : column.key === "courseType" ? (
+            <CourseTypeSelect
+              value={draft.courseType}
+              rowNumber={rowNumber}
+              onChange={(courseType) =>
                 handleCellChange(
-                  column.key,
-                  event.target.value,
+                  "courseType",
+                  courseType,
                 )
               }
-              className="h-10 w-full rounded border border-transparent bg-transparent px-2 text-slate-900 outline-none transition hover:border-slate-200 focus:border-slate-400 focus:bg-white"
-            >
-              <option value="">
-                {column.placeholder ?? "Избери"}
-              </option>
-
-              {column.options?.map((option) => (
-                <option key={option} value={option}>
-                  {option === "ROUND_TRIP"
-                    ? "Кръгов"
-                    : option === "SHUNT"
-                      ? "Шунт"
-                      : option}
-                </option>
-              ))}
-            </select>
+            />
           ) : (
             <input
-              type={column.type ?? "text"}
+              type={column.inputType ?? "text"}
               value={draft[column.key]}
               min={column.min}
               step={column.step}
@@ -262,33 +271,33 @@ export default function CourseRow({
       ))}
 
       <td className="sticky right-[120px] z-10 w-[130px] min-w-[130px] border-b border-r border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-  <div className="flex flex-col items-start gap-1">
-    <button
-      type="button"
-      onClick={handleSave}
-      className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
-    >
-      Save
-    </button>
+        <div className="flex flex-col items-start gap-1">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Save
+          </button>
 
-    {isSaved && (
-      <span className="text-xs font-medium text-emerald-600">
-        Saved
-      </span>
-    )}
-  </div>
-</td>
+          {isSaved && (
+            <span className="text-xs font-medium text-emerald-600">
+              Saved
+            </span>
+          )}
+        </div>
+      </td>
 
-<td className="sticky right-0 z-10 w-[120px] min-w-[120px] border-b border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-  <button
-    type="button"
-    disabled
-    title="Детайлният изглед ще бъде добавен в следваща задача."
-    className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-400"
-  >
-    Детайли
-  </button>
-  </td>
+      <td className="sticky right-0 z-10 w-[120px] min-w-[120px] border-b border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
+        <button
+          type="button"
+          disabled
+          title="Детайлният изглед ще бъде добавен в следваща задача."
+          className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-400"
+        >
+          Детайли
+        </button>
+      </td>
     </tr>
   );
 }
