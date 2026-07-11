@@ -2,106 +2,12 @@
 
 import { useRef, useState } from "react";
 
-type CourseRow = {
-  id: number;
-  truck: string;
-  pickup: string;
-  loadingUnloading: string;
-  extraAddress: string;
-  returnAddress: string;
-  kilometers: string;
-  containerNumber: string;
-  waitingMinutes: string;
-  price: string;
-  tollFee: string;
-  portFee: string;
-};
+import CourseRow, {
+  COURSE_COLUMNS,
+  type CourseRowData,
+} from "./CourseRow";
 
-type EditableCourseField = Exclude<keyof CourseRow, "id">;
-
-type CourseColumn = {
-  key: EditableCourseField;
-  label: string;
-  type?: "text" | "number";
-  placeholder?: string;
-  min?: number;
-  step?: number;
-};
-
-const COURSE_COLUMNS: readonly CourseColumn[] = [
-  {
-    key: "truck",
-    label: "Truck",
-    placeholder: "Select truck",
-  },
-  {
-    key: "pickup",
-    label: "Pickup",
-    placeholder: "Pickup address",
-  },
-  {
-    key: "loadingUnloading",
-    label: "Loading / Unloading",
-    placeholder: "Customer address",
-  },
-  {
-    key: "extraAddress",
-    label: "Extra Address",
-    placeholder: "Optional address",
-  },
-  {
-    key: "returnAddress",
-    label: "Return",
-    placeholder: "Return / drop-off",
-  },
-  {
-    key: "kilometers",
-    label: "Kilometers",
-    type: "number",
-    placeholder: "0",
-    min: 0,
-    step: 0.1,
-  },
-  {
-    key: "containerNumber",
-    label: "Container Number",
-    placeholder: "ABCD 123456-7",
-  },
-  {
-    key: "waitingMinutes",
-    label: "Waiting (min)",
-    type: "number",
-    placeholder: "0",
-    min: 0,
-    step: 1,
-  },
-  {
-    key: "price",
-    label: "Price (€)",
-    type: "number",
-    placeholder: "0.00",
-    min: 0,
-    step: 0.01,
-  },
-  {
-    key: "tollFee",
-    label: "Toll Fee (€)",
-    type: "number",
-    placeholder: "0.00",
-    min: 0,
-    step: 0.01,
-  },
-  {
-    key: "portFee",
-    label: "Port Fee (€)",
-    type: "number",
-    placeholder: "0.00",
-    min: 0,
-    step: 0.01,
-  },
-];
-
-function createEmptyCourseRow(id: number): CourseRow {
+function createEmptyCourseRow(id: number): CourseRowData {
   return {
     id,
     truck: "",
@@ -121,7 +27,7 @@ function createEmptyCourseRow(id: number): CourseRow {
 export default function CourseTable() {
   const nextRowId = useRef(2);
 
-  const [rows, setRows] = useState<CourseRow[]>([
+  const [rows, setRows] = useState<CourseRowData[]>([
     createEmptyCourseRow(1),
   ]);
 
@@ -135,19 +41,10 @@ export default function CourseTable() {
     ]);
   }
 
-  function handleCellChange(
-    rowId: number,
-    field: EditableCourseField,
-    value: string,
-  ): void {
+  function handleSaveRow(savedRow: CourseRowData): void {
     setRows((currentRows) =>
       currentRows.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              [field]: value,
-            }
-          : row,
+        row.id === savedRow.id ? savedRow : row,
       ),
     );
   }
@@ -175,7 +72,7 @@ export default function CourseTable() {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[1900px] table-fixed border-collapse text-sm">
+        <table className="min-w-[2050px] table-fixed border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="w-14 border-b border-r border-slate-200 px-3 py-3 text-center font-semibold text-slate-700">
@@ -185,48 +82,26 @@ export default function CourseTable() {
               {COURSE_COLUMNS.map((column) => (
                 <th
                   key={column.key}
-                  className="w-40 border-b border-r border-slate-200 px-3 py-3 text-left font-semibold text-slate-700 last:border-r-0"
+                  className="w-40 border-b border-r border-slate-200 px-3 py-3 text-left font-semibold text-slate-700"
                 >
                   {column.label}
                 </th>
               ))}
+
+              <th className="w-32 border-b border-slate-200 px-3 py-3 text-left font-semibold text-slate-700">
+                Actions
+              </th>
             </tr>
           </thead>
 
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr
+              <CourseRow
                 key={row.id}
-                className="hover:bg-slate-50"
-              >
-                <td className="border-b border-r border-slate-200 px-3 py-2 text-center text-slate-500">
-                  {rowIndex + 1}
-                </td>
-
-                {COURSE_COLUMNS.map((column) => (
-                  <td
-                    key={column.key}
-                    className="border-b border-r border-slate-200 p-1 last:border-r-0"
-                  >
-                    <input
-                      type={column.type ?? "text"}
-                      value={row[column.key]}
-                      min={column.min}
-                      step={column.step}
-                      placeholder={column.placeholder}
-                      aria-label={`${column.label}, row ${rowIndex + 1}`}
-                      onChange={(event) =>
-                        handleCellChange(
-                          row.id,
-                          column.key,
-                          event.target.value,
-                        )
-                      }
-                      className="h-10 w-full rounded border border-transparent bg-transparent px-2 text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-400 focus:bg-white"
-                    />
-                  </td>
-                ))}
-              </tr>
+                rowNumber={rowIndex + 1}
+                initialRow={row}
+                onSave={handleSaveRow}
+              />
             ))}
           </tbody>
         </table>
