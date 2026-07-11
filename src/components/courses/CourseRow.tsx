@@ -35,6 +35,8 @@ export type CourseRowData = {
   price: string;
   tollFee: string;
   portFee: string;
+  fuelCost: string;
+  totalCost: string;
   profit: string;
   status: string;
 };
@@ -59,6 +61,13 @@ export type CourseColumn = {
   step?: number;
   readOnly?: boolean;
   width: number;
+};
+
+type ResolvedPricing = {
+  method: CoursePricingMethod;
+  pricePerKm: number | null;
+  fixedPrice: number | null;
+  isAutomatic: boolean;
 };
 
 const ADDRESS_FIELDS: readonly AddressField[] = [
@@ -169,6 +178,22 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
     width: 140,
   },
   {
+    key: "fuelCost",
+    label: "Гориво (€)",
+    inputType: "number",
+    placeholder: "Автоматично",
+    readOnly: true,
+    width: 130,
+  },
+  {
+    key: "totalCost",
+    label: "Разходи (€)",
+    inputType: "number",
+    placeholder: "Автоматично",
+    readOnly: true,
+    width: 140,
+  },
+  {
     key: "profit",
     label: "Печалба (€)",
     inputType: "number",
@@ -194,13 +219,6 @@ type CourseRowProps = {
   onSave: (row: CourseRowData) => void;
 };
 
-type ResolvedPricing = {
-  method: CoursePricingMethod;
-  pricePerKm: number | null;
-  fixedPrice: number | null;
-  isAutomatic: boolean;
-};
-
 export default function CourseRow({
   rowNumber,
   initialRow,
@@ -222,6 +240,14 @@ export default function CourseRow({
     [customerOptions, draft.customerId],
   );
 
+  const selectedTruck = useMemo(
+    () =>
+      truckOptions.find(
+        (truck) => truck.id === draft.truckId,
+      ),
+    [truckOptions, draft.truckId],
+  );
+
   const pricing = useMemo(
     () =>
       resolveCustomerPricing(
@@ -233,6 +259,7 @@ export default function CourseRow({
 
   const calculation = useMemo(() => {
     const totalKm = parseRequiredNumber(draft.totalKm);
+
     const billableKm = parseRequiredNumber(
       draft.billableKm,
     );
@@ -243,15 +270,18 @@ export default function CourseRow({
 
     const manualPrice = parseRequiredNumber(draft.price);
 
-    if (
-      pricing.method === "MANUAL" &&
-      manualPrice === null
-    ) {
-      return null;
-    }
-
     const settings = {
       ...calculationSettings,
+
+      fuel: {
+        ...calculationSettings.fuel,
+        consumptionLitersPer100Km:
+          selectedTruck
+            ?.defaultFuelConsumptionLPer100Km ??
+          calculationSettings.fuel
+            .consumptionLitersPer100Km,
+      },
+
       msi: {
         ...calculationSettings.msi,
         pricePerKm:
@@ -269,27 +299,36 @@ export default function CourseRow({
             isBillable: true,
           },
         ],
+
         billableKmLogic: "MANUAL",
         pricingMethod: pricing.method,
+
         manualBillableKm: billableKm,
-        fixedPrice: pricing.fixedPrice ?? undefined,
+
+        fixedPrice:
+          pricing.fixedPrice ?? undefined,
+
         manualPrice:
           pricing.method === "MANUAL"
             ? manualPrice ?? undefined
             : undefined,
+
         manualTollOverride: parseOptionalNumber(
           draft.tollFee,
         ),
+
         waitingMinutes: parseOptionalNumber(
           draft.waitingMinutes,
         ),
+
         portCost: parseOptionalNumber(draft.portFee),
+
         settings,
       });
     } catch {
       return null;
     }
-  }, [draft, pricing]);
+  }, [draft, pricing, selectedTruck]);
 
   function handleCellChange(
     field: EditableCourseField,
@@ -306,16 +345,29 @@ export default function CourseRow({
   function handleSave(): void {
     const savedRow: CourseRowData = {
       ...draft,
+
       price:
         calculation?.price !== null &&
         calculation?.price !== undefined
           ? formatMoney(calculation.price)
           : draft.price,
+
+      fuelCost:
+        calculation?.costs.fuelCost !== undefined
+          ? formatMoney(calculation.costs.fuelCost)
+          : "",
+
+      totalCost:
+        calculation?.costs.totalCost !== undefined
+          ? formatMoney(calculation.costs.totalCost)
+          : "",
+
       profit:
         calculation?.profit !== null &&
         calculation?.profit !== undefined
           ? formatMoney(calculation.profit)
           : "",
+
       status: calculation?.status ?? "",
     };
 
@@ -417,6 +469,36 @@ export default function CourseRow({
                   ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
                   : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
               ].join(" ")}
+            />
+          ) : column.key === "fuelCost" ? (
+            <input
+              type="text"
+              value={
+                calculation?.costs.fuelCost !== undefined
+                  ? formatMoney(
+                      calculation.costs.fuelCost,
+                    )
+                  : ""
+              }
+              readOnly
+              placeholder="Автоматично"
+              aria-label={`Гориво, ред ${rowNumber}`}
+              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+            />
+          ) : column.key === "totalCost" ? (
+            <input
+              type="text"
+              value={
+                calculation?.costs.totalCost !== undefined
+                  ? formatMoney(
+                      calculation.costs.totalCost,
+                    )
+                  : ""
+              }
+              readOnly
+              placeholder="Автоматично"
+              aria-label={`Разходи, ред ${rowNumber}`}
+              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
             />
           ) : column.key === "profit" ? (
             <input
@@ -611,10 +693,13 @@ function parseRequiredNumber(
 }
 
 function parseOptionalNumber(value: string): number {
+  if (value.trim() === "") {
+    return 0;
+  }
+
   const parsedValue = Number(value);
 
   if (
-    value.trim() === "" ||
     !Number.isFinite(parsedValue) ||
     parsedValue < 0
   ) {

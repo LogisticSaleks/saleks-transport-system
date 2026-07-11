@@ -12,7 +12,7 @@ type AddressForDeduplication = {
 };
 
 export default async function CoursesPage() {
-  const [trucks, rawCustomers, rawAddresses] =
+  const [rawTrucks, rawCustomers, rawAddresses] =
     await Promise.all([
       prisma.truck.findMany({
         where: {
@@ -22,6 +22,7 @@ export default async function CoursesPage() {
           id: true,
           name: true,
           licensePlate: true,
+          defaultFuelConsumptionLPer100Km: true,
         },
         orderBy: [
           {
@@ -79,6 +80,15 @@ export default async function CoursesPage() {
         ],
       }),
     ]);
+
+  const trucks = rawTrucks.map((truck) => ({
+    id: truck.id,
+    name: truck.name,
+    licensePlate: truck.licensePlate,
+    defaultFuelConsumptionLPer100Km: Number(
+      truck.defaultFuelConsumptionLPer100Km,
+    ),
+  }));
 
   const customers = rawCustomers.map((customer) => ({
     id: customer.id,

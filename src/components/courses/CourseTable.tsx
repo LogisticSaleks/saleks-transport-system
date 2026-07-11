@@ -33,6 +33,8 @@ function createEmptyCourseRow(id: number): CourseRowData {
     price: "",
     tollFee: "",
     portFee: "",
+    fuelCost: "",
+    totalCost: "",
     profit: "",
     status: "",
   };
@@ -51,6 +53,7 @@ export default function CourseTable({
 
   function handleAddRow(): void {
     const newRowId = nextRowId.current;
+
     nextRowId.current += 1;
 
     setRows((currentRows) => [
@@ -90,7 +93,7 @@ export default function CourseTable({
       </div>
 
       <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[3200px] table-fixed border-collapse text-sm">
+        <table className="min-w-[3480px] table-fixed border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="sticky left-0 z-20 w-14 min-w-14 border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-center font-semibold text-slate-700">

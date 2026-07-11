@@ -4,6 +4,7 @@ export type TruckOption = {
   id: string;
   name: string;
   licensePlate: string;
+  defaultFuelConsumptionLPer100Km: number;
 };
 
 type TruckSelectProps = {
