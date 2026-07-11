@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import AddressAutocomplete, {
+  type AddressOption,
+} from "./AddressAutocomplete";
 import CourseTypeSelect from "./CourseTypeSelect";
 import CustomerSelect, {
   type CustomerOption,
@@ -15,10 +18,10 @@ export type CourseRowData = {
   truckId: string;
   customerId: string;
   courseType: string;
-  pickup: string;
-  loadingUnloading: string;
-  extraAddress: string;
-  returnAddress: string;
+  pickupAddressId: string;
+  loadingUnloadingAddressId: string;
+  extraAddressId: string;
+  returnAddressId: string;
   kilometers: string;
   billableKilometers: string;
   containerNumber: string;
@@ -35,6 +38,12 @@ export type EditableCourseField = Exclude<
   "id"
 >;
 
+type AddressField =
+  | "pickupAddressId"
+  | "loadingUnloadingAddressId"
+  | "extraAddressId"
+  | "returnAddressId";
+
 export type CourseColumn = {
   key: EditableCourseField;
   label: string;
@@ -45,6 +54,13 @@ export type CourseColumn = {
   readOnly?: boolean;
   width: number;
 };
+
+const ADDRESS_FIELDS: readonly AddressField[] = [
+  "pickupAddressId",
+  "loadingUnloadingAddressId",
+  "extraAddressId",
+  "returnAddressId",
+];
 
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
@@ -63,28 +79,28 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
     width: 140,
   },
   {
-    key: "pickup",
+    key: "pickupAddressId",
     label: "Взимане",
-    placeholder: "Адрес за взимане",
-    width: 220,
+    placeholder: "Търси адрес за взимане",
+    width: 240,
   },
   {
-    key: "loadingUnloading",
+    key: "loadingUnloadingAddressId",
     label: "Товарене / разтоварване",
-    placeholder: "Адрес на клиента",
-    width: 260,
+    placeholder: "Търси адрес на клиента",
+    width: 280,
   },
   {
-    key: "extraAddress",
+    key: "extraAddressId",
     label: "Екстра адрес",
-    placeholder: "Незадължителен адрес",
-    width: 220,
+    placeholder: "Търси екстра адрес",
+    width: 240,
   },
   {
-    key: "returnAddress",
+    key: "returnAddressId",
     label: "Връщане",
-    placeholder: "Адрес за връщане",
-    width: 220,
+    placeholder: "Търси адрес за връщане",
+    width: 240,
   },
   {
     key: "kilometers",
@@ -168,6 +184,7 @@ type CourseRowProps = {
   initialRow: CourseRowData;
   truckOptions: readonly TruckOption[];
   customerOptions: readonly CustomerOption[];
+  addressOptions: readonly AddressOption[];
   onSave: (row: CourseRowData) => void;
 };
 
@@ -176,6 +193,7 @@ export default function CourseRow({
   initialRow,
   truckOptions,
   customerOptions,
+  addressOptions,
   onSave,
 }: CourseRowProps) {
   const [draft, setDraft] =
@@ -230,7 +248,10 @@ export default function CourseRow({
               customers={customerOptions}
               rowNumber={rowNumber}
               onChange={(customerId) =>
-                handleCellChange("customerId", customerId)
+                handleCellChange(
+                  "customerId",
+                  customerId,
+                )
               }
             />
           ) : column.key === "courseType" ? (
@@ -241,6 +262,20 @@ export default function CourseRow({
                 handleCellChange(
                   "courseType",
                   courseType,
+                )
+              }
+            />
+          ) : isAddressField(column.key) ? (
+            <AddressAutocomplete
+              value={draft[column.key]}
+              addresses={addressOptions}
+              label={column.label}
+              rowNumber={rowNumber}
+              placeholder={column.placeholder}
+              onChange={(addressId) =>
+                handleCellChange(
+                  column.key,
+                  addressId,
                 )
               }
             />
@@ -300,4 +335,12 @@ export default function CourseRow({
       </td>
     </tr>
   );
+}
+
+function isAddressField(
+  field: EditableCourseField,
+): field is AddressField {
+  return (
+    ADDRESS_FIELDS as readonly EditableCourseField[]
+  ).includes(field);
 }

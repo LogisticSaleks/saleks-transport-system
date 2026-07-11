@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import type { AddressOption } from "./AddressAutocomplete";
 import CourseRow, {
   COURSE_COLUMNS,
   type CourseRowData,
@@ -12,6 +13,7 @@ import type { TruckOption } from "./TruckSelect";
 type CourseTableProps = {
   trucks: readonly TruckOption[];
   customers: readonly CustomerOption[];
+  addresses: readonly AddressOption[];
 };
 
 function createEmptyCourseRow(id: number): CourseRowData {
@@ -20,10 +22,10 @@ function createEmptyCourseRow(id: number): CourseRowData {
     truckId: "",
     customerId: "",
     courseType: "",
-    pickup: "",
-    loadingUnloading: "",
-    extraAddress: "",
-    returnAddress: "",
+    pickupAddressId: "",
+    loadingUnloadingAddressId: "",
+    extraAddressId: "",
+    returnAddressId: "",
     kilometers: "",
     billableKilometers: "",
     containerNumber: "",
@@ -39,6 +41,7 @@ function createEmptyCourseRow(id: number): CourseRowData {
 export default function CourseTable({
   trucks,
   customers,
+  addresses,
 }: CourseTableProps) {
   const nextRowId = useRef(2);
 
@@ -87,7 +90,7 @@ export default function CourseTable({
       </div>
 
       <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[3120px] table-fixed border-collapse text-sm">
+        <table className="min-w-[3200px] table-fixed border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="sticky left-0 z-20 w-14 min-w-14 border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-center font-semibold text-slate-700">
@@ -125,6 +128,7 @@ export default function CourseTable({
                 initialRow={row}
                 truckOptions={trucks}
                 customerOptions={customers}
+                addressOptions={addresses}
                 onSave={handleSaveRow}
               />
             ))}
