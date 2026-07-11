@@ -15,6 +15,7 @@ import CourseTypeSelect from "./CourseTypeSelect";
 import CustomerSelect, {
   type CustomerOption,
 } from "./CustomerSelect";
+import StatusBadge from "./StatusBadge";
 import TruckSelect, {
   type TruckOption,
 } from "./TruckSelect";
@@ -206,7 +207,7 @@ export const COURSE_COLUMNS: readonly CourseColumn[] = [
     label: "Статус",
     placeholder: "Автоматично",
     readOnly: true,
-    width: 150,
+    width: 160,
   },
 ];
 
@@ -515,14 +516,11 @@ export default function CourseRow({
               className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
             />
           ) : column.key === "status" ? (
-            <input
-              type="text"
-              value={calculation?.status ?? ""}
-              readOnly
-              placeholder="Автоматично"
-              aria-label={`Статус, ред ${rowNumber}`}
-              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-            />
+            <div className="flex h-10 w-full items-center justify-center px-1">
+              <StatusBadge
+                status={calculation?.status}
+              />
+            </div>
           ) : (
             <input
               type={column.inputType ?? "text"}
