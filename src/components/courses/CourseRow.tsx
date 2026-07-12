@@ -11,6 +11,7 @@ import { calculationSettings } from "@/lib/settings/calculationSettings";
 import AddressAutocomplete, {
   type AddressOption,
 } from "./AddressAutocomplete";
+import CourseDetailsPanel from "./CourseDetailsPanel";
 import CourseTypeSelect from "./CourseTypeSelect";
 import CustomerSelect, {
   type CustomerOption,
@@ -252,6 +253,8 @@ export default function CourseRow({
     useState<CourseRowData>(initialRow);
 
   const [isSaved, setIsSaved] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] =
+    useState(false);
 
   const selectedCustomer = useMemo(
     () =>
@@ -351,6 +354,21 @@ export default function CourseRow({
     }
   }, [draft, pricing, selectedTruck]);
 
+  const totalKmValue = parseNullableNumber(
+    draft.totalKm,
+  );
+
+  const billableKmValue = parseNullableNumber(
+    draft.billableKm,
+  );
+
+  const nonBillableKmValue =
+    totalKmValue !== null && billableKmValue !== null
+      ? Math.max(totalKmValue - billableKmValue, 0)
+      : null;
+
+  const panelId = `course-details-panel-${draft.id}`;
+
   function handleCellChange(
     field: EditableCourseField,
     value: string,
@@ -398,227 +416,301 @@ export default function CourseRow({
   }
 
   return (
-    <tr className="group hover:bg-slate-50">
-      <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-3 py-2 text-center text-slate-500 group-hover:bg-slate-50">
-        {rowNumber}
-      </td>
-
-      {COURSE_COLUMNS.map((column) => (
-        <td
-          key={column.key}
-          style={{
-            width: column.width,
-            minWidth: column.width,
-          }}
-          className="border-b border-r border-slate-200 p-1"
-        >
-          {column.key === "truckId" ? (
-            <TruckSelect
-              value={draft.truckId}
-              trucks={truckOptions}
-              rowNumber={rowNumber}
-              onChange={(truckId) =>
-                handleCellChange("truckId", truckId)
-              }
-            />
-          ) : column.key === "customerId" ? (
-            <CustomerSelect
-              value={draft.customerId}
-              customers={customerOptions}
-              rowNumber={rowNumber}
-              onChange={(customerId) =>
-                handleCellChange(
-                  "customerId",
-                  customerId,
-                )
-              }
-            />
-          ) : column.key === "courseType" ? (
-            <CourseTypeSelect
-              value={draft.courseType}
-              rowNumber={rowNumber}
-              onChange={(courseType) =>
-                handleCellChange(
-                  "courseType",
-                  courseType,
-                )
-              }
-            />
-          ) : isAddressField(column.key) ? (
-            <AddressAutocomplete
-              value={draft[column.key]}
-              addresses={addressOptions}
-              label={column.label}
-              rowNumber={rowNumber}
-              placeholder={column.placeholder}
-              onChange={(addressId) =>
-                handleCellChange(
-                  column.key,
-                  addressId,
-                )
-              }
-            />
-          ) : isManualKmField(column.key) ? (
-            <NumberInputWithMarker
-              value={draft[column.key]}
-              label={column.label}
-              rowNumber={rowNumber}
-              placeholder={column.placeholder}
-              min={column.min}
-              step={column.step}
-              showMarker={
-                draft[column.key].trim() !== ""
-              }
-              onChange={(value) =>
-                handleCellChange(column.key, value)
-              }
-            />
-          ) : column.key === "price" ? (
-            <NumberInputWithMarker
-              value={
-                pricing.isAutomatic
-                  ? calculation?.price !== null &&
-                    calculation?.price !== undefined
-                    ? formatMoney(calculation.price)
-                    : ""
-                  : draft.price
-              }
-              label={column.label}
-              rowNumber={rowNumber}
-              placeholder={
-                pricing.isAutomatic
-                  ? "Автоматично"
-                  : "0.00"
-              }
-              min={0}
-              step={0.01}
-              readOnly={pricing.isAutomatic}
-              showMarker={
-                !pricing.isAutomatic &&
-                draft.price.trim() !== ""
-              }
-              onChange={(value) =>
-                handleCellChange("price", value)
-              }
-            />
-          ) : column.key === "tollFee" ? (
-            <NumberInputWithMarker
-              value={draft.tollFee}
-              label={column.label}
-              rowNumber={rowNumber}
-              placeholder={column.placeholder}
-              min={column.min}
-              step={column.step}
-              showMarker={draft.tollFee.trim() !== ""}
-              onChange={(value) =>
-                handleCellChange("tollFee", value)
-              }
-            />
-          ) : column.key === "fuelCost" ? (
-            <input
-              type="text"
-              value={
-                calculation?.costs.fuelCost !== undefined
-                  ? formatMoney(
-                      calculation.costs.fuelCost,
-                    )
-                  : ""
-              }
-              readOnly
-              placeholder="Автоматично"
-              aria-label={`Гориво, ред ${rowNumber}`}
-              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-            />
-          ) : column.key === "totalCost" ? (
-            <input
-              type="text"
-              value={
-                calculation?.costs.totalCost !== undefined
-                  ? formatMoney(
-                      calculation.costs.totalCost,
-                    )
-                  : ""
-              }
-              readOnly
-              placeholder="Автоматично"
-              aria-label={`Разходи, ред ${rowNumber}`}
-              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-            />
-          ) : column.key === "profit" ? (
-            <input
-              type="text"
-              value={
-                calculation?.profit !== null &&
-                calculation?.profit !== undefined
-                  ? formatMoney(calculation.profit)
-                  : ""
-              }
-              readOnly
-              placeholder="Автоматично"
-              aria-label={`Печалба, ред ${rowNumber}`}
-              className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-            />
-          ) : column.key === "status" ? (
-            <div className="flex h-10 w-full items-center justify-center px-1">
-              <StatusBadge
-                status={calculation?.status}
-              />
-            </div>
-          ) : (
-            <input
-              type={column.inputType ?? "text"}
-              value={draft[column.key]}
-              min={column.min}
-              step={column.step}
-              readOnly={column.readOnly}
-              placeholder={column.placeholder}
-              aria-label={`${column.label}, ред ${rowNumber}`}
-              onChange={(event) =>
-                handleCellChange(
-                  column.key,
-                  event.target.value,
-                )
-              }
-              className={[
-                "h-10 w-full rounded border px-2 outline-none transition",
-                column.readOnly
-                  ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
-                  : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
-              ].join(" ")}
-            />
-          )}
+    <>
+      <tr className="group hover:bg-slate-50">
+        <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-3 py-2 text-center text-slate-500 group-hover:bg-slate-50">
+          {rowNumber}
         </td>
-      ))}
 
-      <td className="sticky right-[120px] z-10 w-[130px] min-w-[130px] border-b border-r border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-        <div className="flex flex-col items-start gap-1">
+        {COURSE_COLUMNS.map((column) => (
+          <td
+            key={column.key}
+            style={{
+              width: column.width,
+              minWidth: column.width,
+            }}
+            className="border-b border-r border-slate-200 p-1"
+          >
+            {column.key === "truckId" ? (
+              <TruckSelect
+                value={draft.truckId}
+                trucks={truckOptions}
+                rowNumber={rowNumber}
+                onChange={(truckId) =>
+                  handleCellChange("truckId", truckId)
+                }
+              />
+            ) : column.key === "customerId" ? (
+              <CustomerSelect
+                value={draft.customerId}
+                customers={customerOptions}
+                rowNumber={rowNumber}
+                onChange={(customerId) =>
+                  handleCellChange(
+                    "customerId",
+                    customerId,
+                  )
+                }
+              />
+            ) : column.key === "courseType" ? (
+              <CourseTypeSelect
+                value={draft.courseType}
+                rowNumber={rowNumber}
+                onChange={(courseType) =>
+                  handleCellChange(
+                    "courseType",
+                    courseType,
+                  )
+                }
+              />
+            ) : isAddressField(column.key) ? (
+              <AddressAutocomplete
+                value={draft[column.key]}
+                addresses={addressOptions}
+                label={column.label}
+                rowNumber={rowNumber}
+                placeholder={column.placeholder}
+                onChange={(addressId) =>
+                  handleCellChange(
+                    column.key,
+                    addressId,
+                  )
+                }
+              />
+            ) : isManualKmField(column.key) ? (
+              <NumberInputWithMarker
+                value={draft[column.key]}
+                label={column.label}
+                rowNumber={rowNumber}
+                placeholder={column.placeholder}
+                min={column.min}
+                step={column.step}
+                showMarker={
+                  draft[column.key].trim() !== ""
+                }
+                onChange={(value) =>
+                  handleCellChange(column.key, value)
+                }
+              />
+            ) : column.key === "price" ? (
+              <NumberInputWithMarker
+                value={
+                  pricing.isAutomatic
+                    ? calculation?.price !== null &&
+                      calculation?.price !== undefined
+                      ? formatMoney(calculation.price)
+                      : ""
+                    : draft.price
+                }
+                label={column.label}
+                rowNumber={rowNumber}
+                placeholder={
+                  pricing.isAutomatic
+                    ? "Автоматично"
+                    : "0.00"
+                }
+                min={0}
+                step={0.01}
+                readOnly={pricing.isAutomatic}
+                showMarker={
+                  !pricing.isAutomatic &&
+                  draft.price.trim() !== ""
+                }
+                onChange={(value) =>
+                  handleCellChange("price", value)
+                }
+              />
+            ) : column.key === "tollFee" ? (
+              <NumberInputWithMarker
+                value={draft.tollFee}
+                label={column.label}
+                rowNumber={rowNumber}
+                placeholder={column.placeholder}
+                min={column.min}
+                step={column.step}
+                showMarker={
+                  draft.tollFee.trim() !== ""
+                }
+                onChange={(value) =>
+                  handleCellChange("tollFee", value)
+                }
+              />
+            ) : column.key === "fuelCost" ? (
+              <input
+                type="text"
+                value={
+                  calculation?.costs.fuelCost !==
+                  undefined
+                    ? formatMoney(
+                        calculation.costs.fuelCost,
+                      )
+                    : ""
+                }
+                readOnly
+                placeholder="Автоматично"
+                aria-label={`Гориво, ред ${rowNumber}`}
+                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+              />
+            ) : column.key === "totalCost" ? (
+              <input
+                type="text"
+                value={
+                  calculation?.costs.totalCost !==
+                  undefined
+                    ? formatMoney(
+                        calculation.costs.totalCost,
+                      )
+                    : ""
+                }
+                readOnly
+                placeholder="Автоматично"
+                aria-label={`Разходи, ред ${rowNumber}`}
+                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+              />
+            ) : column.key === "profit" ? (
+              <input
+                type="text"
+                value={
+                  calculation?.profit !== null &&
+                  calculation?.profit !== undefined
+                    ? formatMoney(calculation.profit)
+                    : ""
+                }
+                readOnly
+                placeholder="Автоматично"
+                aria-label={`Печалба, ред ${rowNumber}`}
+                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
+              />
+            ) : column.key === "status" ? (
+              <div className="flex h-10 w-full items-center justify-center px-1">
+                <StatusBadge
+                  status={calculation?.status}
+                />
+              </div>
+            ) : (
+              <input
+                type={column.inputType ?? "text"}
+                value={draft[column.key]}
+                min={column.min}
+                step={column.step}
+                readOnly={column.readOnly}
+                placeholder={column.placeholder}
+                aria-label={`${column.label}, ред ${rowNumber}`}
+                onChange={(event) =>
+                  handleCellChange(
+                    column.key,
+                    event.target.value,
+                  )
+                }
+                className={[
+                  "h-10 w-full rounded border px-2 outline-none transition",
+                  column.readOnly
+                    ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
+                    : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
+                ].join(" ")}
+              />
+            )}
+          </td>
+        ))}
+
+        <td className="sticky right-[120px] z-10 w-[130px] min-w-[130px] border-b border-r border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
+          <div className="flex flex-col items-start gap-1">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Save
+            </button>
+
+            {isSaved && (
+              <span className="text-xs font-medium text-emerald-600">
+                Saved
+              </span>
+            )}
+          </div>
+        </td>
+
+        <td className="sticky right-0 z-10 w-[120px] min-w-[120px] border-b border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
           <button
             type="button"
-            onClick={handleSave}
-            className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            aria-expanded={isDetailsOpen}
+            aria-controls={panelId}
+            onClick={() => setIsDetailsOpen(true)}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
-            Save
+            Детайли
           </button>
+        </td>
+      </tr>
 
-          {isSaved && (
-            <span className="text-xs font-medium text-emerald-600">
-              Saved
-            </span>
-          )}
-        </div>
-      </td>
-
-      <td className="sticky right-0 z-10 w-[120px] min-w-[120px] border-b border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-        <button
-          type="button"
-          disabled
-          title="Детайлният изглед ще бъде добавен в следваща задача."
-          className="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-400"
-        >
-          Детайли
-        </button>
-      </td>
-    </tr>
+      <CourseDetailsPanel
+        isOpen={isDetailsOpen}
+        panelId={panelId}
+        rowNumber={rowNumber}
+        truckLabel={
+          selectedTruck
+            ? `${selectedTruck.name} — ${selectedTruck.licensePlate}`
+            : ""
+        }
+        customerLabel={selectedCustomer?.name ?? ""}
+        courseTypeLabel={getCourseTypeLabel(
+          draft.courseType,
+        )}
+        containerNumber={draft.containerNumber}
+        pickupAddressLabel={getAddressLabel(
+          addressOptions,
+          draft.pickupAddressId,
+        )}
+        loadingUnloadingAddressLabel={getAddressLabel(
+          addressOptions,
+          draft.loadingUnloadingAddressId,
+        )}
+        extraAddressLabel={getAddressLabel(
+          addressOptions,
+          draft.extraAddressId,
+        )}
+        returnAddressLabel={getAddressLabel(
+          addressOptions,
+          draft.returnAddressId,
+        )}
+        totalKm={totalKmValue}
+        billableKm={billableKmValue}
+        nonBillableKm={nonBillableKmValue}
+        price={
+          calculation?.price ??
+          parseNullableNumber(draft.price)
+        }
+        waitingMinutes={parseNullableNumber(
+          draft.waitingMinutes,
+        )}
+        waitingCharge={
+          calculation?.waiting.waitingCost ?? null
+        }
+        revenue={calculation?.revenue ?? null}
+        fuelCost={
+          calculation?.costs.fuelCost ?? null
+        }
+        tollCost={
+          calculation?.costs.tollCost ??
+          parseNullableNumber(draft.tollFee)
+        }
+        portCost={
+          calculation?.costs.portCost ??
+          parseNullableNumber(draft.portFee)
+        }
+        totalCost={
+          calculation?.costs.totalCost ?? null
+        }
+        profit={calculation?.profit ?? null}
+        profitMargin={
+          calculation?.profitMargin ?? null
+        }
+        status={calculation?.status ?? null}
+        warnings={calculation?.warnings ?? []}
+        onClose={() => setIsDetailsOpen(false)}
+      />
+    </>
   );
 }
 
@@ -790,6 +882,22 @@ function parseOptionalNumber(value: string): number {
   return parsedValue;
 }
 
+function parseNullableNumber(
+  value: string,
+): number | null {
+  if (value.trim() === "") {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  if (!Number.isFinite(parsedValue)) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
 function formatMoney(value: number): string {
   return value.toFixed(2);
 }
@@ -808,4 +916,55 @@ function isManualKmField(
   return (
     MANUAL_KM_FIELDS as readonly EditableCourseField[]
   ).includes(field);
+}
+
+function getCourseTypeLabel(
+  courseType: string,
+): string {
+  switch (courseType) {
+    case "ROUND_TRIP":
+      return "Кръгов";
+
+    case "SHUNT":
+      return "Шунт";
+
+    default:
+      return "";
+  }
+}
+
+function getAddressLabel(
+  addresses: readonly AddressOption[],
+  addressId: string,
+): string {
+  if (addressId.trim() === "") {
+    return "";
+  }
+
+  const address = addresses.find(
+    (option) => option.id === addressId,
+  );
+
+  if (!address) {
+    return "";
+  }
+
+  const cityLine = [
+    address.postalCode,
+    address.city,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const addressParts = [
+    address.street,
+    cityLine,
+    address.country,
+  ].filter(Boolean);
+
+  if (addressParts.length === 0) {
+    return address.name;
+  }
+
+  return `${address.name} — ${addressParts.join(", ")}`;
 }
