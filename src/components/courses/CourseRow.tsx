@@ -6,6 +6,11 @@ import {
   calculateCourse,
   type CoursePricingMethod,
 } from "@/lib/calculations/calculateCourse";
+import type { PricingStatus } from "@/lib/calculations/calculatePricingStatus";
+import {
+  buildCourseDisplayWarnings,
+  buildCourseInputWarnings,
+} from "@/lib/calculations/courseWarnings";
 import { calculationSettings } from "@/lib/settings/calculationSettings";
 
 import AddressAutocomplete, {
@@ -75,6 +80,7 @@ type ResolvedPricing = {
   pricePerKm: number | null;
   fixedPrice: number | null;
   isAutomatic: boolean;
+  hasTariff: boolean;
 };
 
 type NumberInputWithMarkerProps = {
@@ -272,7 +278,8 @@ export default function CourseRow({
   const selectedTruck = useMemo(
     () =>
       truckOptions.find(
-        (truck) => truck.id === draft.truckId,
+        (truck) =>
+          truck.id === draft.truckId,
       ),
     [truckOptions, draft.truckId],
   );
@@ -286,13 +293,74 @@ export default function CourseRow({
     [selectedCustomer, draft.courseType],
   );
 
+  const totalKmValue =
+    parseNullableNumber(draft.totalKm);
+
+  const billableKmValue =
+    parseNullableNumber(draft.billableKm);
+
+  const nonBillableKmValue =
+    totalKmValue !== null &&
+    billableKmValue !== null
+      ? Math.max(
+          totalKmValue - billableKmValue,
+          0,
+        )
+      : null;
+
+  const hasCourseData = useMemo(
+    () =>
+      [
+        draft.truckId,
+        draft.customerId,
+        draft.courseType,
+        draft.pickupAddressId,
+        draft.loadingUnloadingAddressId,
+        draft.extraAddressId,
+        draft.returnAddressId,
+        draft.totalKm,
+        draft.billableKm,
+        draft.containerNumber,
+        draft.waitingMinutes,
+        draft.price,
+        draft.tollFee,
+        draft.portFee,
+      ].some(
+        (value) => value.trim() !== "",
+      ),
+    [draft],
+  );
+
+  const inputWarnings = useMemo(
+    () =>
+      buildCourseInputWarnings({
+        hasCourseData,
+        hasSelectedCustomer:
+          selectedCustomer !== undefined,
+        hasActiveTariff: pricing.hasTariff,
+        pricingMethod: pricing.method,
+        courseType: draft.courseType,
+        totalKm: totalKmValue,
+        billableKm: billableKmValue,
+        tollValue: draft.tollFee,
+      }),
+    [
+      hasCourseData,
+      selectedCustomer,
+      pricing,
+      draft.courseType,
+      draft.tollFee,
+      totalKmValue,
+      billableKmValue,
+    ],
+  );
+
   const calculation = useMemo(() => {
     const totalKm =
       parseRequiredNumber(draft.totalKm);
 
-    const billableKm = parseRequiredNumber(
-      draft.billableKm,
-    );
+    const billableKm =
+      parseRequiredNumber(draft.billableKm);
 
     if (
       totalKm === null ||
@@ -364,27 +432,47 @@ export default function CourseRow({
             draft.portFee,
           ),
 
+        requiresReview:
+          inputWarnings.length > 0,
+
         settings,
       });
     } catch {
       return null;
     }
-  }, [draft, pricing, selectedTruck]);
+  }, [
+    draft,
+    pricing,
+    selectedTruck,
+    inputWarnings,
+  ]);
 
-  const totalKmValue =
-    parseNullableNumber(draft.totalKm);
+  const effectivePrice =
+    calculation?.price ??
+    parseNullableNumber(draft.price);
 
-  const billableKmValue =
-    parseNullableNumber(draft.billableKm);
+  const displayWarnings = useMemo(
+    () =>
+      buildCourseDisplayWarnings({
+        hasCourseData,
+        inputWarnings,
+        effectivePrice,
+        engineWarnings:
+          calculation?.warnings ?? [],
+      }),
+    [
+      hasCourseData,
+      inputWarnings,
+      effectivePrice,
+      calculation,
+    ],
+  );
 
-  const nonBillableKmValue =
-    totalKmValue !== null &&
-    billableKmValue !== null
-      ? Math.max(
-          totalKmValue - billableKmValue,
-          0,
-        )
-      : null;
+  const displayStatus: PricingStatus | null =
+    calculation?.status ??
+    (displayWarnings.length > 0
+      ? "NEEDS_REVIEW"
+      : null);
 
   const extraChargesValue =
     calculateExtraCharges(
@@ -440,8 +528,7 @@ export default function CourseRow({
           ? formatMoney(calculation.profit)
           : "",
 
-      status:
-        calculation?.status ?? "",
+      status: displayStatus ?? "",
     };
 
     setDraft(savedRow);
@@ -659,9 +746,7 @@ export default function CourseRow({
             ) : column.key === "status" ? (
               <div className="flex h-10 w-full items-center justify-center px-1">
                 <StatusBadge
-                  status={
-                    calculation?.status
-                  }
+                  status={displayStatus}
                 />
               </div>
             ) : (
@@ -776,12 +861,7 @@ export default function CourseRow({
         nonBillableKm={
           nonBillableKmValue
         }
-        baseClientPrice={
-          calculation?.price ??
-          parseNullableNumber(
-            draft.price,
-          )
-        }
+        baseClientPrice={effectivePrice}
         waitingMinutes={
           parseNullableNumber(
             draft.waitingMinutes,
@@ -834,12 +914,8 @@ export default function CourseRow({
           calculation?.profitMargin ??
           null
         }
-        status={
-          calculation?.status ?? null
-        }
-        warnings={
-          calculation?.warnings ?? []
-        }
+        status={displayStatus}
+        warnings={displayWarnings}
         onClose={() =>
           setIsDetailsOpen(false)
         }
@@ -898,16 +974,16 @@ function resolveCustomerPricing(
       pricePerKm: null,
       fixedPrice: null,
       isAutomatic: false,
+      hasTariff: false,
     };
   }
 
   if (courseType === "SHUNT") {
-    const shuntTariff =
-      customer.tariffs.find(
-        (tariff) =>
-          tariff.type === "SHUNT" &&
-          tariff.fixedPrice !== null,
-      );
+    const shuntTariff = customer.tariffs.find(
+      (tariff) =>
+        tariff.type === "SHUNT" &&
+        tariff.fixedPrice !== null,
+    );
 
     if (
       shuntTariff &&
@@ -916,20 +992,18 @@ function resolveCustomerPricing(
       return {
         method: "FIXED_PRICE",
         pricePerKm: null,
-        fixedPrice:
-          shuntTariff.fixedPrice,
+        fixedPrice: shuntTariff.fixedPrice,
         isAutomatic: true,
+        hasTariff: true,
       };
     }
   }
 
-  const tableTariff =
-    customer.tariffs.find(
-      (tariff) =>
-        tariff.type ===
-          "FIXED_TABLE_UPPER_BOUND" ||
-        tariff.type === "DISTANCE_TABLE",
-    );
+  const tableTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "FIXED_TABLE_UPPER_BOUND" ||
+      tariff.type === "DISTANCE_TABLE",
+  );
 
   if (tableTariff) {
     return {
@@ -937,15 +1011,15 @@ function resolveCustomerPricing(
       pricePerKm: null,
       fixedPrice: null,
       isAutomatic: true,
+      hasTariff: true,
     };
   }
 
-  const pricePerKmTariff =
-    customer.tariffs.find(
-      (tariff) =>
-        tariff.type === "PRICE_PER_KM" &&
-        tariff.pricePerKm !== null,
-    );
+  const pricePerKmTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "PRICE_PER_KM" &&
+      tariff.pricePerKm !== null,
+  );
 
   if (
     pricePerKmTariff &&
@@ -953,19 +1027,18 @@ function resolveCustomerPricing(
   ) {
     return {
       method: "MSI",
-      pricePerKm:
-        pricePerKmTariff.pricePerKm,
+      pricePerKm: pricePerKmTariff.pricePerKm,
       fixedPrice: null,
       isAutomatic: true,
+      hasTariff: true,
     };
   }
 
-  const fixedPriceTariff =
-    customer.tariffs.find(
-      (tariff) =>
-        tariff.type === "FIXED_PRICE" &&
-        tariff.fixedPrice !== null,
-    );
+  const fixedPriceTariff = customer.tariffs.find(
+    (tariff) =>
+      tariff.type === "FIXED_PRICE" &&
+      tariff.fixedPrice !== null,
+  );
 
   if (
     fixedPriceTariff &&
@@ -974,9 +1047,9 @@ function resolveCustomerPricing(
     return {
       method: "FIXED_PRICE",
       pricePerKm: null,
-      fixedPrice:
-        fixedPriceTariff.fixedPrice,
+      fixedPrice: fixedPriceTariff.fixedPrice,
       isAutomatic: true,
+      hasTariff: true,
     };
   }
 
@@ -985,6 +1058,7 @@ function resolveCustomerPricing(
     pricePerKm: null,
     fixedPrice: null,
     isAutomatic: false,
+    hasTariff: false,
   };
 }
 
@@ -1074,7 +1148,9 @@ function calculateExtraCharges(
     return 0;
   }
 
-  return Math.round(difference * 100) / 100;
+  return (
+    Math.round(difference * 100) / 100
+  );
 }
 
 function formatMoney(value: number): string {
