@@ -47,6 +47,18 @@ enum CourseStatus {
   INVOICED
 }
 
+enum CourseType {
+  ROUND_TRIP
+  SHUNT
+}
+
+enum CourseStopType {
+  PICKUP
+  LOAD_UNLOAD
+  EXTRA
+  RETURN
+}
+
 enum CustomerBillableKmLogic {
   TOTAL_ROUTE
   ONE_WAY
@@ -100,8 +112,8 @@ enum SettingValueType {
 }
 
 model Company {
-  id                 String        @id @default(cuid())
-  name               String        @unique
+  id                 String  @id @default(cuid())
+  name               String  @unique
   legalName          String?
   vatNumber          String?
   registrationNumber String?
@@ -109,16 +121,16 @@ model Company {
   phone              String?
   website            String?
 
-  street             String?
-  city               String?
-  postalCode         String?
-  country            String        @default("BG")
+  street     String?
+  city       String?
+  postalCode String?
+  country    String  @default("BG")
 
-  status             CompanyStatus @default(ACTIVE)
-  notes              String?
+  status CompanyStatus @default(ACTIVE)
+  notes  String?
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
 }
@@ -132,73 +144,75 @@ model AppSetting {
   group       String?
   isPublic    Boolean          @default(false)
 
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([group])
   @@index([key])
 }
 
 model Customer {
-  id                 String                  @id @default(cuid())
-  name               String                  @unique
-  email              String?
-  phone              String?
-  vatNumber          String?
-  status             CustomerStatus          @default(ACTIVE)
-  billableKmLogic    CustomerBillableKmLogic @default(TOTAL_ROUTE)
-  notes              String?
+  id              String                  @id @default(cuid())
+  name            String                  @unique
+  email           String?
+  phone           String?
+  vatNumber       String?
+  status          CustomerStatus          @default(ACTIVE)
+  billableKmLogic CustomerBillableKmLogic @default(TOTAL_ROUTE)
+  notes           String?
 
-  addresses          CustomerAddress[]
-  tariffs            CustomerTariff[]
-  courses            Course[]
-  invoices           Invoice[]
+  addresses CustomerAddress[]
+  tariffs   CustomerTariff[]
+  courses   Course[]
+  invoices  Invoice[]
 
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
 }
 
 model Address {
-  id                 String            @id @default(cuid())
-  name               String
-  street             String?
-  city               String?
-  postalCode         String?
-  country            String
-  type               AddressType       @default(OTHER)
-  portCode           String?
-  terminalCode       String?
-  notes              String?
+  id           String      @id @default(cuid())
+  name         String
+  street       String?
+  city         String?
+  postalCode   String?
+  country      String
+  type         AddressType @default(OTHER)
+  portCode     String?
+  terminalCode String?
+  notes        String?
 
-  customerAddresses  CustomerAddress[]
+  customerAddresses CustomerAddress[]
 
-  pickupCourses      Course[]          @relation("CoursePickupAddress")
-  deliveryCourses    Course[]          @relation("CourseDeliveryAddress")
+  pickupCourses   Course[] @relation("CoursePickupAddress")
+  deliveryCourses Course[] @relation("CourseDeliveryAddress")
 
-  routeLegsFrom      RouteLeg[]        @relation("RouteLegFromAddress")
-  routeLegsTo        RouteLeg[]        @relation("RouteLegToAddress")
+  routeLegsFrom RouteLeg[] @relation("RouteLegFromAddress")
+  routeLegsTo   RouteLeg[] @relation("RouteLegToAddress")
 
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  courseStops CourseStop[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([city, country])
   @@index([name])
 }
 
 model CustomerAddress {
-  id                 String    @id @default(cuid())
-  customerId         String
-  addressId          String
-  isDefault          Boolean   @default(false)
-  notes              String?
+  id         String  @id @default(cuid())
+  customerId String
+  addressId  String
+  isDefault  Boolean @default(false)
+  notes      String?
 
-  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  address            Address   @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  address  Address  @relation(fields: [addressId], references: [id], onDelete: Cascade)
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([customerId, addressId])
   @@index([customerId])
@@ -206,64 +220,64 @@ model CustomerAddress {
 }
 
 model Truck {
-  id                              String       @id @default(cuid())
-  name                            String
-  licensePlate                    String       @unique
-  vin                             String?
-  status                          TruckStatus  @default(ACTIVE)
+  id           String      @id @default(cuid())
+  name         String
+  licensePlate String      @unique
+  vin          String?
+  status       TruckStatus @default(ACTIVE)
 
-  euroClass                       String       @default("Euro 6")
-  defaultFuelConsumptionLPer100Km Decimal      @default(30) @db.Decimal(10, 2)
+  euroClass                       String  @default("Euro 6")
+  defaultFuelConsumptionLPer100Km Decimal @default(30) @db.Decimal(10, 2)
 
-  notes                           String?
+  notes String?
 
-  courses                         Course[]
-  costs                           Cost[]
+  courses Course[]
+  costs   Cost[]
 
-  createdAt                       DateTime     @default(now())
-  updatedAt                       DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
   @@index([status])
 }
 
 model Driver {
-  id                 String        @id @default(cuid())
-  firstName          String
-  lastName           String
-  phone              String?
-  email              String?
-  status             DriverStatus  @default(ACTIVE)
-  notes              String?
+  id        String       @id @default(cuid())
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  status    DriverStatus @default(ACTIVE)
+  notes     String?
 
-  courses            Course[]
+  courses Course[]
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([lastName, firstName])
 }
 
 model CustomerTariff {
-  id                 String                  @id @default(cuid())
-  customerId         String
-  type               TariffType
-  billableKmLogic    CustomerBillableKmLogic @default(TOTAL_ROUTE)
+  id              String                  @id @default(cuid())
+  customerId      String
+  type            TariffType
+  billableKmLogic CustomerBillableKmLogic @default(TOTAL_ROUTE)
 
-  name               String
-  minKm              Decimal?                @db.Decimal(10, 2)
-  maxKm              Decimal?                @db.Decimal(10, 2)
-  fixedPrice         Decimal?                @db.Decimal(12, 2)
-  pricePerKm         Decimal?                @db.Decimal(12, 4)
-  waitingHourlyRate  Decimal?                @db.Decimal(12, 2)
-  portFeeIncluded    Boolean                 @default(false)
-  isActive           Boolean                 @default(true)
-  notes              String?
+  name              String
+  minKm             Decimal? @db.Decimal(10, 2)
+  maxKm             Decimal? @db.Decimal(10, 2)
+  fixedPrice        Decimal? @db.Decimal(12, 2)
+  pricePerKm        Decimal? @db.Decimal(12, 4)
+  waitingHourlyRate Decimal? @db.Decimal(12, 2)
+  portFeeIncluded   Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  notes             String?
 
-  customer           Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([customerId, name])
   @@index([customerId])
@@ -271,104 +285,130 @@ model CustomerTariff {
 }
 
 model Course {
-  id                 String        @id @default(cuid())
-  courseNumber       String?       @unique
-  customerId         String
-  truckId            String?
-  driverId           String?
+  id           String  @id @default(cuid())
+  courseNumber String? @unique
+  customerId   String
+  truckId      String?
+  driverId     String?
 
-  pickupAddressId    String?
-  deliveryAddressId  String?
+  courseType CourseType @default(ROUND_TRIP)
 
-  status             CourseStatus  @default(DRAFT)
+  pickupAddressId   String?
+  deliveryAddressId String?
 
-  plannedDate        DateTime?
-  startedAt          DateTime?
-  completedAt        DateTime?
+  status CourseStatus @default(DRAFT)
 
-  containerNumber    String?
-  bookingNumber      String?
-  referenceNumber    String?
-  tarCode            String?
-  acceptanceRef      String?
+  plannedDate DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
 
-  totalKm            Decimal?      @db.Decimal(10, 2)
-  billableKm         Decimal?      @db.Decimal(10, 2)
-  nonBillableKm      Decimal?      @db.Decimal(10, 2)
+  containerNumber String?
+  bookingNumber   String?
+  referenceNumber String?
+  tarCode         String?
+  acceptanceRef   String?
 
-  kmSource           String?
-  manualKmOverride   Boolean       @default(false)
-  kmOverrideNotes    String?
+  totalKm       Decimal? @db.Decimal(10, 2)
+  billableKm    Decimal? @db.Decimal(10, 2)
+  nonBillableKm Decimal? @db.Decimal(10, 2)
 
-  agreedPrice        Decimal?      @db.Decimal(12, 2)
-  waitingHours       Decimal?      @db.Decimal(10, 2)
-  waitingAmount      Decimal?      @db.Decimal(12, 2)
-  portFeeAmount      Decimal?      @db.Decimal(12, 2)
+  kmSource         String?
+  manualKmOverride Boolean @default(false)
+  kmOverrideNotes  String?
 
-  notes              String?
+  agreedPrice   Decimal? @db.Decimal(12, 2)
+  waitingHours  Decimal? @db.Decimal(10, 2)
+  waitingAmount Decimal? @db.Decimal(12, 2)
+  portFeeAmount Decimal? @db.Decimal(12, 2)
 
-  customer           Customer      @relation(fields: [customerId], references: [id])
-  truck              Truck?        @relation(fields: [truckId], references: [id])
-  driver             Driver?       @relation(fields: [driverId], references: [id])
+  notes String?
 
-  pickupAddress      Address?      @relation("CoursePickupAddress", fields: [pickupAddressId], references: [id])
-  deliveryAddress    Address?      @relation("CourseDeliveryAddress", fields: [deliveryAddressId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  truck    Truck?   @relation(fields: [truckId], references: [id])
+  driver   Driver?  @relation(fields: [driverId], references: [id])
 
-  routeLegs          RouteLeg[]
-  costs              Cost[]
-  invoiceLines       InvoiceLine[]
-  documents          Document[]
+  pickupAddress   Address? @relation("CoursePickupAddress", fields: [pickupAddressId], references: [id])
+  deliveryAddress Address? @relation("CourseDeliveryAddress", fields: [deliveryAddressId], references: [id])
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  stops        CourseStop[]
+  routeLegs    RouteLeg[]
+  costs        Cost[]
+  invoiceLines InvoiceLine[]
+  documents    Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([customerId])
   @@index([truckId])
   @@index([driverId])
   @@index([plannedDate])
   @@index([status])
+  @@index([courseType])
+}
+
+model CourseStop {
+  id        String         @id @default(cuid())
+  courseId  String
+  addressId String?
+  sequence  Int
+  type      CourseStopType
+  label     String?
+  notes     String?
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  address Address? @relation(fields: [addressId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, sequence])
+  @@index([courseId])
+  @@index([addressId])
+  @@index([type])
+  @@map("course_stops")
 }
 
 model RouteLeg {
-  id                 String    @id @default(cuid())
-  courseId           String
-  sequence           Int
+  id       String @id @default(cuid())
+  courseId String
+  sequence Int
 
-  fromAddressId      String?
-  toAddressId        String?
+  fromAddressId String?
+  toAddressId   String?
 
   description        String?
-  totalDistanceKm    Decimal?  @db.Decimal(10, 2)
-  billableDistanceKm Decimal?  @db.Decimal(10, 2)
-  isBillable         Boolean   @default(true)
+  totalDistanceKm    Decimal? @db.Decimal(10, 2)
+  billableDistanceKm Decimal? @db.Decimal(10, 2)
+  isBillable         Boolean  @default(true)
   notes              String?
 
-  course             Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  fromAddress        Address?  @relation("RouteLegFromAddress", fields: [fromAddressId], references: [id])
-  toAddress          Address?  @relation("RouteLegToAddress", fields: [toAddressId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  fromAddress Address? @relation("RouteLegFromAddress", fields: [fromAddressId], references: [id])
+  toAddress   Address? @relation("RouteLegToAddress", fields: [toAddressId], references: [id])
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([courseId, sequence])
   @@index([courseId])
 }
 
 model Cost {
-  id                 String    @id @default(cuid())
-  courseId           String?
-  truckId            String?
-  type               CostType
-  description        String
-  amount             Decimal   @db.Decimal(12, 2)
-  costDate           DateTime  @default(now())
-  notes              String?
+  id          String   @id @default(cuid())
+  courseId    String?
+  truckId     String?
+  type        CostType
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  costDate    DateTime @default(now())
+  notes       String?
 
-  course             Course?   @relation(fields: [courseId], references: [id])
-  truck              Truck?    @relation(fields: [truckId], references: [id])
+  course Course? @relation(fields: [courseId], references: [id])
+  truck  Truck?  @relation(fields: [truckId], references: [id])
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([courseId])
   @@index([truckId])
@@ -377,30 +417,30 @@ model Cost {
 }
 
 model Invoice {
-  id                 String        @id @default(cuid())
-  invoiceNumber      String        @unique
-  customerId         String
-  status             InvoiceStatus @default(DRAFT)
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String
+  status        InvoiceStatus @default(DRAFT)
 
-  issueDate          DateTime      @default(now())
-  dueDate            DateTime?
-  paidAt             DateTime?
+  issueDate DateTime  @default(now())
+  dueDate   DateTime?
+  paidAt    DateTime?
 
-  periodStart        DateTime?
-  periodEnd          DateTime?
+  periodStart DateTime?
+  periodEnd   DateTime?
 
-  subtotalAmount     Decimal       @default(0) @db.Decimal(12, 2)
-  vatAmount          Decimal       @default(0) @db.Decimal(12, 2)
-  totalAmount        Decimal       @default(0) @db.Decimal(12, 2)
+  subtotalAmount Decimal @default(0) @db.Decimal(12, 2)
+  vatAmount      Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount    Decimal @default(0) @db.Decimal(12, 2)
 
-  notes              String?
+  notes String?
 
-  customer           Customer      @relation(fields: [customerId], references: [id])
-  lines              InvoiceLine[]
-  documents          Document[]
+  customer  Customer      @relation(fields: [customerId], references: [id])
+  lines     InvoiceLine[]
+  documents Document[]
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([customerId])
   @@index([status])
@@ -408,40 +448,40 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id                 String    @id @default(cuid())
-  invoiceId          String
-  courseId           String?
+  id        String  @id @default(cuid())
+  invoiceId String
+  courseId  String?
 
-  description        String
-  quantity           Decimal   @default(1) @db.Decimal(10, 2)
-  unitPrice          Decimal   @db.Decimal(12, 2)
-  totalPrice         Decimal   @db.Decimal(12, 2)
+  description String
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  totalPrice  Decimal @db.Decimal(12, 2)
 
-  invoice            Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  course             Course?   @relation(fields: [courseId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id])
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([invoiceId])
   @@index([courseId])
 }
 
 model Document {
-  id                 String       @id @default(cuid())
-  courseId           String?
-  invoiceId          String?
+  id        String  @id @default(cuid())
+  courseId  String?
+  invoiceId String?
 
-  type               DocumentType
-  fileName           String
-  fileUrl            String?
-  notes              String?
+  type     DocumentType
+  fileName String
+  fileUrl  String?
+  notes    String?
 
-  course             Course?      @relation(fields: [courseId], references: [id])
-  invoice            Invoice?     @relation(fields: [invoiceId], references: [id])
+  course  Course?  @relation(fields: [courseId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
 
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([courseId])
   @@index([invoiceId])

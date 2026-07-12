@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo } from "react";
 
 export type AddressOption = {
   id: string;
@@ -12,13 +12,20 @@ export type AddressOption = {
   type: string;
 };
 
+export type AddressSelectionValue = {
+  addressId: string;
+  inputValue: string;
+  isNewAddress: boolean;
+};
+
 type AddressAutocompleteProps = {
   value: string;
+  inputValue: string;
   addresses: readonly AddressOption[];
   label: string;
   rowNumber: number;
   placeholder?: string;
-  onChange: (addressId: string) => void;
+  onChange: (value: AddressSelectionValue) => void;
 };
 
 type AddressWithLabel = {
@@ -28,10 +35,11 @@ type AddressWithLabel = {
 
 export default function AddressAutocomplete({
   value,
+  inputValue,
   addresses,
   label,
   rowNumber,
-  placeholder = "Търси адрес",
+  placeholder = "Търси или въведи нов адрес",
   onChange,
 }: AddressAutocompleteProps) {
   const generatedId = useId();
@@ -53,41 +61,77 @@ export default function AddressAutocomplete({
     (option) => option.address.id === value,
   );
 
-  const [inputValue, setInputValue] = useState(
-    selectedAddress?.displayValue ?? "",
-  );
+  const visibleValue =
+    selectedAddress?.displayValue ?? inputValue;
 
   function handleInputChange(nextValue: string): void {
-    setInputValue(nextValue);
-
     const matchingAddress = findMatchingAddress(
       addressOptions,
       nextValue,
     );
 
-    onChange(matchingAddress?.address.id ?? "");
+    if (matchingAddress) {
+      onChange({
+        addressId: matchingAddress.address.id,
+        inputValue: matchingAddress.displayValue,
+        isNewAddress: false,
+      });
+
+      return;
+    }
+
+    onChange({
+      addressId: "",
+      inputValue: nextValue,
+      isNewAddress: nextValue.trim() !== "",
+    });
   }
 
   function handleBlur(): void {
-    if (inputValue.trim() === "") {
-      onChange("");
+    const normalizedValue = visibleValue.trim();
+
+    if (normalizedValue === "") {
+      onChange({
+        addressId: "",
+        inputValue: "",
+        isNewAddress: false,
+      });
+
       return;
     }
 
     const matchingAddress = findMatchingAddress(
       addressOptions,
-      inputValue,
+      normalizedValue,
     );
 
-    if (!matchingAddress) {
-      setInputValue("");
-      onChange("");
+    if (matchingAddress) {
+      onChange({
+        addressId: matchingAddress.address.id,
+        inputValue: matchingAddress.displayValue,
+        isNewAddress: false,
+      });
+
+      return;
     }
+
+    /*
+     * Свободно въведеният адрес остава в полето.
+     * При Save API-то ще го създаде в Address.
+     */
+    onChange({
+      addressId: "",
+      inputValue: normalizedValue,
+      isNewAddress: true,
+    });
   }
 
   function handleClear(): void {
-    setInputValue("");
-    onChange("");
+    onChange({
+      addressId: "",
+      inputValue: "",
+      isNewAddress: false,
+    });
   }
 
   return (
@@ -95,7 +139,8 @@ export default function AddressAutocomplete({
       <input
         type="text"
         list={dataListId}
-        value={inputValue}
+        value={visibleValue}
+        title={visibleValue}
         autoComplete="off"
         placeholder={placeholder}
         aria-label={`${label}, ред ${rowNumber}`}
@@ -106,7 +151,7 @@ export default function AddressAutocomplete({
         className="h-10 w-full rounded border border-transparent bg-transparent px-2 pr-8 text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-400 focus:bg-white"
       />
 
-      {inputValue !== "" && (
+      {visibleValue !== "" && (
         <button
           type="button"
           aria-label={`Изчисти ${label}, ред ${rowNumber}`}
@@ -121,10 +166,7 @@ export default function AddressAutocomplete({
 
       <datalist id={dataListId}>
         {addressOptions.map(({ address, displayValue }) => (
-          <option
-            key={address.id}
-            value={displayValue}
-          >
+          <option key={address.id} value={displayValue}>
             {address.name}
           </option>
         ))}
@@ -158,13 +200,18 @@ function findMatchingAddress(
   addressOptions: readonly AddressWithLabel[],
   inputValue: string,
 ): AddressWithLabel | undefined {
-  const normalizedInput = inputValue
-    .trim()
-    .toLocaleLowerCase("bg-BG");
+  const normalizedInput = normalizeAddressText(inputValue);
 
   return addressOptions.find(
     (option) =>
-      option.displayValue
-        .toLocaleLowerCase("bg-BG") === normalizedInput,
+      normalizeAddressText(option.displayValue) ===
+      normalizedInput,
   );
+}
+
+function normalizeAddressText(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("bg-BG");
 }

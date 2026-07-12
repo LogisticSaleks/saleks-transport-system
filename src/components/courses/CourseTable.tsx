@@ -19,13 +19,18 @@ type CourseTableProps = {
 function createEmptyCourseRow(id: number): CourseRowData {
   return {
     id,
+    databaseId: null,
     truckId: "",
     customerId: "",
     courseType: "",
     pickupAddressId: "",
+    pickupAddressText: "",
     loadingUnloadingAddressId: "",
+    loadingUnloadingAddressText: "",
     extraAddressId: "",
+    extraAddressText: "",
     returnAddressId: "",
+    returnAddressText: "",
     totalKm: "",
     billableKm: "",
     containerNumber: "",
@@ -53,7 +58,6 @@ export default function CourseTable({
 
   function handleAddRow(): void {
     const newRowId = nextRowId.current;
-
     nextRowId.current += 1;
 
     setRows((currentRows) => [

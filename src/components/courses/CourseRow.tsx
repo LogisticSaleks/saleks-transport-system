@@ -15,6 +15,7 @@ import { calculationSettings } from "@/lib/settings/calculationSettings";
 
 import AddressAutocomplete, {
   type AddressOption,
+  type AddressSelectionValue,
 } from "./AddressAutocomplete";
 import CourseDetailsPanel from "./CourseDetailsPanel";
 import CourseTypeSelect from "./CourseTypeSelect";
@@ -29,13 +30,18 @@ import TruckSelect, {
 
 export type CourseRowData = {
   id: number;
+  databaseId: string | null;
   truckId: string;
   customerId: string;
   courseType: string;
   pickupAddressId: string;
+  pickupAddressText: string;
   loadingUnloadingAddressId: string;
+  loadingUnloadingAddressText: string;
   extraAddressId: string;
+  extraAddressText: string;
   returnAddressId: string;
+  returnAddressText: string;
   totalKm: string;
   billableKm: string;
   containerNumber: string;
@@ -51,7 +57,7 @@ export type CourseRowData = {
 
 export type EditableCourseField = Exclude<
   keyof CourseRowData,
-  "id"
+  "id" | "databaseId"
 >;
 
 type AddressField =
@@ -59,6 +65,12 @@ type AddressField =
   | "loadingUnloadingAddressId"
   | "extraAddressId"
   | "returnAddressId";
+
+type AddressTextField =
+  | "pickupAddressText"
+  | "loadingUnloadingAddressText"
+  | "extraAddressText"
+  | "returnAddressText";
 
 type ManualKmField =
   | "totalKm"
@@ -95,12 +107,55 @@ type NumberInputWithMarkerProps = {
   onChange?: (value: string) => void;
 };
 
+type CourseStopPayload = {
+  sequence: number;
+  type:
+    | "PICKUP"
+    | "LOAD_UNLOAD"
+    | "EXTRA"
+    | "RETURN";
+  addressId: string | null;
+  addressText: string | null;
+  label: string | null;
+  notes: string | null;
+};
+
+type CourseCostPayload = {
+  truckId: string | null;
+  type:
+    | "FUEL"
+    | "TOLL"
+    | "PORT_FEE"
+    | "OTHER";
+  description: string;
+  amount: number;
+  notes: string | null;
+};
+
+type CourseApiResponse = {
+  course?: {
+    id?: string;
+  };
+  error?: string;
+};
+
 const ADDRESS_FIELDS: readonly AddressField[] = [
   "pickupAddressId",
   "loadingUnloadingAddressId",
   "extraAddressId",
   "returnAddressId",
 ];
+
+const ADDRESS_TEXT_FIELD_BY_ID: Record<
+  AddressField,
+  AddressTextField
+> = {
+  pickupAddressId: "pickupAddressText",
+  loadingUnloadingAddressId:
+    "loadingUnloadingAddressText",
+  extraAddressId: "extraAddressText",
+  returnAddressId: "returnAddressText",
+};
 
 const MANUAL_KM_FIELDS: readonly ManualKmField[] = [
   "totalKm",
@@ -263,6 +318,12 @@ export default function CourseRow({
   const [isSaved, setIsSaved] =
     useState(false);
 
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [saveError, setSaveError] =
+    useState<string | null>(null);
+
   const [isDetailsOpen, setIsDetailsOpen] =
     useState(false);
 
@@ -315,9 +376,13 @@ export default function CourseRow({
         draft.customerId,
         draft.courseType,
         draft.pickupAddressId,
+        draft.pickupAddressText,
         draft.loadingUnloadingAddressId,
+        draft.loadingUnloadingAddressText,
         draft.extraAddressId,
+        draft.extraAddressText,
         draft.returnAddressId,
+        draft.returnAddressText,
         draft.totalKm,
         draft.billableKm,
         draft.containerNumber,
@@ -432,8 +497,11 @@ export default function CourseRow({
             draft.portFee,
           ),
 
-        requiresReview:
-          inputWarnings.length > 0,
+        /*
+         * Предупрежденията се показват отделно и не
+         * заменят финансовия статус на курса.
+         */
+        requiresReview: false,
 
         settings,
       });
@@ -444,7 +512,6 @@ export default function CourseRow({
     draft,
     pricing,
     selectedTruck,
-    inputWarnings,
   ]);
 
   const effectivePrice =
@@ -494,46 +561,206 @@ export default function CourseRow({
     }));
 
     setIsSaved(false);
+    setSaveError(null);
   }
 
-  function handleSave(): void {
-    const savedRow: CourseRowData = {
-      ...draft,
+  function handleAddressChange(
+    field: AddressField,
+    value: AddressSelectionValue,
+  ): void {
+    const textField = ADDRESS_TEXT_FIELD_BY_ID[field];
 
-      price:
-        calculation?.price !== null &&
-        calculation?.price !== undefined
-          ? formatMoney(calculation.price)
-          : draft.price,
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      [field]: value.addressId,
+      [textField]: value.inputValue,
+    }));
 
+    setIsSaved(false);
+    setSaveError(null);
+  }
+
+  async function handleSave(): Promise<void> {
+    setIsSaved(false);
+    setSaveError(null);
+
+    const validationError =
+      validateCourseForSave(draft);
+
+    if (validationError) {
+      setSaveError(validationError);
+      return;
+    }
+
+    const totalKm =
+      parseRequiredNumber(draft.totalKm);
+
+    const billableKm =
+      parseRequiredNumber(draft.billableKm);
+
+    if (
+      totalKm === null ||
+      billableKm === null
+    ) {
+      setSaveError(
+        "Общите и платимите километри трябва да бъдат валидни числа.",
+      );
+      return;
+    }
+
+    const nonBillableKm = Math.max(
+      totalKm - billableKm,
+      0,
+    );
+
+    const stops = buildCourseStops(
+      draft,
+      addressOptions,
+    );
+
+    const costs = buildCourseCosts({
+      truckId: draft.truckId,
       fuelCost:
-        calculation?.costs.fuelCost !==
-        undefined
-          ? formatMoney(
-              calculation.costs.fuelCost,
-            )
-          : "",
+        calculation?.costs.fuelCost ?? 0,
+      tollCost:
+        calculation?.costs.tollCost ??
+        parseOptionalNumber(draft.tollFee),
+      portCost:
+        calculation?.costs.portCost ??
+        parseOptionalNumber(draft.portFee),
+      truckFixedCost:
+        calculation?.costs.truckFixedCost ?? 0,
+      otherCosts:
+        calculation?.costs.otherCosts ?? 0,
+    });
 
-      totalCost:
-        calculation?.costs.totalCost !==
-        undefined
-          ? formatMoney(
-              calculation.costs.totalCost,
-            )
-          : "",
+    const requestBody = {
+      ...(draft.databaseId
+        ? { id: draft.databaseId }
+        : {}),
 
-      profit:
-        calculation?.profit !== null &&
-        calculation?.profit !== undefined
-          ? formatMoney(calculation.profit)
-          : "",
+      customerId: draft.customerId,
+      truckId: draft.truckId || null,
+      courseType: draft.courseType,
 
-      status: displayStatus ?? "",
+      pickupAddressId:
+        draft.pickupAddressId || null,
+      deliveryAddressId:
+        draft.loadingUnloadingAddressId || null,
+
+      status: "DRAFT",
+      containerNumber:
+        draft.containerNumber.trim() || null,
+
+      totalKm,
+      billableKm,
+      nonBillableKm,
+
+      kmSource: "MANUAL",
+      manualKmOverride: true,
+
+      agreedPrice: effectivePrice,
+
+      waitingHours:
+        parseOptionalNumber(
+          draft.waitingMinutes,
+        ) / 60,
+
+      waitingAmount:
+        calculation?.waiting.waitingCost ?? 0,
+
+      portFeeAmount:
+        parseNullableNumber(draft.portFee),
+
+      stops,
+      costs,
     };
 
-    setDraft(savedRow);
-    onSave(savedRow);
-    setIsSaved(true);
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(
+        "/api/courses",
+        {
+          method: draft.databaseId
+            ? "PATCH"
+            : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+
+      const responseData =
+        (await response
+          .json()
+          .catch(() => null)) as
+          | CourseApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Курсът не можа да бъде записан.",
+        );
+      }
+
+      const databaseId =
+        responseData?.course?.id;
+
+      if (!databaseId) {
+        throw new Error(
+          "API не върна id на записания курс.",
+        );
+      }
+
+      const savedRow: CourseRowData = {
+        ...draft,
+        databaseId,
+
+        price:
+          effectivePrice !== null
+            ? formatMoney(effectivePrice)
+            : draft.price,
+
+        fuelCost:
+          calculation?.costs.fuelCost !==
+          undefined
+            ? formatMoney(
+                calculation.costs.fuelCost,
+              )
+            : "",
+
+        totalCost:
+          calculation?.costs.totalCost !==
+          undefined
+            ? formatMoney(
+                calculation.costs.totalCost,
+              )
+            : "",
+
+        profit:
+          calculation?.profit !== null &&
+          calculation?.profit !== undefined
+            ? formatMoney(calculation.profit)
+            : "",
+
+        status: displayStatus ?? "",
+      };
+
+      setDraft(savedRow);
+      onSave(savedRow);
+      setIsSaved(true);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Курсът не можа да бъде записан.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -594,18 +821,23 @@ export default function CourseRow({
               ) ? (
               <AddressAutocomplete
                 value={draft[column.key]}
+                inputValue={
+                  draft[
+                    ADDRESS_TEXT_FIELD_BY_ID[
+                      column.key
+                    ]
+                  ]
+                }
                 addresses={addressOptions}
                 label={column.label}
                 rowNumber={rowNumber}
-                placeholder={
-                  column.placeholder
-                }
-                onChange={(addressId) =>
-                  handleCellChange(
-                    column.key,
-                    addressId,
-                  )
-                }
+                placeholder={column.placeholder}
+                onChange={(addressValue) =>
+                  handleAddressChange(
+                    column.key as AddressField,
+                    addressValue,
+                )
+              }
               />
             ) : isManualKmField(
                 column.key,
@@ -784,14 +1016,26 @@ export default function CourseRow({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              disabled={isSaving}
+              aria-busy={isSaving}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Save
+              {isSaving
+                ? "Saving..."
+                : draft.databaseId
+                  ? "Update"
+                  : "Save"}
             </button>
 
             {isSaved && (
               <span className="text-xs font-medium text-emerald-600">
-                Saved
+                Saved in database
+              </span>
+            )}
+
+            {saveError && (
+              <span className="max-w-[110px] text-xs font-medium leading-4 text-red-600">
+                {saveError}
               </span>
             )}
           </div>
@@ -836,24 +1080,28 @@ export default function CourseRow({
           getAddressLabel(
             addressOptions,
             draft.pickupAddressId,
+            draft.pickupAddressText,
           )
         }
         loadingUnloadingAddressLabel={
           getAddressLabel(
             addressOptions,
             draft.loadingUnloadingAddressId,
+            draft.loadingUnloadingAddressText,
           )
         }
         extraAddressLabel={
           getAddressLabel(
             addressOptions,
             draft.extraAddressId,
+            draft.extraAddressText,
           )
         }
         returnAddressLabel={
           getAddressLabel(
             addressOptions,
             draft.returnAddressId,
+            draft.returnAddressText,
           )
         }
         totalKm={totalKmValue}
@@ -1191,9 +1439,10 @@ function getCourseTypeLabel(
 function getAddressLabel(
   addresses: readonly AddressOption[],
   addressId: string,
+  addressText: string,
 ): string {
   if (addressId.trim() === "") {
-    return "";
+    return addressText.trim();
   }
 
   const address = addresses.find(
@@ -1201,7 +1450,7 @@ function getAddressLabel(
   );
 
   if (!address) {
-    return "";
+    return addressText.trim();
   }
 
   const cityLine = [
@@ -1222,4 +1471,226 @@ function getAddressLabel(
   }
 
   return `${address.name} — ${addressParts.join(", ")}`;
+}
+
+type BuildCourseCostsInput = {
+  truckId: string;
+  fuelCost: number;
+  tollCost: number;
+  portCost: number;
+  truckFixedCost: number;
+  otherCosts: number;
+};
+
+function validateCourseForSave(
+  row: CourseRowData,
+): string | null {
+  if (row.truckId.trim() === "") {
+    return "Избери камион.";
+  }
+
+  if (row.customerId.trim() === "") {
+    return "Избери клиент.";
+  }
+
+  if (
+    row.courseType !== "ROUND_TRIP" &&
+    row.courseType !== "SHUNT"
+  ) {
+    return "Избери тип на курса.";
+  }
+
+  if (
+    !hasAddressValue(
+      row.pickupAddressId,
+      row.pickupAddressText,
+    )
+  ) {
+    return "Избери или въведи адрес за взимане.";
+  }
+
+  if (
+    !hasAddressValue(
+      row.loadingUnloadingAddressId,
+      row.loadingUnloadingAddressText,
+    )
+  ) {
+    return "Избери или въведи адрес за товарене или разтоварване.";
+  }
+
+  if (parseRequiredNumber(row.totalKm) === null) {
+    return "Въведи общите километри.";
+  }
+
+  if (
+    parseRequiredNumber(row.billableKm) === null
+  ) {
+    return "Въведи платимите километри.";
+  }
+
+  return null;
+}
+
+function buildCourseStops(
+  row: CourseRowData,
+  addresses: readonly AddressOption[],
+): CourseStopPayload[] {
+  const candidates = [
+    {
+      type: "PICKUP" as const,
+      addressId: row.pickupAddressId,
+      addressText: row.pickupAddressText,
+    },
+    {
+      type: "LOAD_UNLOAD" as const,
+      addressId:
+        row.loadingUnloadingAddressId,
+      addressText:
+        row.loadingUnloadingAddressText,
+    },
+    {
+      type: "EXTRA" as const,
+      addressId: row.extraAddressId,
+      addressText: row.extraAddressText,
+    },
+    {
+      type: "RETURN" as const,
+      addressId: row.returnAddressId,
+      addressText: row.returnAddressText,
+    },
+  ];
+
+  return candidates
+    .filter((candidate) =>
+      hasAddressValue(
+        candidate.addressId,
+        candidate.addressText,
+      ),
+    )
+    .map((candidate, index) => {
+      const selectedAddressName =
+        getAddressName(
+          addresses,
+          candidate.addressId,
+        );
+
+      const freeText =
+        candidate.addressText.trim();
+
+      return {
+        sequence: index + 1,
+        type: candidate.type,
+        addressId:
+          candidate.addressId.trim() || null,
+        addressText:
+          candidate.addressId.trim() !== ""
+            ? null
+            : freeText || null,
+        label:
+          (selectedAddressName ?? freeText) ||
+          null,
+        notes: null,
+      };
+    });
+}
+
+function hasAddressValue(
+  addressId: string,
+  addressText: string,
+): boolean {
+  return (
+    addressId.trim() !== "" ||
+    addressText.trim() !== ""
+  );
+}
+
+function buildCourseCosts({
+  truckId,
+  fuelCost,
+  tollCost,
+  portCost,
+  truckFixedCost,
+  otherCosts,
+}: BuildCourseCostsInput): CourseCostPayload[] {
+  const costs: CourseCostPayload[] = [];
+
+  addCourseCost(
+    costs,
+    truckId,
+    "FUEL",
+    "Гориво",
+    fuelCost,
+  );
+
+  addCourseCost(
+    costs,
+    truckId,
+    "TOLL",
+    "Пътни такси",
+    tollCost,
+  );
+
+  addCourseCost(
+    costs,
+    truckId,
+    "PORT_FEE",
+    "Пристанищна такса",
+    portCost,
+  );
+
+  addCourseCost(
+    costs,
+    truckId,
+    "OTHER",
+    "Фиксиран разход за камиона",
+    truckFixedCost,
+  );
+
+  addCourseCost(
+    costs,
+    truckId,
+    "OTHER",
+    "Други разходи",
+    otherCosts,
+  );
+
+  return costs;
+}
+
+function addCourseCost(
+  costs: CourseCostPayload[],
+  truckId: string,
+  type: CourseCostPayload["type"],
+  description: string,
+  amount: number,
+): void {
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    return;
+  }
+
+  costs.push({
+    truckId: truckId || null,
+    type,
+    description,
+    amount: roundMoney(amount),
+    notes: null,
+  });
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function getAddressName(
+  addresses: readonly AddressOption[],
+  addressId: string,
+): string | null {
+  const address = addresses.find(
+    (option) => option.id === addressId,
+  );
+
+  return address?.name ?? null;
 }
