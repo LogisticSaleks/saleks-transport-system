@@ -55,7 +55,9 @@ type AddressField =
   | "extraAddressId"
   | "returnAddressId";
 
-type ManualKmField = "totalKm" | "billableKm";
+type ManualKmField =
+  | "totalKm"
+  | "billableKm";
 
 export type CourseColumn = {
   key: EditableCourseField;
@@ -252,14 +254,17 @@ export default function CourseRow({
   const [draft, setDraft] =
     useState<CourseRowData>(initialRow);
 
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] =
+    useState(false);
+
   const [isDetailsOpen, setIsDetailsOpen] =
     useState(false);
 
   const selectedCustomer = useMemo(
     () =>
       customerOptions.find(
-        (customer) => customer.id === draft.customerId,
+        (customer) =>
+          customer.id === draft.customerId,
       ),
     [customerOptions, draft.customerId],
   );
@@ -282,23 +287,29 @@ export default function CourseRow({
   );
 
   const calculation = useMemo(() => {
-    const totalKm = parseRequiredNumber(draft.totalKm);
+    const totalKm =
+      parseRequiredNumber(draft.totalKm);
 
     const billableKm = parseRequiredNumber(
       draft.billableKm,
     );
 
-    if (totalKm === null || billableKm === null) {
+    if (
+      totalKm === null ||
+      billableKm === null
+    ) {
       return null;
     }
 
-    const manualPrice = parseRequiredNumber(draft.price);
+    const manualPrice =
+      parseRequiredNumber(draft.price);
 
     const settings = {
       ...calculationSettings,
 
       fuel: {
         ...calculationSettings.fuel,
+
         consumptionLitersPer100Km:
           selectedTruck
             ?.defaultFuelConsumptionLPer100Km ??
@@ -308,6 +319,7 @@ export default function CourseRow({
 
       msi: {
         ...calculationSettings.msi,
+
         pricePerKm:
           pricing.pricePerKm ??
           calculationSettings.msi.pricePerKm,
@@ -337,15 +349,20 @@ export default function CourseRow({
             ? manualPrice ?? undefined
             : undefined,
 
-        manualTollOverride: parseOptionalNumber(
-          draft.tollFee,
-        ),
+        manualTollOverride:
+          parseOptionalNumber(
+            draft.tollFee,
+          ),
 
-        waitingMinutes: parseOptionalNumber(
-          draft.waitingMinutes,
-        ),
+        waitingMinutes:
+          parseOptionalNumber(
+            draft.waitingMinutes,
+          ),
 
-        portCost: parseOptionalNumber(draft.portFee),
+        portCost:
+          parseOptionalNumber(
+            draft.portFee,
+          ),
 
         settings,
       });
@@ -354,20 +371,30 @@ export default function CourseRow({
     }
   }, [draft, pricing, selectedTruck]);
 
-  const totalKmValue = parseNullableNumber(
-    draft.totalKm,
-  );
+  const totalKmValue =
+    parseNullableNumber(draft.totalKm);
 
-  const billableKmValue = parseNullableNumber(
-    draft.billableKm,
-  );
+  const billableKmValue =
+    parseNullableNumber(draft.billableKm);
 
   const nonBillableKmValue =
-    totalKmValue !== null && billableKmValue !== null
-      ? Math.max(totalKmValue - billableKmValue, 0)
+    totalKmValue !== null &&
+    billableKmValue !== null
+      ? Math.max(
+          totalKmValue - billableKmValue,
+          0,
+        )
       : null;
 
-  const panelId = `course-details-panel-${draft.id}`;
+  const extraChargesValue =
+    calculateExtraCharges(
+      calculation?.revenue,
+      calculation?.price,
+      calculation?.waiting.waitingCost,
+    );
+
+  const panelId =
+    `course-details-panel-${draft.id}`;
 
   function handleCellChange(
     field: EditableCourseField,
@@ -392,13 +419,19 @@ export default function CourseRow({
           : draft.price,
 
       fuelCost:
-        calculation?.costs.fuelCost !== undefined
-          ? formatMoney(calculation.costs.fuelCost)
+        calculation?.costs.fuelCost !==
+        undefined
+          ? formatMoney(
+              calculation.costs.fuelCost,
+            )
           : "",
 
       totalCost:
-        calculation?.costs.totalCost !== undefined
-          ? formatMoney(calculation.costs.totalCost)
+        calculation?.costs.totalCost !==
+        undefined
+          ? formatMoney(
+              calculation.costs.totalCost,
+            )
           : "",
 
       profit:
@@ -407,7 +440,8 @@ export default function CourseRow({
           ? formatMoney(calculation.profit)
           : "",
 
-      status: calculation?.status ?? "",
+      status:
+        calculation?.status ?? "",
     };
 
     setDraft(savedRow);
@@ -437,10 +471,14 @@ export default function CourseRow({
                 trucks={truckOptions}
                 rowNumber={rowNumber}
                 onChange={(truckId) =>
-                  handleCellChange("truckId", truckId)
+                  handleCellChange(
+                    "truckId",
+                    truckId,
+                  )
                 }
               />
-            ) : column.key === "customerId" ? (
+            ) : column.key ===
+              "customerId" ? (
               <CustomerSelect
                 value={draft.customerId}
                 customers={customerOptions}
@@ -452,7 +490,8 @@ export default function CourseRow({
                   )
                 }
               />
-            ) : column.key === "courseType" ? (
+            ) : column.key ===
+              "courseType" ? (
               <CourseTypeSelect
                 value={draft.courseType}
                 rowNumber={rowNumber}
@@ -463,13 +502,17 @@ export default function CourseRow({
                   )
                 }
               />
-            ) : isAddressField(column.key) ? (
+            ) : isAddressField(
+                column.key,
+              ) ? (
               <AddressAutocomplete
                 value={draft[column.key]}
                 addresses={addressOptions}
                 label={column.label}
                 rowNumber={rowNumber}
-                placeholder={column.placeholder}
+                placeholder={
+                  column.placeholder
+                }
                 onChange={(addressId) =>
                   handleCellChange(
                     column.key,
@@ -477,28 +520,41 @@ export default function CourseRow({
                   )
                 }
               />
-            ) : isManualKmField(column.key) ? (
+            ) : isManualKmField(
+                column.key,
+              ) ? (
               <NumberInputWithMarker
                 value={draft[column.key]}
                 label={column.label}
                 rowNumber={rowNumber}
-                placeholder={column.placeholder}
+                placeholder={
+                  column.placeholder
+                }
                 min={column.min}
                 step={column.step}
                 showMarker={
-                  draft[column.key].trim() !== ""
+                  draft[
+                    column.key
+                  ].trim() !== ""
                 }
                 onChange={(value) =>
-                  handleCellChange(column.key, value)
+                  handleCellChange(
+                    column.key,
+                    value,
+                  )
                 }
               />
             ) : column.key === "price" ? (
               <NumberInputWithMarker
                 value={
                   pricing.isAutomatic
-                    ? calculation?.price !== null &&
-                      calculation?.price !== undefined
-                      ? formatMoney(calculation.price)
+                    ? calculation?.price !==
+                        null &&
+                      calculation?.price !==
+                        undefined
+                      ? formatMoney(
+                          calculation.price,
+                        )
                       : ""
                     : draft.price
                 }
@@ -511,38 +567,51 @@ export default function CourseRow({
                 }
                 min={0}
                 step={0.01}
-                readOnly={pricing.isAutomatic}
+                readOnly={
+                  pricing.isAutomatic
+                }
                 showMarker={
                   !pricing.isAutomatic &&
                   draft.price.trim() !== ""
                 }
                 onChange={(value) =>
-                  handleCellChange("price", value)
+                  handleCellChange(
+                    "price",
+                    value,
+                  )
                 }
               />
-            ) : column.key === "tollFee" ? (
+            ) : column.key ===
+              "tollFee" ? (
               <NumberInputWithMarker
                 value={draft.tollFee}
                 label={column.label}
                 rowNumber={rowNumber}
-                placeholder={column.placeholder}
+                placeholder={
+                  column.placeholder
+                }
                 min={column.min}
                 step={column.step}
                 showMarker={
                   draft.tollFee.trim() !== ""
                 }
                 onChange={(value) =>
-                  handleCellChange("tollFee", value)
+                  handleCellChange(
+                    "tollFee",
+                    value,
+                  )
                 }
               />
-            ) : column.key === "fuelCost" ? (
+            ) : column.key ===
+              "fuelCost" ? (
               <input
                 type="text"
                 value={
-                  calculation?.costs.fuelCost !==
-                  undefined
+                  calculation?.costs
+                    .fuelCost !== undefined
                     ? formatMoney(
-                        calculation.costs.fuelCost,
+                        calculation.costs
+                          .fuelCost,
                       )
                     : ""
                 }
@@ -551,14 +620,16 @@ export default function CourseRow({
                 aria-label={`Гориво, ред ${rowNumber}`}
                 className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
               />
-            ) : column.key === "totalCost" ? (
+            ) : column.key ===
+              "totalCost" ? (
               <input
                 type="text"
                 value={
-                  calculation?.costs.totalCost !==
-                  undefined
+                  calculation?.costs
+                    .totalCost !== undefined
                     ? formatMoney(
-                        calculation.costs.totalCost,
+                        calculation.costs
+                          .totalCost,
                       )
                     : ""
                 }
@@ -571,9 +642,13 @@ export default function CourseRow({
               <input
                 type="text"
                 value={
-                  calculation?.profit !== null &&
-                  calculation?.profit !== undefined
-                    ? formatMoney(calculation.profit)
+                  calculation?.profit !==
+                    null &&
+                  calculation?.profit !==
+                    undefined
+                    ? formatMoney(
+                        calculation.profit,
+                      )
                     : ""
                 }
                 readOnly
@@ -584,17 +659,23 @@ export default function CourseRow({
             ) : column.key === "status" ? (
               <div className="flex h-10 w-full items-center justify-center px-1">
                 <StatusBadge
-                  status={calculation?.status}
+                  status={
+                    calculation?.status
+                  }
                 />
               </div>
             ) : (
               <input
-                type={column.inputType ?? "text"}
+                type={
+                  column.inputType ?? "text"
+                }
                 value={draft[column.key]}
                 min={column.min}
                 step={column.step}
                 readOnly={column.readOnly}
-                placeholder={column.placeholder}
+                placeholder={
+                  column.placeholder
+                }
                 aria-label={`${column.label}, ред ${rowNumber}`}
                 onChange={(event) =>
                   handleCellChange(
@@ -636,7 +717,9 @@ export default function CourseRow({
             type="button"
             aria-expanded={isDetailsOpen}
             aria-controls={panelId}
-            onClick={() => setIsDetailsOpen(true)}
+            onClick={() =>
+              setIsDetailsOpen(true)
+            }
             className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
             Детайли
@@ -653,68 +736,113 @@ export default function CourseRow({
             ? `${selectedTruck.name} — ${selectedTruck.licensePlate}`
             : ""
         }
-        customerLabel={selectedCustomer?.name ?? ""}
-        courseTypeLabel={getCourseTypeLabel(
-          draft.courseType,
-        )}
-        containerNumber={draft.containerNumber}
-        pickupAddressLabel={getAddressLabel(
-          addressOptions,
-          draft.pickupAddressId,
-        )}
-        loadingUnloadingAddressLabel={getAddressLabel(
-          addressOptions,
-          draft.loadingUnloadingAddressId,
-        )}
-        extraAddressLabel={getAddressLabel(
-          addressOptions,
-          draft.extraAddressId,
-        )}
-        returnAddressLabel={getAddressLabel(
-          addressOptions,
-          draft.returnAddressId,
-        )}
+        customerLabel={
+          selectedCustomer?.name ?? ""
+        }
+        courseTypeLabel={
+          getCourseTypeLabel(
+            draft.courseType,
+          )
+        }
+        containerNumber={
+          draft.containerNumber
+        }
+        pickupAddressLabel={
+          getAddressLabel(
+            addressOptions,
+            draft.pickupAddressId,
+          )
+        }
+        loadingUnloadingAddressLabel={
+          getAddressLabel(
+            addressOptions,
+            draft.loadingUnloadingAddressId,
+          )
+        }
+        extraAddressLabel={
+          getAddressLabel(
+            addressOptions,
+            draft.extraAddressId,
+          )
+        }
+        returnAddressLabel={
+          getAddressLabel(
+            addressOptions,
+            draft.returnAddressId,
+          )
+        }
         totalKm={totalKmValue}
         billableKm={billableKmValue}
-        nonBillableKm={nonBillableKmValue}
-        price={
-          calculation?.price ??
-          parseNullableNumber(draft.price)
+        nonBillableKm={
+          nonBillableKmValue
         }
-        waitingMinutes={parseNullableNumber(
-          draft.waitingMinutes,
-        )}
-        revenue={calculation?.revenue ?? null}
+        baseClientPrice={
+          calculation?.price ??
+          parseNullableNumber(
+            draft.price,
+          )
+        }
+        waitingMinutes={
+          parseNullableNumber(
+            draft.waitingMinutes,
+          )
+        }
+        waitingChargedToClient={
+          calculation?.waiting
+            .waitingCost ?? null
+        }
+        extraCharges={extraChargesValue}
+        totalRevenue={
+          calculation?.revenue ?? null
+        }
         fuelCost={
-          calculation?.costs.fuelCost ?? null
+          calculation?.costs.fuelCost ??
+          null
         }
         tollCost={
           calculation?.costs.tollCost ??
-          parseNullableNumber(draft.tollFee)
+          parseNullableNumber(
+            draft.tollFee,
+          )
         }
         truckCost={
-          calculation?.costs.truckFixedCost ?? null
+          calculation?.costs
+            .truckFixedCost ?? null
         }
         waitingCost={
-          calculation?.waiting.waitingCost ?? null
+          calculation?.waiting
+            .waitingCost ?? null
         }
         portCost={
           calculation?.costs.portCost ??
-          parseNullableNumber(draft.portFee)
+          parseNullableNumber(
+            draft.portFee,
+          )
         }
         otherCosts={
-          calculation?.costs.otherCosts ?? null
+          calculation?.costs
+            .otherCosts ?? null
         }
         totalCost={
-          calculation?.costs.totalCost ?? null
+          calculation?.costs
+            .totalCost ?? null
         }
-        profit={calculation?.profit ?? null}
+        profit={
+          calculation?.profit ?? null
+        }
         profitMargin={
-          calculation?.profitMargin ?? null
+          calculation?.profitMargin ??
+          null
         }
-        status={calculation?.status ?? null}
-        warnings={calculation?.warnings ?? []}
-        onClose={() => setIsDetailsOpen(false)}
+        status={
+          calculation?.status ?? null
+        }
+        warnings={
+          calculation?.warnings ?? []
+        }
+        onClose={() =>
+          setIsDetailsOpen(false)
+        }
       />
     </>
   );
@@ -774,11 +902,12 @@ function resolveCustomerPricing(
   }
 
   if (courseType === "SHUNT") {
-    const shuntTariff = customer.tariffs.find(
-      (tariff) =>
-        tariff.type === "SHUNT" &&
-        tariff.fixedPrice !== null,
-    );
+    const shuntTariff =
+      customer.tariffs.find(
+        (tariff) =>
+          tariff.type === "SHUNT" &&
+          tariff.fixedPrice !== null,
+      );
 
     if (
       shuntTariff &&
@@ -787,17 +916,20 @@ function resolveCustomerPricing(
       return {
         method: "FIXED_PRICE",
         pricePerKm: null,
-        fixedPrice: shuntTariff.fixedPrice,
+        fixedPrice:
+          shuntTariff.fixedPrice,
         isAutomatic: true,
       };
     }
   }
 
-  const tableTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "FIXED_TABLE_UPPER_BOUND" ||
-      tariff.type === "DISTANCE_TABLE",
-  );
+  const tableTariff =
+    customer.tariffs.find(
+      (tariff) =>
+        tariff.type ===
+          "FIXED_TABLE_UPPER_BOUND" ||
+        tariff.type === "DISTANCE_TABLE",
+    );
 
   if (tableTariff) {
     return {
@@ -808,11 +940,12 @@ function resolveCustomerPricing(
     };
   }
 
-  const pricePerKmTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "PRICE_PER_KM" &&
-      tariff.pricePerKm !== null,
-  );
+  const pricePerKmTariff =
+    customer.tariffs.find(
+      (tariff) =>
+        tariff.type === "PRICE_PER_KM" &&
+        tariff.pricePerKm !== null,
+    );
 
   if (
     pricePerKmTariff &&
@@ -820,17 +953,19 @@ function resolveCustomerPricing(
   ) {
     return {
       method: "MSI",
-      pricePerKm: pricePerKmTariff.pricePerKm,
+      pricePerKm:
+        pricePerKmTariff.pricePerKm,
       fixedPrice: null,
       isAutomatic: true,
     };
   }
 
-  const fixedPriceTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "FIXED_PRICE" &&
-      tariff.fixedPrice !== null,
-  );
+  const fixedPriceTariff =
+    customer.tariffs.find(
+      (tariff) =>
+        tariff.type === "FIXED_PRICE" &&
+        tariff.fixedPrice !== null,
+    );
 
   if (
     fixedPriceTariff &&
@@ -839,7 +974,8 @@ function resolveCustomerPricing(
     return {
       method: "FIXED_PRICE",
       pricePerKm: null,
-      fixedPrice: fixedPriceTariff.fixedPrice,
+      fixedPrice:
+        fixedPriceTariff.fixedPrice,
       isAutomatic: true,
     };
   }
@@ -871,7 +1007,9 @@ function parseRequiredNumber(
   return parsedValue;
 }
 
-function parseOptionalNumber(value: string): number {
+function parseOptionalNumber(
+  value: string,
+): number {
   if (value.trim() === "") {
     return 0;
   }
@@ -902,6 +1040,41 @@ function parseNullableNumber(
   }
 
   return parsedValue;
+}
+
+function calculateExtraCharges(
+  totalRevenue:
+    | number
+    | null
+    | undefined,
+  baseClientPrice:
+    | number
+    | null
+    | undefined,
+  waitingChargedToClient:
+    | number
+    | undefined,
+): number | null {
+  if (
+    totalRevenue === null ||
+    totalRevenue === undefined ||
+    baseClientPrice === null ||
+    baseClientPrice === undefined ||
+    waitingChargedToClient === undefined
+  ) {
+    return null;
+  }
+
+  const difference =
+    totalRevenue -
+    baseClientPrice -
+    waitingChargedToClient;
+
+  if (Math.abs(difference) < 0.005) {
+    return 0;
+  }
+
+  return Math.round(difference * 100) / 100;
 }
 
 function formatMoney(value: number): string {

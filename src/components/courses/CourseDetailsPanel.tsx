@@ -26,9 +26,11 @@ type CourseDetailsPanelProps = {
   billableKm: number | null;
   nonBillableKm: number | null;
 
-  price: number | null;
+  baseClientPrice: number | null;
   waitingMinutes: number | null;
-  revenue: number | null;
+  waitingChargedToClient: number | null;
+  extraCharges: number | null;
+  totalRevenue: number | null;
 
   fuelCost: number | null;
   tollCost: number | null;
@@ -68,9 +70,11 @@ export default function CourseDetailsPanel({
   totalKm,
   billableKm,
   nonBillableKm,
-  price,
+  baseClientPrice,
   waitingMinutes,
-  revenue,
+  waitingChargedToClient,
+  extraCharges,
+  totalRevenue,
   fuelCost,
   tollCost,
   truckCost,
@@ -95,20 +99,31 @@ export default function CourseDetailsPanel({
       return;
     }
 
-    const previousOverflow = document.body.style.overflow;
+    const previousOverflow =
+      document.body.style.overflow;
 
-    function handleKeyDown(event: KeyboardEvent): void {
+    function handleKeyDown(
+      event: KeyboardEvent,
+    ): void {
       if (event.key === "Escape") {
         onClose();
       }
     }
 
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
 
     return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow =
+        previousOverflow;
+
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
     };
   }, [isOpen, onClose]);
 
@@ -202,7 +217,9 @@ export default function CourseDetailsPanel({
               <dl className="mt-4 grid gap-4">
                 <DetailItem
                   label="Взимане"
-                  value={displayText(pickupAddressLabel)}
+                  value={displayText(
+                    pickupAddressLabel,
+                  )}
                 />
 
                 <DetailItem
@@ -214,12 +231,16 @@ export default function CourseDetailsPanel({
 
                 <DetailItem
                   label="Екстра адрес"
-                  value={displayText(extraAddressLabel)}
+                  value={displayText(
+                    extraAddressLabel,
+                  )}
                 />
 
                 <DetailItem
                   label="Връщане"
-                  value={displayText(returnAddressLabel)}
+                  value={displayText(
+                    returnAddressLabel,
+                  )}
                 />
               </dl>
             </section>
@@ -247,25 +268,42 @@ export default function CourseDetailsPanel({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Приходи и престой
+            <section className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-800">
+                Revenue breakdown
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Цена на курса"
-                  value={formatMoney(price)}
+                  label="Base client price"
+                  value={formatMoney(
+                    baseClientPrice,
+                  )}
                 />
 
                 <DetailItem
-                  label="Престой"
-                  value={formatMinutes(waitingMinutes)}
+                  label="Waiting charged to client"
+                  value={formatMoney(
+                    waitingChargedToClient,
+                  )}
                 />
 
                 <DetailItem
-                  label="Общ приход"
-                  value={formatMoney(revenue)}
+                  label="Extra charges"
+                  value={formatMoney(extraCharges)}
+                />
+
+                <DetailItem
+                  label="Waiting time"
+                  value={formatMinutes(
+                    waitingMinutes,
+                  )}
+                />
+
+                <DetailItem
+                  label="Total revenue"
+                  value={formatMoney(totalRevenue)}
+                  fullWidth
                 />
               </dl>
             </section>
@@ -314,9 +352,10 @@ export default function CourseDetailsPanel({
               </dl>
 
               <p className="mt-4 rounded-md bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
-                Waiting в момента е начисление към клиента и
-                участва в общия приход. То не се добавя към
-                Total cost.
+                Waiting е показано тук за
+                информация, но не участва в Total
+                cost. То се начислява към клиента и
+                участва в Total revenue.
               </p>
             </section>
 
@@ -333,7 +372,9 @@ export default function CourseDetailsPanel({
 
                 <DetailItem
                   label="Марж"
-                  value={formatPercent(profitMargin)}
+                  value={formatPercent(
+                    profitMargin,
+                  )}
                 />
               </dl>
             </section>
@@ -345,15 +386,20 @@ export default function CourseDetailsPanel({
                 </h3>
 
                 <ul className="mt-3 space-y-2 text-sm text-sky-700">
-                  {warnings.map((warning, index) => (
-                    <li
-                      key={`${warning}-${index}`}
-                      className="flex gap-2"
-                    >
-                      <span aria-hidden="true">•</span>
-                      <span>{warning}</span>
-                    </li>
-                  ))}
+                  {warnings.map(
+                    (warning, index) => (
+                      <li
+                        key={`${warning}-${index}`}
+                        className="flex gap-2"
+                      >
+                        <span aria-hidden="true">
+                          •
+                        </span>
+
+                        <span>{warning}</span>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </section>
             )}
@@ -384,7 +430,7 @@ function DetailItem({
     <div
       className={
         fullWidth
-          ? "rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2"
+          ? "rounded-md border border-slate-200 bg-white p-3 sm:col-span-2"
           : ""
       }
     >
@@ -410,7 +456,9 @@ function displayText(value: string): string {
   return value.trim() === "" ? "—" : value;
 }
 
-function formatMoney(value: number | null): string {
+function formatMoney(
+  value: number | null,
+): string {
   if (value === null) {
     return "—";
   }
@@ -426,7 +474,9 @@ function formatKm(value: number | null): string {
   return `${value.toFixed(1)} km`;
 }
 
-function formatMinutes(value: number | null): string {
+function formatMinutes(
+  value: number | null,
+): string {
   if (value === null) {
     return "—";
   }
@@ -434,7 +484,9 @@ function formatMinutes(value: number | null): string {
   return `${value} мин.`;
 }
 
-function formatPercent(value: number | null): string {
+function formatPercent(
+  value: number | null,
+): string {
   if (value === null) {
     return "—";
   }
