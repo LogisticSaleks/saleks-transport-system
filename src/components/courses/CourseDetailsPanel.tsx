@@ -28,12 +28,14 @@ type CourseDetailsPanelProps = {
 
   price: number | null;
   waitingMinutes: number | null;
-  waitingCharge: number | null;
   revenue: number | null;
 
   fuelCost: number | null;
   tollCost: number | null;
+  truckCost: number | null;
+  waitingCost: number | null;
   portCost: number | null;
+  otherCosts: number | null;
   totalCost: number | null;
 
   profit: number | null;
@@ -48,6 +50,7 @@ type CourseDetailsPanelProps = {
 type DetailItemProps = {
   label: string;
   value: string;
+  fullWidth?: boolean;
 };
 
 export default function CourseDetailsPanel({
@@ -67,11 +70,13 @@ export default function CourseDetailsPanel({
   nonBillableKm,
   price,
   waitingMinutes,
-  waitingCharge,
   revenue,
   fuelCost,
   tollCost,
+  truckCost,
+  waitingCost,
   portCost,
+  otherCosts,
   totalCost,
   profit,
   profitMargin,
@@ -221,22 +226,22 @@ export default function CourseDetailsPanel({
 
             <section className="rounded-lg border border-slate-200 bg-white p-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Километри
+                Kilometer breakdown
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-3">
                 <DetailItem
-                  label="Общо км"
+                  label="Total KM"
                   value={formatKm(totalKm)}
                 />
 
                 <DetailItem
-                  label="Платими км"
+                  label="Billable KM"
                   value={formatKm(billableKm)}
                 />
 
                 <DetailItem
-                  label="Неплатими км"
+                  label="Non-billable KM"
                   value={formatKm(nonBillableKm)}
                 />
               </dl>
@@ -259,11 +264,6 @@ export default function CourseDetailsPanel({
                 />
 
                 <DetailItem
-                  label="Начислен престой"
-                  value={formatMoney(waitingCharge)}
-                />
-
-                <DetailItem
                   label="Общ приход"
                   value={formatMoney(revenue)}
                 />
@@ -272,30 +272,52 @@ export default function CourseDetailsPanel({
 
             <section className="rounded-lg border border-slate-200 bg-white p-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Разходи
+                Cost breakdown
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Гориво"
+                  label="Fuel"
                   value={formatMoney(fuelCost)}
                 />
 
                 <DetailItem
-                  label="Тол"
+                  label="Toll"
                   value={formatMoney(tollCost)}
                 />
 
                 <DetailItem
-                  label="Пристанищна такса"
+                  label="Truck cost"
+                  value={formatMoney(truckCost)}
+                />
+
+                <DetailItem
+                  label="Waiting"
+                  value={formatMoney(waitingCost)}
+                />
+
+                <DetailItem
+                  label="Port fee"
                   value={formatMoney(portCost)}
                 />
 
                 <DetailItem
-                  label="Общи разходи"
+                  label="Other costs"
+                  value={formatMoney(otherCosts)}
+                />
+
+                <DetailItem
+                  label="Total cost"
                   value={formatMoney(totalCost)}
+                  fullWidth
                 />
               </dl>
+
+              <p className="mt-4 rounded-md bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
+                Waiting в момента е начисление към клиента и
+                участва в общия приход. То не се добавя към
+                Total cost.
+              </p>
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -356,14 +378,28 @@ export default function CourseDetailsPanel({
 function DetailItem({
   label,
   value,
+  fullWidth = false,
 }: DetailItemProps) {
   return (
-    <div>
+    <div
+      className={
+        fullWidth
+          ? "rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2"
+          : ""
+      }
+    >
       <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </dt>
 
-      <dd className="mt-1 break-words text-sm font-medium text-slate-900">
+      <dd
+        className={[
+          "mt-1 break-words text-sm font-medium",
+          fullWidth
+            ? "text-base font-semibold text-slate-950"
+            : "text-slate-900",
+        ].join(" ")}
+      >
         {value}
       </dd>
     </div>

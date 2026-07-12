@@ -684,9 +684,6 @@ export default function CourseRow({
         waitingMinutes={parseNullableNumber(
           draft.waitingMinutes,
         )}
-        waitingCharge={
-          calculation?.waiting.waitingCost ?? null
-        }
         revenue={calculation?.revenue ?? null}
         fuelCost={
           calculation?.costs.fuelCost ?? null
@@ -695,9 +692,18 @@ export default function CourseRow({
           calculation?.costs.tollCost ??
           parseNullableNumber(draft.tollFee)
         }
+        truckCost={
+          calculation?.costs.truckFixedCost ?? null
+        }
+        waitingCost={
+          calculation?.waiting.waitingCost ?? null
+        }
         portCost={
           calculation?.costs.portCost ??
           parseNullableNumber(draft.portFee)
+        }
+        otherCosts={
+          calculation?.costs.otherCosts ?? null
         }
         totalCost={
           calculation?.costs.totalCost ?? null
