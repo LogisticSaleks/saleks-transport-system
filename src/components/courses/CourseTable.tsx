@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,9 @@ import CourseRow, {
   COURSE_COLUMNS,
   type CourseRowData,
 } from "./CourseRow";
+import CourseSummaryBar, {
+  type CourseSummaryValues,
+} from "./CourseSummaryBar";
 import type { CustomerOption } from "./CustomerSelect";
 import type { TruckOption } from "./TruckSelect";
 
@@ -122,10 +126,24 @@ export default function CourseTable({
     (row) => row.databaseId !== null,
   ).length;
 
+  const visibleSavedRows = useMemo(
+    () =>
+      visibleRows.filter(
+        (row) => row.databaseId !== null,
+      ),
+    [visibleRows],
+  );
+
   const visibleSavedCoursesCount =
-    visibleRows.filter(
-      (row) => row.databaseId !== null,
-    ).length;
+    visibleSavedRows.length;
+
+  const summary = useMemo(
+    () =>
+      calculateCourseSummary(
+        visibleSavedRows,
+      ),
+    [visibleSavedRows],
+  );
 
   function handleAddRow(): void {
     const newRowId = nextRowId.current;
@@ -138,27 +156,42 @@ export default function CourseTable({
     ]);
   }
 
-  function handleSaveRow(
-    savedRow: CourseRowData,
-  ): void {
-    setRows((currentRows) =>
-      currentRows.map((row) =>
-        row.id === savedRow.id
-          ? savedRow
-          : row,
-      ),
-    );
-  }
+  const handleRowChange = useCallback(
+    (changedRow: CourseRowData): void => {
+      setRows((currentRows) =>
+        currentRows.map((row) =>
+          row.id === changedRow.id
+            ? changedRow
+            : row,
+        ),
+      );
+    },
+    [],
+  );
 
-  function handleDeleteRow(
-    rowId: number,
-  ): void {
-    setRows((currentRows) =>
-      currentRows.filter(
-        (row) => row.id !== rowId,
-      ),
-    );
-  }
+  const handleSaveRow = useCallback(
+    (savedRow: CourseRowData): void => {
+      setRows((currentRows) =>
+        currentRows.map((row) =>
+          row.id === savedRow.id
+            ? savedRow
+            : row,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleDeleteRow = useCallback(
+    (rowId: number): void => {
+      setRows((currentRows) =>
+        currentRows.filter(
+          (row) => row.id !== rowId,
+        ),
+      );
+    },
+    [],
+  );
 
   function handleClearFilters(): void {
     setDateFrom("");
@@ -230,6 +263,8 @@ export default function CourseTable({
           </button>
         </div>
       </div>
+
+      <CourseSummaryBar summary={summary} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
         <span>
@@ -304,6 +339,9 @@ export default function CourseTable({
                   addressOptions={
                     addresses
                   }
+                  onChange={
+                    handleRowChange
+                  }
                   onSave={
                     handleSaveRow
                   }
@@ -352,4 +390,99 @@ function getTodayDate(): string {
   )
     .toISOString()
     .slice(0, 10);
+}
+
+
+function calculateCourseSummary(
+  rows: readonly CourseRowData[],
+): CourseSummaryValues {
+  let totalKm = 0;
+  let billableKm = 0;
+  let revenue = 0;
+  let cost = 0;
+  let profit = 0;
+
+  for (const row of rows) {
+    totalKm += parseSummaryNumber(
+      row.totalKm,
+    );
+
+    billableKm += parseSummaryNumber(
+      row.billableKm,
+    );
+
+    const rowCost =
+      parseNullableSummaryNumber(
+        row.totalCost,
+      );
+
+    const rowProfit =
+      parseNullableSummaryNumber(
+        row.profit,
+      );
+
+    const fallbackRevenue =
+      parseSummaryNumber(row.price);
+
+    const rowRevenue =
+      rowCost !== null &&
+      rowProfit !== null
+        ? rowCost + rowProfit
+        : fallbackRevenue;
+
+    const effectiveCost = rowCost ?? 0;
+
+    const effectiveProfit =
+      rowProfit ??
+      (rowRevenue - effectiveCost);
+
+    revenue += rowRevenue;
+    cost += effectiveCost;
+    profit += effectiveProfit;
+  }
+
+  const averageMargin =
+    revenue > 0
+      ? (profit / revenue) * 100
+      : 0;
+
+  return {
+    courseCount: rows.length,
+    totalKm: roundSummaryValue(totalKm),
+    billableKm:
+      roundSummaryValue(billableKm),
+    revenue: roundSummaryValue(revenue),
+    cost: roundSummaryValue(cost),
+    profit: roundSummaryValue(profit),
+    averageMargin:
+      roundSummaryValue(averageMargin),
+  };
+}
+
+function parseSummaryNumber(
+  value: string,
+): number {
+  return (
+    parseNullableSummaryNumber(value) ?? 0
+  );
+}
+
+function parseNullableSummaryNumber(
+  value: string,
+): number | null {
+  if (value.trim() === "") {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue)
+    ? parsedValue
+    : null;
+}
+
+function roundSummaryValue(
+  value: number,
+): number {
+  return Math.round(value * 100) / 100;
 }

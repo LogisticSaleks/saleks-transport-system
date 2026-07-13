@@ -230,6 +230,7 @@ function mapCourseToRow(
     billableKm: unknown;
     containerNumber: string | null;
     waitingHours: unknown;
+    waitingAmount: unknown;
     agreedPrice: unknown;
     portFeeAmount: unknown;
     plannedDate: Date | null;
@@ -293,6 +294,18 @@ function mapCourseToRow(
   const agreedPrice = toNullableNumber(
     course.agreedPrice,
   );
+
+  const waitingAmount =
+    toNullableNumber(
+      course.waitingAmount,
+    ) ?? 0;
+
+  const storedRevenue =
+    (agreedPrice ?? 0) +
+    waitingAmount;
+
+  const storedProfit =
+    storedRevenue - totalCost;
 
   const waitingHours = toNullableNumber(
     course.waitingHours,
@@ -385,11 +398,17 @@ function mapCourseToRow(
         ? totalCost.toFixed(2)
         : "",
 
+    profit:
+      agreedPrice !== null ||
+      waitingAmount > 0 ||
+      totalCost > 0
+        ? storedProfit.toFixed(2)
+        : "",
+
     /*
-     * Profit и pricing status се преизчисляват
-     * от CourseRow с актуалните настройки.
+     * Pricing status се преизчислява от CourseRow
+     * с актуалните настройки.
      */
-    profit: "",
     status: "",
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   calculateCourse,
@@ -304,6 +304,7 @@ type CourseRowProps = {
   truckOptions: readonly TruckOption[];
   customerOptions: readonly CustomerOption[];
   addressOptions: readonly AddressOption[];
+  onChange: (row: CourseRowData) => void;
   onSave: (row: CourseRowData) => void;
   onDelete: (rowId: number) => void;
 };
@@ -314,6 +315,7 @@ export default function CourseRow({
   truckOptions,
   customerOptions,
   addressOptions,
+  onChange,
   onSave,
   onDelete,
 }: CourseRowProps) {
@@ -556,6 +558,49 @@ export default function CourseRow({
       calculation?.waiting.waitingCost,
     );
 
+  const calculatedRow = useMemo<CourseRowData>(
+    () => ({
+      ...draft,
+
+      price:
+        effectivePrice !== null
+          ? formatMoney(effectivePrice)
+          : draft.price,
+
+      fuelCost:
+        calculation?.costs.fuelCost !== undefined
+          ? formatMoney(
+              calculation.costs.fuelCost,
+            )
+          : "",
+
+      totalCost:
+        calculation?.costs.totalCost !== undefined
+          ? formatMoney(
+              calculation.costs.totalCost,
+            )
+          : "",
+
+      profit:
+        calculation?.profit !== null &&
+        calculation?.profit !== undefined
+          ? formatMoney(calculation.profit)
+          : "",
+
+      status: displayStatus ?? "",
+    }),
+    [
+      draft,
+      effectivePrice,
+      calculation,
+      displayStatus,
+    ],
+  );
+
+  useEffect(() => {
+    onChange(calculatedRow);
+  }, [calculatedRow, onChange]);
+
   const panelId =
     `course-details-panel-${draft.id}`;
 
@@ -724,41 +769,12 @@ export default function CourseRow({
       }
 
       const savedRow: CourseRowData = {
-        ...draft,
+        ...calculatedRow,
         databaseId,
         filterDate: resolveSavedCourseDate(
           responseData?.course,
           draft.filterDate,
         ),
-
-        price:
-          effectivePrice !== null
-            ? formatMoney(effectivePrice)
-            : draft.price,
-
-        fuelCost:
-          calculation?.costs.fuelCost !==
-          undefined
-            ? formatMoney(
-                calculation.costs.fuelCost,
-              )
-            : "",
-
-        totalCost:
-          calculation?.costs.totalCost !==
-          undefined
-            ? formatMoney(
-                calculation.costs.totalCost,
-              )
-            : "",
-
-        profit:
-          calculation?.profit !== null &&
-          calculation?.profit !== undefined
-            ? formatMoney(calculation.profit)
-            : "",
-
-        status: displayStatus ?? "",
       };
 
       setDraft(savedRow);
