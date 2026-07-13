@@ -31,6 +31,7 @@ import TruckSelect, {
 export type CourseRowData = {
   id: number;
   databaseId: string | null;
+  filterDate: string;
   truckId: string;
   customerId: string;
   courseType: string;
@@ -57,7 +58,7 @@ export type CourseRowData = {
 
 export type EditableCourseField = Exclude<
   keyof CourseRowData,
-  "id" | "databaseId"
+  "id" | "databaseId" | "filterDate"
 >;
 
 type AddressField =
@@ -135,6 +136,8 @@ type CourseCostPayload = {
 type CourseApiResponse = {
   course?: {
     id?: string;
+    plannedDate?: string | null;
+    createdAt?: string;
   };
   error?: string;
 };
@@ -718,6 +721,10 @@ export default function CourseRow({
       const savedRow: CourseRowData = {
         ...draft,
         databaseId,
+        filterDate: resolveSavedCourseDate(
+          responseData?.course,
+          draft.filterDate,
+        ),
 
         price:
           effectivePrice !== null
@@ -1693,4 +1700,37 @@ function getAddressName(
   );
 
   return address?.name ?? null;
+}
+
+function resolveSavedCourseDate(
+  course:
+    | CourseApiResponse["course"]
+    | undefined,
+  fallbackDate: string,
+): string {
+  const sourceDate =
+    course?.plannedDate ??
+    course?.createdAt;
+
+  if (
+    typeof sourceDate === "string" &&
+    sourceDate.length >= 10
+  ) {
+    return sourceDate.slice(0, 10);
+  }
+
+  if (fallbackDate.trim() !== "") {
+    return fallbackDate;
+  }
+
+  const now = new Date();
+
+  const timezoneOffset =
+    now.getTimezoneOffset() * 60_000;
+
+  return new Date(
+    now.getTime() - timezoneOffset,
+  )
+    .toISOString()
+    .slice(0, 10);
 }
