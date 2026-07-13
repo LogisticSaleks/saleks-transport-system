@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { PtvRouteProvider } from "./providers/ptvRouteProvider";
 
 export type RouteProviderId =
   | "manual"
@@ -29,11 +30,20 @@ export type RouteStop = {
 
 export type RouteVehicleProfile = {
   grossWeightKg?: number | null;
+  totalTechnicallyPermittedWeightKg?: number | null;
+  axleWeightKg?: number | null;
   heightMeters?: number | null;
   widthMeters?: number | null;
   lengthMeters?: number | null;
   axleCount?: number | null;
   euroClass?: string | null;
+  co2EmissionClass?: number | null;
+
+  /*
+   * ADR certification is not the same as carrying
+   * hazardous materials. It remains available for
+   * a future cargo-specific routing request.
+   */
   isAdr?: boolean;
 };
 
@@ -531,6 +541,12 @@ export class RouteService {
 export const manualRouteProvider =
   new ManualRouteProvider();
 
+export const ptvRouteProvider =
+  new PtvRouteProvider({
+    apiKey:
+      process.env.MYPTV_API_KEY ?? "",
+  });
+
 export const routeCacheStore =
   new PrismaRouteCacheStore();
 
@@ -538,6 +554,7 @@ export const routeService =
   new RouteService({
     providers: [
       manualRouteProvider,
+      ptvRouteProvider,
     ],
     defaultProviderId: "manual",
     cacheStore: routeCacheStore,
