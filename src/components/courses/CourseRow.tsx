@@ -305,6 +305,7 @@ type CourseRowProps = {
   customerOptions: readonly CustomerOption[];
   addressOptions: readonly AddressOption[];
   onSave: (row: CourseRowData) => void;
+  onDelete: (rowId: number) => void;
 };
 
 export default function CourseRow({
@@ -314,6 +315,7 @@ export default function CourseRow({
   customerOptions,
   addressOptions,
   onSave,
+  onDelete,
 }: CourseRowProps) {
   const [draft, setDraft] =
     useState<CourseRowData>(initialRow);
@@ -322,6 +324,9 @@ export default function CourseRow({
     useState(false);
 
   const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [isDeleting, setIsDeleting] =
     useState(false);
 
   const [saveError, setSaveError] =
@@ -770,6 +775,72 @@ export default function CourseRow({
     }
   }
 
+  async function handleDelete(): Promise<void> {
+    if (!draft.databaseId) {
+      return;
+    }
+
+    const courseLabel =
+      draft.containerNumber.trim() ||
+      `ред ${rowNumber}`;
+
+    const confirmed = window.confirm(
+      `Сигурен ли си, че искаш да изтриеш курс ${courseLabel}? Това действие не може да бъде отменено.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setIsSaved(false);
+    setSaveError(null);
+
+    try {
+      const response = await fetch(
+        `/api/courses?id=${encodeURIComponent(
+          draft.databaseId,
+        )}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const responseData =
+        (await response
+          .json()
+          .catch(() => null)) as
+          | {
+              deleted?: boolean;
+              error?: string;
+            }
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Курсът не можа да бъде изтрит.",
+        );
+      }
+
+      if (!responseData?.deleted) {
+        throw new Error(
+          "API не потвърди изтриването на курса.",
+        );
+      }
+
+      onDelete(draft.id);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Курсът не можа да бъде изтрит.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <>
       <tr className="group hover:bg-slate-50">
@@ -1023,7 +1094,7 @@ export default function CourseRow({
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               aria-busy={isSaving}
               className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -1033,6 +1104,20 @@ export default function CourseRow({
                   ? "Update"
                   : "Save"}
             </button>
+
+            {draft.databaseId && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isSaving || isDeleting}
+                aria-busy={isDeleting}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-red-300 bg-white px-3 text-sm font-medium text-red-700 transition hover:border-red-400 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting
+                  ? "Deleting..."
+                  : "Delete"}
+              </button>
+            )}
 
             {isSaved && (
               <span className="text-xs font-medium text-emerald-600">

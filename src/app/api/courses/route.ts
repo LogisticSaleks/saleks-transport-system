@@ -324,22 +324,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.$transaction(async (transaction) => {
-      /*
-       * Cost няма onDelete: Cascade в текущата схема.
-       * Затова разходите се изтриват преди Course.
-       */
-      await transaction.cost.deleteMany({
-        where: {
-          courseId,
-        },
-      });
-
-      await transaction.course.delete({
-        where: {
-          id: courseId,
-        },
-      });
+    await prisma.course.delete({
+      where: {
+        id: courseId,
+      },
     });
 
     return NextResponse.json({

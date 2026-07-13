@@ -150,6 +150,16 @@ export default function CourseTable({
     );
   }
 
+  function handleDeleteRow(
+    rowId: number,
+  ): void {
+    setRows((currentRows) =>
+      currentRows.filter(
+        (row) => row.id !== rowId,
+      ),
+    );
+  }
+
   function handleClearFilters(): void {
     setDateFrom("");
     setDateTo("");
@@ -296,6 +306,9 @@ export default function CourseTable({
                   }
                   onSave={
                     handleSaveRow
+                  }
+                  onDelete={
+                    handleDeleteRow
                   }
                 />
               ),

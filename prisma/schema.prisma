@@ -404,7 +404,7 @@ model Cost {
   costDate    DateTime @default(now())
   notes       String?
 
-  course Course? @relation(fields: [courseId], references: [id])
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
   truck  Truck?  @relation(fields: [truckId], references: [id])
 
   createdAt DateTime @default(now())
