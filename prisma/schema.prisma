@@ -487,3 +487,21 @@ model Document {
   @@index([invoiceId])
   @@index([type])
 }
+
+model RouteCache {
+  id         String   @id @default(cuid())
+  cacheKey   String   @unique
+  providerId String
+
+  requestJson Json
+  resultJson  Json
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([expiresAt])
+  @@map("route_cache")
+}
