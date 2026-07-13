@@ -92,6 +92,12 @@ export default function CourseTable({
   const [dateTo, setDateTo] =
     useState("");
 
+  const [isExporting, setIsExporting] =
+    useState(false);
+
+  const [exportError, setExportError] =
+    useState<string | null>(null);
+
   const visibleRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -193,9 +199,92 @@ export default function CourseTable({
     [],
   );
 
+  async function handleExport(): Promise<void> {
+    if (visibleSavedRows.length === 0) {
+      setExportError(
+        "Няма записани курсове за export.",
+      );
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const exportRows = visibleSavedRows.map(
+        (row) =>
+          buildCourseExcelExportRow({
+            row,
+            trucks,
+            customers,
+            addresses,
+          }),
+      );
+
+      const response = await fetch(
+        "/api/courses/export",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            rows: exportRows,
+            dateFrom:
+              dateFrom || null,
+            dateTo:
+              dateTo || null,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const responseData =
+          (await response
+            .json()
+            .catch(() => null)) as
+            | {
+                error?: string;
+              }
+            | null;
+
+        throw new Error(
+          responseData?.error ??
+            "Excel файлът не можа да бъде създаден.",
+        );
+      }
+
+      const fileBlob =
+        await response.blob();
+
+      const fileName =
+        getDownloadFileName(
+          response.headers.get(
+            "Content-Disposition",
+          ),
+        ) ??
+        `saleks-courses-${getTodayDate()}.xlsx`;
+
+      downloadBlob(
+        fileBlob,
+        fileName,
+      );
+    } catch (error) {
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Excel файлът не можа да бъде създаден.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   function handleClearFilters(): void {
     setDateFrom("");
     setDateTo("");
+    setExportError(null);
   }
 
   return (
@@ -256,6 +345,21 @@ export default function CourseTable({
 
           <button
             type="button"
+            onClick={handleExport}
+            disabled={
+              isExporting ||
+              visibleSavedRows.length === 0
+            }
+            aria-busy={isExporting}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isExporting
+              ? "Exporting..."
+              : "Export Excel"}
+          </button>
+
+          <button
+            type="button"
             onClick={handleAddRow}
             className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
@@ -288,6 +392,15 @@ export default function CourseTable({
           </span>
         )}
       </div>
+
+      {exportError && (
+        <p
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+        >
+          {exportError}
+        </p>
+      )}
 
       <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="min-w-[3480px] table-fixed border-collapse text-sm">
@@ -485,4 +598,266 @@ function roundSummaryValue(
   value: number,
 ): number {
   return Math.round(value * 100) / 100;
+}
+
+
+type BuildExcelExportRowInput = {
+  row: CourseRowData;
+  trucks: readonly TruckOption[];
+  customers: readonly CustomerOption[];
+  addresses: readonly AddressOption[];
+};
+
+type CourseExcelExportRow = {
+  courseId: string;
+  date: string;
+  customer: string;
+  truck: string;
+  licensePlate: string;
+  courseType: string;
+  pickupAddress: string;
+  loadingUnloadingAddress: string;
+  extraAddress: string;
+  returnAddress: string;
+  containerNumber: string;
+  totalKm: number;
+  billableKm: number;
+  nonBillableKm: number;
+  waitingMinutes: number;
+  basePrice: number;
+  revenue: number;
+  fuelCost: number;
+  tollFee: number;
+  portFee: number;
+  totalCost: number;
+  profit: number;
+  margin: number;
+  status: string;
+};
+
+function buildCourseExcelExportRow({
+  row,
+  trucks,
+  customers,
+  addresses,
+}: BuildExcelExportRowInput): CourseExcelExportRow {
+  const truck = trucks.find(
+    (option) =>
+      option.id === row.truckId,
+  );
+
+  const customer = customers.find(
+    (option) =>
+      option.id === row.customerId,
+  );
+
+  const totalKm =
+    parseSummaryNumber(row.totalKm);
+
+  const billableKm =
+    parseSummaryNumber(row.billableKm);
+
+  const totalCost =
+    parseSummaryNumber(row.totalCost);
+
+  const profit =
+    parseSummaryNumber(row.profit);
+
+  const fallbackBasePrice =
+    parseSummaryNumber(row.price);
+
+  const revenue =
+    row.totalCost.trim() !== "" &&
+    row.profit.trim() !== ""
+      ? totalCost + profit
+      : fallbackBasePrice;
+
+  const margin =
+    revenue > 0
+      ? profit / revenue
+      : 0;
+
+  return {
+    courseId: row.databaseId ?? "",
+    date: row.filterDate,
+    customer:
+      customer?.name ?? "",
+    truck:
+      truck?.name ?? "",
+    licensePlate:
+      truck?.licensePlate ?? "",
+    courseType:
+      getCourseTypeExportLabel(
+        row.courseType,
+      ),
+
+    pickupAddress:
+      getAddressExportLabel(
+        addresses,
+        row.pickupAddressId,
+        row.pickupAddressText,
+      ),
+
+    loadingUnloadingAddress:
+      getAddressExportLabel(
+        addresses,
+        row.loadingUnloadingAddressId,
+        row.loadingUnloadingAddressText,
+      ),
+
+    extraAddress:
+      getAddressExportLabel(
+        addresses,
+        row.extraAddressId,
+        row.extraAddressText,
+      ),
+
+    returnAddress:
+      getAddressExportLabel(
+        addresses,
+        row.returnAddressId,
+        row.returnAddressText,
+      ),
+
+    containerNumber:
+      row.containerNumber.trim(),
+
+    totalKm,
+    billableKm,
+    nonBillableKm: Math.max(
+      totalKm - billableKm,
+      0,
+    ),
+
+    waitingMinutes:
+      parseSummaryNumber(
+        row.waitingMinutes,
+      ),
+
+    basePrice: fallbackBasePrice,
+    revenue,
+
+    fuelCost:
+      parseSummaryNumber(
+        row.fuelCost,
+      ),
+
+    tollFee:
+      parseSummaryNumber(
+        row.tollFee,
+      ),
+
+    portFee:
+      parseSummaryNumber(
+        row.portFee,
+      ),
+
+    totalCost,
+    profit,
+    margin,
+    status: row.status,
+  };
+}
+
+function getCourseTypeExportLabel(
+  courseType: string,
+): string {
+  switch (courseType) {
+    case "ROUND_TRIP":
+      return "Кръгов";
+
+    case "SHUNT":
+      return "Шунт";
+
+    default:
+      return courseType;
+  }
+}
+
+function getAddressExportLabel(
+  addresses: readonly AddressOption[],
+  addressId: string,
+  addressText: string,
+): string {
+  const typedLabel =
+    addressText.trim();
+
+  if (typedLabel !== "") {
+    return typedLabel;
+  }
+
+  const address = addresses.find(
+    (option) =>
+      option.id === addressId,
+  );
+
+  if (!address) {
+    return "";
+  }
+
+  const cityLine = [
+    address.postalCode,
+    address.city,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const details = [
+    address.street,
+    cityLine,
+    address.country,
+  ].filter(Boolean);
+
+  if (details.length === 0) {
+    return address.name;
+  }
+
+  return `${address.name} — ${details.join(", ")}`;
+}
+
+function getDownloadFileName(
+  contentDisposition: string | null,
+): string | null {
+  if (!contentDisposition) {
+    return null;
+  }
+
+  const utf8Match =
+    contentDisposition.match(
+      /filename\*=UTF-8''([^;]+)/i,
+    );
+
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(
+      utf8Match[1],
+    );
+  }
+
+  const basicMatch =
+    contentDisposition.match(
+      /filename="?([^";]+)"?/i,
+    );
+
+  return basicMatch?.[1] ?? null;
+}
+
+function downloadBlob(
+  blob: Blob,
+  fileName: string,
+): void {
+  const objectUrl =
+    URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = fileName;
+  link.style.display = "none";
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(objectUrl);
 }
