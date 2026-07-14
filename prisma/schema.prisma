@@ -179,10 +179,12 @@ model Address {
   city         String?
   postalCode   String?
   country      String
+  latitude     Decimal?    @db.Decimal(10, 7)
+  longitude    Decimal?    @db.Decimal(10, 7)
   type         AddressType @default(OTHER)
   portCode     String?
   terminalCode String?
-  notes        String?
+  notes        String
 
   customerAddresses CustomerAddress[]
 
