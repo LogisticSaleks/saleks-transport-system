@@ -142,6 +142,27 @@ type CourseApiResponse = {
   error?: string;
 };
 
+type RouteCalculationApiResponse = {
+  route?: {
+    distanceKm?: number | string | null;
+    durationMinutes?: number | string | null;
+    tollCost?: number | string | null;
+    notes?: string | null;
+    warnings?: string[];
+    cache?: {
+      hit?: boolean;
+    };
+  };
+  error?: string;
+};
+
+type RouteCalculationStopPayload = {
+  type: "ORIGIN" | "VIA" | "DESTINATION";
+  addressId: string | null;
+  label: string | null;
+  coordinate: null;
+};
+
 const ADDRESS_FIELDS: readonly AddressField[] = [
   "pickupAddressId",
   "loadingUnloadingAddressId",
@@ -333,6 +354,21 @@ export default function CourseRow({
 
   const [saveError, setSaveError] =
     useState<string | null>(null);
+
+  const [
+    isCalculatingRoute,
+    setIsCalculatingRoute,
+  ] = useState(false);
+
+  const [
+    routeCalculationError,
+    setRouteCalculationError,
+  ] = useState<string | null>(null);
+
+  const [
+    routeCalculationInfo,
+    setRouteCalculationInfo,
+  ] = useState<string | null>(null);
 
   const [isDetailsOpen, setIsDetailsOpen] =
     useState(false);
@@ -551,6 +587,18 @@ export default function CourseRow({
       ? "NEEDS_REVIEW"
       : null);
 
+  const routeStopCount = useMemo(
+    () =>
+      buildRouteCalculationStops(
+        draft,
+        addressOptions,
+      ).length,
+    [draft, addressOptions],
+  );
+
+  const canCalculateRoute =
+    routeStopCount >= 2;
+
   const extraChargesValue =
     calculateExtraCharges(
       calculation?.revenue,
@@ -615,6 +663,8 @@ export default function CourseRow({
 
     setIsSaved(false);
     setSaveError(null);
+    setRouteCalculationError(null);
+    setRouteCalculationInfo(null);
   }
 
   function handleAddressChange(
@@ -631,6 +681,119 @@ export default function CourseRow({
 
     setIsSaved(false);
     setSaveError(null);
+    setRouteCalculationError(null);
+    setRouteCalculationInfo(null);
+  }
+
+  async function handleCalculateRoute(): Promise<void> {
+    setRouteCalculationError(null);
+    setRouteCalculationInfo(null);
+    setSaveError(null);
+
+    const routeStops =
+      buildRouteCalculationStops(
+        draft,
+        addressOptions,
+      );
+
+    if (routeStops.length < 2) {
+      setRouteCalculationError(
+        "Избери поне два адреса за route calculation.",
+      );
+      return;
+    }
+
+    setIsCalculatingRoute(true);
+    setIsSaved(false);
+
+    try {
+      const response = await fetch(
+        "/api/routes/calculate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            providerId: "ptv",
+            skipCache: false,
+            stops: routeStops,
+            vehicle: {
+              grossWeightKg: 40000,
+              axleCount: 5,
+              euroClass: "EURO_6",
+            },
+            currency: "EUR",
+            includeCountryBreakdown: true,
+          }),
+        },
+      );
+
+      const responseData =
+        (await response
+          .json()
+          .catch(() => null)) as
+          | RouteCalculationApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Route calculation не можа да бъде изпълнен.",
+        );
+      }
+
+      const route = responseData?.route;
+
+      if (!route) {
+        throw new Error(
+          "Route API не върна route резултат.",
+        );
+      }
+
+      const distanceKm =
+        parseApiNumber(route.distanceKm);
+
+      if (distanceKm === null) {
+        throw new Error(
+          "Route API не върна валидни километри.",
+        );
+      }
+
+      const tollCost =
+        parseApiNumber(route.tollCost) ?? 0;
+
+      const formattedDistance =
+        formatDistanceKm(distanceKm);
+
+      const formattedToll =
+        formatMoney(tollCost);
+
+      setDraft((currentDraft) => ({
+        ...currentDraft,
+        totalKm: formattedDistance,
+        billableKm:
+          currentDraft.billableKm.trim() === "" &&
+          shouldAutoFillBillableKm(
+            pricing.method,
+          )
+            ? formattedDistance
+            : currentDraft.billableKm,
+        tollFee: formattedToll,
+      }));
+
+      setRouteCalculationInfo(
+        `${formattedDistance} km / ${formattedToll} € toll`,
+      );
+    } catch (error) {
+      setRouteCalculationError(
+        error instanceof Error
+          ? error.message
+          : "Route calculation не можа да бъде изпълнен.",
+      );
+    } finally {
+      setIsCalculatingRoute(false);
+    }
   }
 
   async function handleSave(): Promise<void> {
@@ -1109,6 +1272,30 @@ export default function CourseRow({
           <div className="flex flex-col items-start gap-1">
             <button
               type="button"
+              onClick={handleCalculateRoute}
+              disabled={
+                isCalculatingRoute ||
+                isSaving ||
+                isDeleting ||
+                !canCalculateRoute
+              }
+              aria-busy={
+                isCalculatingRoute
+              }
+              title={
+                canCalculateRoute
+                  ? "Изчисли маршрут с PTV"
+                  : "Избери поне два адреса"
+              }
+              className="inline-flex h-9 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-sm font-medium text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCalculatingRoute
+                ? "Routing..."
+                : "Route"}
+            </button>
+
+            <button
+              type="button"
               onClick={handleSave}
               disabled={isSaving || isDeleting}
               aria-busy={isSaving}
@@ -1146,6 +1333,19 @@ export default function CourseRow({
                 {saveError}
               </span>
             )}
+
+            {routeCalculationError && (
+              <span className="max-w-[110px] text-xs font-medium leading-4 text-red-600">
+                {routeCalculationError}
+              </span>
+            )}
+
+            {routeCalculationInfo &&
+              !routeCalculationError && (
+                <span className="max-w-[110px] text-xs font-medium leading-4 text-sky-700">
+                  {routeCalculationInfo}
+                </span>
+              )}
           </div>
         </td>
 
@@ -1318,6 +1518,99 @@ function NumberInputWithMarker({
       />
     </div>
   );
+}
+
+function buildRouteCalculationStops(
+  row: CourseRowData,
+  addresses: readonly AddressOption[],
+): RouteCalculationStopPayload[] {
+  const candidates = [
+    {
+      addressId: row.pickupAddressId,
+      addressText: row.pickupAddressText,
+    },
+    {
+      addressId:
+        row.loadingUnloadingAddressId,
+      addressText:
+        row.loadingUnloadingAddressText,
+    },
+    {
+      addressId: row.extraAddressId,
+      addressText: row.extraAddressText,
+    },
+    {
+      addressId: row.returnAddressId,
+      addressText: row.returnAddressText,
+    },
+  ].filter((candidate) =>
+    hasAddressValue(
+      candidate.addressId,
+      candidate.addressText,
+    ),
+  );
+
+  return candidates.map(
+    (candidate, index) => ({
+      type: getRouteStopType(
+        index,
+        candidates.length,
+      ),
+      addressId:
+        candidate.addressId.trim() || null,
+      label:
+        getAddressLabel(
+          addresses,
+          candidate.addressId,
+          candidate.addressText,
+        ) || null,
+      coordinate: null,
+    }),
+  );
+}
+
+function getRouteStopType(
+  index: number,
+  stopCount: number,
+): RouteCalculationStopPayload["type"] {
+  if (index === 0) {
+    return "ORIGIN";
+  }
+
+  if (index === stopCount - 1) {
+    return "DESTINATION";
+  }
+
+  return "VIA";
+}
+
+function shouldAutoFillBillableKm(
+  pricingMethod: CoursePricingMethod,
+): boolean {
+  return pricingMethod !== "VEPCO";
+}
+
+function parseApiNumber(
+  value: number | string | null | undefined,
+): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue)
+    ? parsedValue
+    : null;
+}
+
+function formatDistanceKm(value: number): string {
+  const roundedValue =
+    Math.round(value * 100) / 100;
+
+  return Number.isInteger(roundedValue)
+    ? String(roundedValue)
+    : String(roundedValue);
 }
 
 function resolveCustomerPricing(
