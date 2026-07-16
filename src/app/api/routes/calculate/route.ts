@@ -29,6 +29,11 @@ type RouteStopInput = {
   coordinate: RouteCoordinate | null;
 };
 
+type ResolvedAddressData = {
+  label: string;
+  coordinate: RouteCoordinate | null;
+};
+
 type CalculateRouteBody = {
   providerId: RouteProviderId;
   skipCache: boolean;
@@ -106,7 +111,7 @@ async function resolveRouteStops(
     ),
   );
 
-  const addressMap = new Map<string, string>();
+  const addressMap = new Map<string, ResolvedAddressData>();
 
   if (addressIds.length > 0) {
     const addresses = await prisma.address.findMany({
@@ -122,17 +127,31 @@ async function resolveRouteStops(
         city: true,
         postalCode: true,
         country: true,
+        latitude: true,
+        longitude: true,
       },
     });
 
     for (const address of addresses) {
-      addressMap.set(address.id, formatAddressLabel(address));
+      addressMap.set(address.id, {
+        label: formatAddressLabel(address),
+        coordinate: buildCoordinateFromAddress(address.latitude, address.longitude),
+      });
     }
   }
 
   return inputStops.map((stop, index) => {
-    const addressLabel = stop.addressId ? addressMap.get(stop.addressId) : null;
-    const label = stop.label ?? addressLabel;
+    const resolvedAddress = stop.addressId
+      ? addressMap.get(stop.addressId)
+      : null;
+
+    if (stop.addressId && !resolvedAddress) {
+      throw new RouteApiValidationError(
+        `AddressId за route stop ${index + 1} не е намерен в базата.`,
+      );
+    }
+
+    const label = stop.label ?? resolvedAddress?.label ?? null;
 
     if (!label || label.trim() === "") {
       throw new RouteApiValidationError(
@@ -140,17 +159,11 @@ async function resolveRouteStops(
       );
     }
 
-    if (stop.addressId && !addressLabel) {
-      throw new RouteApiValidationError(
-        `AddressId за route stop ${index + 1} не е намерен в базата.`,
-      );
-    }
-
     return {
       type: stop.type,
       addressId: stop.addressId,
       label: label.trim(),
-      coordinate: stop.coordinate,
+      coordinate: stop.coordinate ?? resolvedAddress?.coordinate ?? null,
     };
   });
 }
@@ -505,7 +518,57 @@ function parseNumber(value: unknown): number {
     return Number(value);
   }
 
+  if (isDecimalLike(value)) {
+    return value.toNumber();
+  }
+
   return Number.NaN;
+}
+
+function isDecimalLike(value: unknown): value is { toNumber: () => number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "toNumber" in value &&
+    typeof (value as { toNumber?: unknown }).toNumber === "function"
+  );
+}
+
+function buildCoordinateFromAddress(
+  latitude: unknown,
+  longitude: unknown,
+): RouteCoordinate | null {
+  if (latitude === null || latitude === undefined) {
+    return null;
+  }
+
+  if (longitude === null || longitude === undefined) {
+    return null;
+  }
+
+  const parsedLatitude = parseNumber(latitude);
+  const parsedLongitude = parseNumber(longitude);
+
+  if (
+    !Number.isFinite(parsedLatitude) ||
+    parsedLatitude < -90 ||
+    parsedLatitude > 90
+  ) {
+    return null;
+  }
+
+  if (
+    !Number.isFinite(parsedLongitude) ||
+    parsedLongitude < -180 ||
+    parsedLongitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: parsedLatitude,
+    longitude: parsedLongitude,
+  };
 }
 
 function formatAddressLabel(address: {
