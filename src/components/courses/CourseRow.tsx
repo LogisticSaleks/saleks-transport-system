@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   calculateCourse,
@@ -189,6 +194,34 @@ const MANUAL_KM_FIELDS: readonly ManualKmField[] = [
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
     key: "truckId",
+    label: "Курс",
+    width: 220,
+  },
+  {
+    key: "pickupAddressId",
+    label: "Маршрут",
+    width: 380,
+  },
+  {
+    key: "totalKm",
+    label: "Км / Тол",
+    width: 190,
+  },
+  {
+    key: "price",
+    label: "Финанси",
+    width: 230,
+  },
+  {
+    key: "status",
+    label: "Статус",
+    width: 150,
+  },
+];
+
+const EDIT_COLUMNS: readonly CourseColumn[] = [
+  {
+    key: "truckId",
     label: "Камион",
     width: 170,
   },
@@ -372,6 +405,9 @@ export default function CourseRow({
 
   const [isDetailsOpen, setIsDetailsOpen] =
     useState(false);
+
+  const [isEditOpen, setIsEditOpen] =
+    useState(initialRow.databaseId === null);
 
   const selectedCustomer = useMemo(
     () =>
@@ -579,6 +615,10 @@ export default function CourseRow({
       effectivePrice,
       calculation,
     ],
+  );
+
+  const tableWarnings = displayWarnings.filter(
+    (warning) => !shouldHideWarningInCourseOverview(warning),
   );
 
   const displayStatus: PricingStatus | null =
@@ -1020,256 +1060,418 @@ export default function CourseRow({
     }
   }
 
+  function renderEditorControl(column: CourseColumn) {
+    if (column.key === "truckId") {
+      return (
+        <TruckSelect
+          value={draft.truckId}
+          trucks={truckOptions}
+          rowNumber={rowNumber}
+          onChange={(truckId) =>
+            handleCellChange("truckId", truckId)
+          }
+        />
+      );
+    }
+
+    if (column.key === "customerId") {
+      return (
+        <CustomerSelect
+          value={draft.customerId}
+          customers={customerOptions}
+          rowNumber={rowNumber}
+          onChange={(customerId) =>
+            handleCellChange("customerId", customerId)
+          }
+        />
+      );
+    }
+
+    if (column.key === "courseType") {
+      return (
+        <CourseTypeSelect
+          value={draft.courseType}
+          rowNumber={rowNumber}
+          onChange={(courseType) =>
+            handleCellChange("courseType", courseType)
+          }
+        />
+      );
+    }
+
+    if (isAddressField(column.key)) {
+      return (
+        <AddressAutocomplete
+          value={draft[column.key]}
+          inputValue={
+            draft[
+              ADDRESS_TEXT_FIELD_BY_ID[column.key]
+            ]
+          }
+          addresses={addressOptions}
+          label={column.label}
+          rowNumber={rowNumber}
+          placeholder={column.placeholder}
+          onChange={(addressValue) =>
+            handleAddressChange(
+              column.key as AddressField,
+              addressValue,
+            )
+          }
+        />
+      );
+    }
+
+    if (isManualKmField(column.key)) {
+      return (
+        <NumberInputWithMarker
+          value={draft[column.key]}
+          label={column.label}
+          rowNumber={rowNumber}
+          placeholder={column.placeholder}
+          min={column.min}
+          step={column.step}
+          showMarker={
+            draft[column.key].trim() !== ""
+          }
+          onChange={(value) =>
+            handleCellChange(column.key, value)
+          }
+        />
+      );
+    }
+
+    if (column.key === "price") {
+      return (
+        <NumberInputWithMarker
+          value={
+            pricing.isAutomatic
+              ? calculation?.price !== null &&
+                calculation?.price !== undefined
+                ? formatMoney(calculation.price)
+                : ""
+              : draft.price
+          }
+          label={column.label}
+          rowNumber={rowNumber}
+          placeholder={
+            pricing.isAutomatic
+              ? "Автоматично"
+              : "0.00"
+          }
+          min={0}
+          step={0.01}
+          readOnly={pricing.isAutomatic}
+          showMarker={
+            !pricing.isAutomatic &&
+            draft.price.trim() !== ""
+          }
+          onChange={(value) =>
+            handleCellChange("price", value)
+          }
+        />
+      );
+    }
+
+    if (column.key === "tollFee") {
+      return (
+        <NumberInputWithMarker
+          value={draft.tollFee}
+          label={column.label}
+          rowNumber={rowNumber}
+          placeholder={column.placeholder}
+          min={column.min}
+          step={column.step}
+          showMarker={draft.tollFee.trim() !== ""}
+          onChange={(value) =>
+            handleCellChange("tollFee", value)
+          }
+        />
+      );
+    }
+
+    if (column.key === "fuelCost") {
+      return (
+        <input
+          type="text"
+          value={
+            calculation?.costs.fuelCost !== undefined
+              ? formatMoney(
+                  calculation.costs.fuelCost,
+                )
+              : ""
+          }
+          readOnly
+          placeholder="Автоматично"
+          aria-label={`Гориво, ред ${rowNumber}`}
+          className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-100 px-2 text-slate-500 outline-none"
+        />
+      );
+    }
+
+    if (column.key === "totalCost") {
+      return (
+        <input
+          type="text"
+          value={
+            calculation?.costs.totalCost !== undefined
+              ? formatMoney(
+                  calculation.costs.totalCost,
+                )
+              : ""
+          }
+          readOnly
+          placeholder="Автоматично"
+          aria-label={`Разходи, ред ${rowNumber}`}
+          className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-100 px-2 text-slate-500 outline-none"
+        />
+      );
+    }
+
+    if (column.key === "profit") {
+      return (
+        <input
+          type="text"
+          value={
+            calculation?.profit !== null &&
+            calculation?.profit !== undefined
+              ? formatMoney(calculation.profit)
+              : ""
+          }
+          readOnly
+          placeholder="Автоматично"
+          aria-label={`Печалба, ред ${rowNumber}`}
+          className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-100 px-2 text-slate-500 outline-none"
+        />
+      );
+    }
+
+    if (column.key === "status") {
+      return (
+        <div className="flex h-10 w-full items-center justify-start px-1">
+          <StatusBadge status={displayStatus} />
+        </div>
+      );
+    }
+
+    return (
+      <input
+        type={column.inputType ?? "text"}
+        value={draft[column.key]}
+        min={column.min}
+        step={column.step}
+        readOnly={column.readOnly}
+        placeholder={column.placeholder}
+        aria-label={`${column.label}, ред ${rowNumber}`}
+        onChange={(event) =>
+          handleCellChange(
+            column.key,
+            event.target.value,
+          )
+        }
+        className={[
+          "h-10 w-full rounded-md border px-3 outline-none transition shadow-sm",
+          column.readOnly
+            ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
+            : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200",
+        ].join(" ")}
+      />
+    );
+  }
+
+  const truckSummary = selectedTruck
+    ? `${selectedTruck.name} — ${selectedTruck.licensePlate}`
+    : "—";
+
+  const customerSummary =
+    selectedCustomer?.name ?? "—";
+
+  const courseTypeSummary =
+    getCourseTypeLabel(draft.courseType) || "—";
+
+  const pickupSummary =
+    getAddressLabel(
+      addressOptions,
+      draft.pickupAddressId,
+      draft.pickupAddressText,
+    ) || "—";
+
+  const loadingSummary =
+    getAddressLabel(
+      addressOptions,
+      draft.loadingUnloadingAddressId,
+      draft.loadingUnloadingAddressText,
+    ) || "—";
+
+  const extraSummary = getAddressLabel(
+    addressOptions,
+    draft.extraAddressId,
+    draft.extraAddressText,
+  );
+
+  const returnSummary = getAddressLabel(
+    addressOptions,
+    draft.returnAddressId,
+    draft.returnAddressText,
+  );
+
   return (
     <>
-      <tr className="group hover:bg-slate-50">
-        <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-3 py-2 text-center text-slate-500 group-hover:bg-slate-50">
+      <tr className="group align-top">
+        <td
+          className={[
+            "rounded-l-xl border-y border-l-4 border-r border-slate-400 bg-white px-3 py-4 text-center text-sm font-semibold text-slate-600 shadow-md group-hover:bg-slate-100",
+            getCourseRowAccentClass(displayStatus),
+          ].join(" ")}
+        >
           {rowNumber}
         </td>
 
-        {COURSE_COLUMNS.map((column) => (
-          <td
-            key={column.key}
-            style={{
-              width: column.width,
-              minWidth: column.width,
-            }}
-            className="border-b border-r border-slate-200 p-1"
-          >
-            {column.key === "truckId" ? (
-              <TruckSelect
-                value={draft.truckId}
-                trucks={truckOptions}
-                rowNumber={rowNumber}
-                onChange={(truckId) =>
-                  handleCellChange(
-                    "truckId",
-                    truckId,
-                  )
-                }
-              />
-            ) : column.key ===
-              "customerId" ? (
-              <CustomerSelect
-                value={draft.customerId}
-                customers={customerOptions}
-                rowNumber={rowNumber}
-                onChange={(customerId) =>
-                  handleCellChange(
-                    "customerId",
-                    customerId,
-                  )
-                }
-              />
-            ) : column.key ===
-              "courseType" ? (
-              <CourseTypeSelect
-                value={draft.courseType}
-                rowNumber={rowNumber}
-                onChange={(courseType) =>
-                  handleCellChange(
-                    "courseType",
-                    courseType,
-                  )
-                }
-              />
-            ) : isAddressField(
-                column.key,
-              ) ? (
-              <AddressAutocomplete
-                value={draft[column.key]}
-                inputValue={
-                  draft[
-                    ADDRESS_TEXT_FIELD_BY_ID[
-                      column.key
-                    ]
-                  ]
-                }
-                addresses={addressOptions}
-                label={column.label}
-                rowNumber={rowNumber}
-                placeholder={column.placeholder}
-                onChange={(addressValue) =>
-                  handleAddressChange(
-                    column.key as AddressField,
-                    addressValue,
-                )
-              }
-              />
-            ) : isManualKmField(
-                column.key,
-              ) ? (
-              <NumberInputWithMarker
-                value={draft[column.key]}
-                label={column.label}
-                rowNumber={rowNumber}
-                placeholder={
-                  column.placeholder
-                }
-                min={column.min}
-                step={column.step}
-                showMarker={
-                  draft[
-                    column.key
-                  ].trim() !== ""
-                }
-                onChange={(value) =>
-                  handleCellChange(
-                    column.key,
-                    value,
-                  )
-                }
-              />
-            ) : column.key === "price" ? (
-              <NumberInputWithMarker
-                value={
-                  pricing.isAutomatic
-                    ? calculation?.price !==
-                        null &&
-                      calculation?.price !==
-                        undefined
-                      ? formatMoney(
-                          calculation.price,
-                        )
-                      : ""
-                    : draft.price
-                }
-                label={column.label}
-                rowNumber={rowNumber}
-                placeholder={
-                  pricing.isAutomatic
-                    ? "Автоматично"
-                    : "0.00"
-                }
-                min={0}
-                step={0.01}
-                readOnly={
-                  pricing.isAutomatic
-                }
-                showMarker={
-                  !pricing.isAutomatic &&
-                  draft.price.trim() !== ""
-                }
-                onChange={(value) =>
-                  handleCellChange(
-                    "price",
-                    value,
-                  )
-                }
-              />
-            ) : column.key ===
-              "tollFee" ? (
-              <NumberInputWithMarker
-                value={draft.tollFee}
-                label={column.label}
-                rowNumber={rowNumber}
-                placeholder={
-                  column.placeholder
-                }
-                min={column.min}
-                step={column.step}
-                showMarker={
-                  draft.tollFee.trim() !== ""
-                }
-                onChange={(value) =>
-                  handleCellChange(
-                    "tollFee",
-                    value,
-                  )
-                }
-              />
-            ) : column.key ===
-              "fuelCost" ? (
-              <input
-                type="text"
-                value={
-                  calculation?.costs
-                    .fuelCost !== undefined
-                    ? formatMoney(
-                        calculation.costs
-                          .fuelCost,
-                      )
-                    : ""
-                }
-                readOnly
-                placeholder="Автоматично"
-                aria-label={`Гориво, ред ${rowNumber}`}
-                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-              />
-            ) : column.key ===
-              "totalCost" ? (
-              <input
-                type="text"
-                value={
-                  calculation?.costs
-                    .totalCost !== undefined
-                    ? formatMoney(
-                        calculation.costs
-                          .totalCost,
-                      )
-                    : ""
-                }
-                readOnly
-                placeholder="Автоматично"
-                aria-label={`Разходи, ред ${rowNumber}`}
-                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-              />
-            ) : column.key === "profit" ? (
-              <input
-                type="text"
-                value={
-                  calculation?.profit !==
-                    null &&
-                  calculation?.profit !==
-                    undefined
-                    ? formatMoney(
-                        calculation.profit,
-                      )
-                    : ""
-                }
-                readOnly
-                placeholder="Автоматично"
-                aria-label={`Печалба, ред ${rowNumber}`}
-                className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-50 px-2 text-slate-500 outline-none"
-              />
-            ) : column.key === "status" ? (
-              <div className="flex h-10 w-full items-center justify-center px-1">
-                <StatusBadge
-                  status={displayStatus}
-                />
-              </div>
-            ) : (
-              <input
-                type={
-                  column.inputType ?? "text"
-                }
-                value={draft[column.key]}
-                min={column.min}
-                step={column.step}
-                readOnly={column.readOnly}
-                placeholder={
-                  column.placeholder
-                }
-                aria-label={`${column.label}, ред ${rowNumber}`}
-                onChange={(event) =>
-                  handleCellChange(
-                    column.key,
-                    event.target.value,
-                  )
-                }
-                className={[
-                  "h-10 w-full rounded border px-2 outline-none transition",
-                  column.readOnly
-                    ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
-                    : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
-                ].join(" ")}
+        <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="space-y-1">
+            <SummaryLine
+              label="Камион"
+              value={truckSummary}
+            />
+            <SummaryLine
+              label="Клиент"
+              value={customerSummary}
+            />
+            <SummaryLine
+              label="Тип"
+              value={courseTypeSummary}
+            />
+            {draft.containerNumber.trim() !== "" && (
+              <SummaryLine
+                label="Контейнер"
+                value={draft.containerNumber}
               />
             )}
-          </td>
-        ))}
+          </div>
+        </td>
 
-        <td className="sticky right-[120px] z-10 w-[130px] min-w-[130px] border-b border-r border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-          <div className="flex flex-col items-start gap-1">
+        <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="space-y-1 text-xs leading-5 text-slate-700">
+            <RouteSummaryLine
+              label="От"
+              value={pickupSummary}
+            />
+            <RouteSummaryLine
+              label="До"
+              value={loadingSummary}
+            />
+            {extraSummary !== "" && (
+              <RouteSummaryLine
+                label="Екстра"
+                value={extraSummary}
+              />
+            )}
+            {returnSummary !== "" && (
+              <RouteSummaryLine
+                label="Връщане"
+                value={returnSummary}
+              />
+            )}
+          </div>
+        </td>
+
+        <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="space-y-1">
+            <SummaryLine
+              label="Общо"
+              value={
+                draft.totalKm.trim() !== ""
+                  ? `${draft.totalKm} км`
+                  : "—"
+              }
+            />
+            <SummaryLine
+              label="Платими"
+              value={
+                draft.billableKm.trim() !== ""
+                  ? `${draft.billableKm} км`
+                  : "—"
+              }
+            />
+            <SummaryLine
+              label="Тол"
+              value={
+                draft.tollFee.trim() !== ""
+                  ? `${draft.tollFee} €`
+                  : "—"
+              }
+            />
+          </div>
+        </td>
+
+        <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="space-y-1">
+            <SummaryLine
+              label="Цена"
+              value={
+                effectivePrice !== null
+                  ? `${formatMoney(effectivePrice)} €`
+                  : draft.price.trim() !== ""
+                    ? `${draft.price} €`
+                    : "—"
+              }
+            />
+            <SummaryLine
+              label="Разход"
+              value={
+                calculation?.costs.totalCost !==
+                undefined
+                  ? `${formatMoney(
+                      calculation.costs.totalCost,
+                    )} €`
+                  : "—"
+              }
+            />
+            <SummaryLine
+              label="Печалба"
+              value={
+                calculation?.profit !== null &&
+                calculation?.profit !== undefined
+                  ? `${formatMoney(
+                      calculation.profit,
+                    )} €`
+                  : "—"
+              }
+              tone={
+                calculation?.profit !== null &&
+                calculation?.profit !== undefined
+                  ? calculation.profit >= 0
+                    ? "positive"
+                    : "negative"
+                  : "default"
+              }
+            />
+          </div>
+        </td>
+
+        <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="space-y-2">
+            <StatusBadge status={displayStatus} />
+
+            {tableWarnings.length > 0 && (
+              <div
+                title={tableWarnings.join("\n")}
+                className="space-y-1 text-xs text-amber-700"
+              >
+                <span className="block font-medium">
+                  {formatWarningCount(tableWarnings.length)}
+                </span>
+
+                <span className="block max-w-[190px] leading-4">
+                  {tableWarnings[0]}
+                </span>
+              </div>
+            )}
+          </div>
+        </td>
+
+        <td className="rounded-r-xl border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleCalculateRoute}
@@ -1279,9 +1481,7 @@ export default function CourseRow({
                 isDeleting ||
                 !canCalculateRoute
               }
-              aria-busy={
-                isCalculatingRoute
-              }
+              aria-busy={isCalculatingRoute}
               title={
                 canCalculateRoute
                   ? "Изчисли маршрут с PTV"
@@ -1308,6 +1508,32 @@ export default function CourseRow({
                   : "Save"}
             </button>
 
+            <button
+              type="button"
+              aria-expanded={isEditOpen}
+              onClick={() =>
+                setIsEditOpen(
+                  (currentValue) =>
+                    !currentValue,
+                )
+              }
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-500 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              {isEditOpen
+                ? "Close"
+                : "Edit"}
+            </button>
+
+            <button
+              type="button"
+              aria-expanded={isDetailsOpen}
+              aria-controls={panelId}
+              onClick={() => setIsDetailsOpen(true)}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-500 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Детайли
+            </button>
+
             {draft.databaseId && (
               <button
                 type="button"
@@ -1321,163 +1547,166 @@ export default function CourseRow({
                   : "Delete"}
               </button>
             )}
+          </div>
 
+          <div className="mt-2 space-y-1">
             {isSaved && (
-              <span className="text-xs font-medium text-emerald-600">
+              <span className="block text-xs font-medium text-emerald-600">
                 Saved in database
               </span>
             )}
 
             {saveError && (
-              <span className="max-w-[110px] text-xs font-medium leading-4 text-red-600">
+              <span className="block text-xs font-medium leading-4 text-red-600">
                 {saveError}
               </span>
             )}
 
             {routeCalculationError && (
-              <span className="max-w-[110px] text-xs font-medium leading-4 text-red-600">
+              <span className="block text-xs font-medium leading-4 text-red-600">
                 {routeCalculationError}
               </span>
             )}
 
             {routeCalculationInfo &&
               !routeCalculationError && (
-                <span className="max-w-[110px] text-xs font-medium leading-4 text-sky-700">
+                <span className="block text-xs font-medium leading-4 text-sky-700">
                   {routeCalculationInfo}
                 </span>
               )}
           </div>
         </td>
-
-        <td className="sticky right-0 z-10 w-[120px] min-w-[120px] border-b border-slate-200 bg-white px-3 py-2 group-hover:bg-slate-50">
-          <button
-            type="button"
-            aria-expanded={isDetailsOpen}
-            aria-controls={panelId}
-            onClick={() =>
-              setIsDetailsOpen(true)
-            }
-            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
-          >
-            Детайли
-          </button>
-        </td>
       </tr>
+
+      {isEditOpen && (
+        <tr className="align-top">
+          <td
+            colSpan={COURSE_COLUMNS.length + 2}
+            className="rounded-xl border-2 border-slate-500 bg-slate-300 px-4 py-4 shadow-lg"
+          >
+            <div className="rounded-lg border border-slate-500 bg-slate-100 p-4 shadow-lg">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Редакция на курс #{rowNumber}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Всички полета са тук, без хоризонтален scroll.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsEditOpen(false)}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-slate-500 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                >
+                  Затвори редакцията
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {EDIT_COLUMNS.map((column) => (
+                  <EditField
+                    key={column.key}
+                    label={column.label}
+                    className={
+                      isAddressField(column.key)
+                        ? "xl:col-span-2"
+                        : ""
+                    }
+                  >
+                    {renderEditorControl(column)}
+                  </EditField>
+                ))}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
 
       <CourseDetailsPanel
         isOpen={isDetailsOpen}
         panelId={panelId}
         rowNumber={rowNumber}
-        truckLabel={
-          selectedTruck
-            ? `${selectedTruck.name} — ${selectedTruck.licensePlate}`
-            : ""
-        }
-        customerLabel={
-          selectedCustomer?.name ?? ""
-        }
-        courseTypeLabel={
-          getCourseTypeLabel(
-            draft.courseType,
-          )
-        }
-        containerNumber={
-          draft.containerNumber
-        }
-        pickupAddressLabel={
-          getAddressLabel(
-            addressOptions,
-            draft.pickupAddressId,
-            draft.pickupAddressText,
-          )
-        }
+        truckLabel={truckSummary === "—" ? "" : truckSummary}
+        customerLabel={selectedCustomer?.name ?? ""}
+        courseTypeLabel={getCourseTypeLabel(draft.courseType)}
+        containerNumber={draft.containerNumber}
+        pickupAddressLabel={pickupSummary === "—" ? "" : pickupSummary}
         loadingUnloadingAddressLabel={
-          getAddressLabel(
-            addressOptions,
-            draft.loadingUnloadingAddressId,
-            draft.loadingUnloadingAddressText,
-          )
+          loadingSummary === "—" ? "" : loadingSummary
         }
-        extraAddressLabel={
-          getAddressLabel(
-            addressOptions,
-            draft.extraAddressId,
-            draft.extraAddressText,
-          )
-        }
-        returnAddressLabel={
-          getAddressLabel(
-            addressOptions,
-            draft.returnAddressId,
-            draft.returnAddressText,
-          )
-        }
+        extraAddressLabel={extraSummary}
+        returnAddressLabel={returnSummary}
         totalKm={totalKmValue}
         billableKm={billableKmValue}
-        nonBillableKm={
-          nonBillableKmValue
-        }
+        nonBillableKm={nonBillableKmValue}
         baseClientPrice={effectivePrice}
-        waitingMinutes={
-          parseNullableNumber(
-            draft.waitingMinutes,
-          )
-        }
+        waitingMinutes={parseNullableNumber(draft.waitingMinutes)}
         waitingChargedToClient={
-          calculation?.waiting
-            .waitingCost ?? null
+          calculation?.waiting.waitingCost ?? null
         }
         extraCharges={extraChargesValue}
-        totalRevenue={
-          calculation?.revenue ?? null
-        }
-        fuelCost={
-          calculation?.costs.fuelCost ??
-          null
-        }
+        totalRevenue={calculation?.revenue ?? null}
+        fuelCost={calculation?.costs.fuelCost ?? null}
         tollCost={
           calculation?.costs.tollCost ??
-          parseNullableNumber(
-            draft.tollFee,
-          )
+          parseNullableNumber(draft.tollFee)
         }
-        truckCost={
-          calculation?.costs
-            .truckFixedCost ?? null
-        }
-        waitingCost={
-          calculation?.waiting
-            .waitingCost ?? null
-        }
+        truckCost={calculation?.costs.truckFixedCost ?? null}
+        waitingCost={calculation?.waiting.waitingCost ?? null}
         portCost={
           calculation?.costs.portCost ??
-          parseNullableNumber(
-            draft.portFee,
-          )
+          parseNullableNumber(draft.portFee)
         }
-        otherCosts={
-          calculation?.costs
-            .otherCosts ?? null
-        }
-        totalCost={
-          calculation?.costs
-            .totalCost ?? null
-        }
-        profit={
-          calculation?.profit ?? null
-        }
-        profitMargin={
-          calculation?.profitMargin ??
-          null
-        }
+        otherCosts={calculation?.costs.otherCosts ?? null}
+        totalCost={calculation?.costs.totalCost ?? null}
+        profit={calculation?.profit ?? null}
+        profitMargin={calculation?.profitMargin ?? null}
         status={displayStatus}
         warnings={displayWarnings}
-        onClose={() =>
-          setIsDetailsOpen(false)
-        }
+        onClose={() => setIsDetailsOpen(false)}
       />
     </>
   );
+}
+
+function getCourseRowAccentClass(
+  status: PricingStatus | null,
+): string {
+  switch (status) {
+    case "PROFITABLE":
+      return "border-l-emerald-400";
+
+    case "LOW_PROFIT":
+      return "border-l-amber-400";
+
+    case "BREAK_EVEN":
+      return "border-l-sky-400";
+
+    case "LOSS":
+      return "border-l-red-400";
+
+    case "NEEDS_REVIEW":
+      return "border-l-orange-400";
+
+    default:
+      return "border-l-slate-300";
+  }
+}
+
+function shouldHideWarningInCourseOverview(
+  warning: string,
+): boolean {
+  return warning
+    .toLocaleLowerCase("en-US")
+    .startsWith("vepco round trip:");
+}
+
+function formatWarningCount(count: number): string {
+  return count === 1
+    ? "1 предупреждение"
+    : `${count} предупреждения`;
 }
 
 function NumberInputWithMarker({
@@ -1505,10 +1734,10 @@ function NumberInputWithMarker({
           onChange?.(event.target.value)
         }
         className={[
-          "h-10 w-full rounded border px-2 pr-12 outline-none transition",
+          "h-10 w-full rounded-md border px-3 pr-12 outline-none transition shadow-sm",
           readOnly
-            ? "cursor-not-allowed border-transparent bg-slate-50 text-slate-500"
-            : "border-transparent bg-transparent text-slate-900 hover:border-slate-200 focus:border-slate-400 focus:bg-white",
+            ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
+            : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200",
         ].join(" ")}
       />
 
@@ -1517,6 +1746,78 @@ function NumberInputWithMarker({
         fieldLabel={label}
       />
     </div>
+  );
+}
+
+
+type SummaryTone = "default" | "positive" | "negative";
+
+function SummaryLine({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: SummaryTone;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-2 text-xs leading-5">
+      <span className="shrink-0 text-slate-500">
+        {label}
+      </span>
+      <span
+        className={[
+          "min-w-0 break-words text-right font-medium",
+          tone === "positive"
+            ? "text-emerald-700"
+            : tone === "negative"
+              ? "text-red-700"
+              : "text-slate-900",
+        ].join(" ")}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function RouteSummaryLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid grid-cols-[56px_1fr] gap-2">
+      <span className="text-slate-500">{label}</span>
+      <span className="min-w-0 break-words font-medium text-slate-900">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function EditField({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label
+      className={[
+        "flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-slate-800",
+        className,
+      ].join(" ")}
+    >
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }
 

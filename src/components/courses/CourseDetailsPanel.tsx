@@ -140,7 +140,7 @@ export default function CourseDetailsPanel({
         type="button"
         aria-label="Затвори детайлите за курса"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-slate-950/40 backdrop-blur-[1px]"
+        className="absolute inset-0 cursor-default bg-slate-950/55 backdrop-blur-[2px]"
       />
 
       <aside
@@ -148,11 +148,11 @@ export default function CourseDetailsPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${panelId}-title`}
-        className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl"
+        className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col border-l-2 border-slate-500 bg-slate-200 shadow-2xl"
       >
-        <header className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+        <header className="flex items-start justify-between border-b border-slate-400 bg-slate-100 px-6 py-5">
           <div>
-            <p className="text-sm font-medium text-slate-500">
+            <p className="text-sm font-medium text-slate-600">
               Ред {rowNumber}
             </p>
 
@@ -169,17 +169,17 @@ export default function CourseDetailsPanel({
             aria-label="Затвори панела"
             title="Затвори"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-2xl leading-none text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-500 bg-white text-2xl leading-none text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             ×
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto bg-slate-200 px-6 py-6">
           <div className="space-y-6">
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
                   Основна информация
                 </h3>
 
@@ -209,8 +209,8 @@ export default function CourseDetailsPanel({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
                 Маршрут
               </h3>
 
@@ -245,8 +245,8 @@ export default function CourseDetailsPanel({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
                 Kilometer breakdown
               </h3>
 
@@ -268,8 +268,8 @@ export default function CourseDetailsPanel({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-800">
+            <section className="rounded-lg border border-emerald-400 bg-emerald-50 p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-900">
                 Revenue breakdown
               </h3>
 
@@ -308,8 +308,8 @@ export default function CourseDetailsPanel({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
                 Cost breakdown
               </h3>
 
@@ -351,7 +351,7 @@ export default function CourseDetailsPanel({
                 />
               </dl>
 
-              <p className="mt-4 rounded-md bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
+              <p className="mt-4 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
                 Waiting е показано тук за
                 информация, но не участва в Total
                 cost. То се начислява към клиента и
@@ -359,8 +359,8 @@ export default function CourseDetailsPanel({
               </p>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-lg border border-slate-400 bg-slate-100 p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
                 Резултат
               </h3>
 
@@ -380,12 +380,12 @@ export default function CourseDetailsPanel({
             </section>
 
             {warnings.length > 0 && (
-              <section className="rounded-lg border border-sky-200 bg-sky-50 p-4">
-                <h3 className="text-sm font-semibold text-sky-800">
+              <section className="rounded-lg border border-sky-400 bg-sky-50 p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-sky-900">
                   Необходима проверка
                 </h3>
 
-                <ul className="mt-3 space-y-2 text-sm text-sky-700">
+                <ul className="mt-3 space-y-2 text-sm text-sky-800">
                   {warnings.map(
                     (warning, index) => (
                       <li
@@ -406,7 +406,7 @@ export default function CourseDetailsPanel({
           </div>
         </div>
 
-        <footer className="border-t border-slate-200 bg-white px-6 py-4">
+        <footer className="border-t border-slate-400 bg-slate-100 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
@@ -430,11 +430,11 @@ function DetailItem({
     <div
       className={
         fullWidth
-          ? "rounded-md border border-slate-200 bg-white p-3 sm:col-span-2"
+          ? "rounded-md border border-slate-400 bg-slate-50 p-3 shadow-sm sm:col-span-2"
           : ""
       }
     >
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <dt className="text-xs font-medium uppercase tracking-wide text-slate-700">
         {label}
       </dt>
 

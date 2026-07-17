@@ -102,8 +102,8 @@ export default function CourseTable({
     () =>
       rows.filter((row) => {
         /*
-         * Новите незаписани редове винаги остават
-         * видими, за да може да се въвежда курс.
+         * Празните редове винаги остават видими,
+         * за да може да се въвежда нов курс.
          */
         if (row.databaseId === null) {
           return true;
@@ -312,7 +312,7 @@ export default function CourseTable({
                   event.target.value,
                 )
               }
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
             />
           </label>
 
@@ -327,7 +327,7 @@ export default function CourseTable({
                   event.target.value,
                 )
               }
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
             />
           </label>
 
@@ -338,7 +338,7 @@ export default function CourseTable({
               dateFrom === "" &&
               dateTo === ""
             }
-            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Изчисти филтъра
           </button>
@@ -402,11 +402,11 @@ export default function CourseTable({
         </p>
       )}
 
-      <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[3480px] table-fixed border-collapse text-sm">
-          <thead className="bg-slate-100">
+      <div className="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-400 bg-slate-300 p-2 shadow-sm">
+        <table className="w-full table-fixed border-separate border-spacing-y-3 text-sm">
+          <thead className="bg-transparent">
             <tr>
-              <th className="sticky left-0 z-20 w-14 min-w-14 border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-center font-semibold text-slate-700">
+              <th className="w-14 rounded-l-lg border-y border-l border-r border-slate-400 bg-slate-300 px-3 py-3 text-center font-semibold text-slate-700">
                 #
               </th>
 
@@ -419,19 +419,15 @@ export default function CourseTable({
                       minWidth:
                         column.width,
                     }}
-                    className="whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 text-left font-semibold text-slate-700"
+                    className="whitespace-nowrap border-y border-r border-slate-400 bg-slate-300 px-3 py-3 text-left font-semibold text-slate-700"
                   >
                     {column.label}
                   </th>
                 ),
               )}
 
-              <th className="sticky right-[120px] z-20 w-[130px] min-w-[130px] whitespace-nowrap border-b border-r border-slate-200 bg-slate-100 px-3 py-3 text-left font-semibold text-slate-700">
-                Запази
-              </th>
-
-              <th className="sticky right-0 z-20 w-[120px] min-w-[120px] whitespace-nowrap border-b border-slate-200 bg-slate-100 px-3 py-3 text-left font-semibold text-slate-700">
-                Детайли
+              <th className="w-[220px] whitespace-nowrap rounded-r-lg border-y border-r border-slate-400 bg-slate-300 px-3 py-3 text-left font-semibold text-slate-700">
+                Действия
               </th>
             </tr>
           </thead>
@@ -469,9 +465,7 @@ export default function CourseTable({
       </div>
 
       <p className="text-xs text-slate-500">
-        Използвай хоризонталния скрол, за да видиш всички
-        колони. Филтърът използва планираната дата, а когато
-        тя липсва — датата на създаване на курса.
+        Таблицата показва кратък преглед на курсовете. Натисни Edit, за да отвориш всички полета на реда без хоризонтално местене. Филтърът използва планираната дата, а когато тя липсва — датата на създаване на курса.
       </p>
     </section>
   );
@@ -812,7 +806,7 @@ function getAddressExportLabel(
     return address.name;
   }
 
-  return `${address.name} — ${details.join(", ")}`;
+  return `${address.name} â€” ${details.join(", ")}`;
 }
 
 function getDownloadFileName(

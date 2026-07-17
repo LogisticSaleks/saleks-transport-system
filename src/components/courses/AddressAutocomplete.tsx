@@ -115,10 +115,6 @@ export default function AddressAutocomplete({
       return;
     }
 
-    /*
-     * Свободно въведеният адрес остава в полето.
-     * При Save API-то ще го създаде в Address.
-     */
     onChange({
       addressId: "",
       inputValue: normalizedValue,
@@ -148,7 +144,7 @@ export default function AddressAutocomplete({
           handleInputChange(event.target.value)
         }
         onBlur={handleBlur}
-        className="h-10 w-full rounded border border-transparent bg-transparent px-2 pr-8 text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-200 focus:border-slate-400 focus:bg-white"
+        className="h-10 w-full rounded-md border border-slate-400 bg-white px-3 pr-9 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200"
       />
 
       {visibleValue !== "" && (
@@ -158,7 +154,7 @@ export default function AddressAutocomplete({
           title="Изчисти адреса"
           onMouseDown={(event) => event.preventDefault()}
           onClick={handleClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-lg leading-none text-slate-400 hover:text-slate-700"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-800"
         >
           ×
         </button>
