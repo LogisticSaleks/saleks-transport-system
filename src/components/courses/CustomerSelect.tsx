@@ -1,9 +1,17 @@
 "use client";
 
 export type CustomerTariffOption = {
+  id: string;
+  name: string;
   type: string;
+  billableKmLogic: string;
+  minKm: number | null;
+  maxKm: number | null;
   pricePerKm: number | null;
   fixedPrice: number | null;
+  waitingHourlyRate: number | null;
+  portFeeIncluded: boolean;
+  isActive: boolean;
 };
 
 export type CustomerOption = {

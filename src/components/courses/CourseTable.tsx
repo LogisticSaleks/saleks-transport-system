@@ -35,6 +35,7 @@ function createEmptyCourseRow(
 
     truckId: "",
     customerId: "",
+    customerTariffId: "",
     courseType: "",
 
     pickupAddressId: "",

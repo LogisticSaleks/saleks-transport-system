@@ -26,7 +26,11 @@ import CourseDetailsPanel from "./CourseDetailsPanel";
 import CourseTypeSelect from "./CourseTypeSelect";
 import CustomerSelect, {
   type CustomerOption,
+  type CustomerTariffOption,
 } from "./CustomerSelect";
+import CustomerTariffSelect, {
+  formatCustomerTariffOptionLabel,
+} from "./CustomerTariffSelect";
 import ManualMarker from "./ManualMarker";
 import StatusBadge from "./StatusBadge";
 import TruckSelect, {
@@ -39,6 +43,7 @@ export type CourseRowData = {
   filterDate: string;
   truckId: string;
   customerId: string;
+  customerTariffId: string;
   courseType: string;
   pickupAddressId: string;
   pickupAddressText: string;
@@ -231,6 +236,11 @@ const EDIT_COLUMNS: readonly CourseColumn[] = [
     width: 170,
   },
   {
+    key: "customerTariffId",
+    label: "Тарифа",
+    width: 210,
+  },
+  {
     key: "courseType",
     label: "Тип",
     width: 140,
@@ -418,6 +428,29 @@ export default function CourseRow({
     [customerOptions, draft.customerId],
   );
 
+  const selectableCustomerTariffs = useMemo(
+    () =>
+      getSelectableTariffsForCourse(
+        selectedCustomer,
+        draft.courseType,
+      ),
+    [selectedCustomer, draft.courseType],
+  );
+
+  const hasAutomaticTableTariff = useMemo(
+    () => hasTableTariff(selectedCustomer),
+    [selectedCustomer],
+  );
+
+  const selectedCustomerTariff = useMemo(
+    () =>
+      selectedCustomer?.tariffs.find(
+        (tariff) =>
+          tariff.id === draft.customerTariffId,
+      ),
+    [selectedCustomer, draft.customerTariffId],
+  );
+
   const selectedTruck = useMemo(
     () =>
       truckOptions.find(
@@ -429,11 +462,18 @@ export default function CourseRow({
 
   const pricing = useMemo(
     () =>
-      resolveCustomerPricing(
-        selectedCustomer,
-        draft.courseType,
-      ),
-    [selectedCustomer, draft.courseType],
+      resolveCustomerPricing({
+        customer: selectedCustomer,
+        selectedTariff: selectedCustomerTariff,
+        courseType: draft.courseType,
+        selectableTariffs: selectableCustomerTariffs,
+      }),
+    [
+      selectedCustomer,
+      selectedCustomerTariff,
+      draft.courseType,
+      selectableCustomerTariffs,
+    ],
   );
 
   const totalKmValue =
@@ -456,6 +496,7 @@ export default function CourseRow({
       [
         draft.truckId,
         draft.customerId,
+        draft.customerTariffId,
         draft.courseType,
         draft.pickupAddressId,
         draft.pickupAddressText,
@@ -478,29 +519,43 @@ export default function CourseRow({
     [draft],
   );
 
-  const inputWarnings = useMemo(
-    () =>
-      buildCourseInputWarnings({
-        hasCourseData,
-        hasSelectedCustomer:
-          selectedCustomer !== undefined,
-        hasActiveTariff: pricing.hasTariff,
-        pricingMethod: pricing.method,
-        courseType: draft.courseType,
-        totalKm: totalKmValue,
-        billableKm: billableKmValue,
-        tollValue: draft.tollFee,
-      }),
-    [
+  const inputWarnings = useMemo(() => {
+    const warnings = buildCourseInputWarnings({
       hasCourseData,
-      selectedCustomer,
-      pricing,
-      draft.courseType,
-      draft.tollFee,
-      totalKmValue,
-      billableKmValue,
-    ],
-  );
+      hasSelectedCustomer:
+        selectedCustomer !== undefined,
+      hasActiveTariff: pricing.hasTariff,
+      pricingMethod: pricing.method,
+      courseType: draft.courseType,
+      totalKm: totalKmValue,
+      billableKm: billableKmValue,
+      tollValue: draft.tollFee,
+    });
+
+    const tariffSelectionWarning =
+      buildTariffSelectionWarning({
+        customer: selectedCustomer,
+        courseType: draft.courseType,
+        customerTariffId: draft.customerTariffId,
+        selectableTariffs: selectableCustomerTariffs,
+      });
+
+    if (tariffSelectionWarning) {
+      warnings.push(tariffSelectionWarning);
+    }
+
+    return warnings;
+  }, [
+    hasCourseData,
+    selectedCustomer,
+    pricing,
+    draft.courseType,
+    draft.customerTariffId,
+    draft.tollFee,
+    selectableCustomerTariffs,
+    totalKmValue,
+    billableKmValue,
+  ]);
 
   const calculation = useMemo(() => {
     const totalKm =
@@ -701,6 +756,63 @@ export default function CourseRow({
       [field]: value,
     }));
 
+    markDraftAsChanged();
+  }
+
+  function handleCustomerChange(customerId: string): void {
+    const nextCustomer = customerOptions.find(
+      (customer) => customer.id === customerId,
+    );
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      customerId,
+      customerTariffId: getDefaultCustomerTariffId(
+        nextCustomer,
+        currentDraft.courseType,
+      ),
+    }));
+
+    markDraftAsChanged();
+  }
+
+  function handleCourseTypeChange(courseType: string): void {
+    setDraft((currentDraft) => {
+      const currentCustomer = customerOptions.find(
+        (customer) =>
+          customer.id === currentDraft.customerId,
+      );
+
+      const selectableTariffs =
+        getSelectableTariffsForCourse(
+          currentCustomer,
+          courseType,
+        );
+
+      const currentTariffIsStillValid =
+        selectableTariffs.some(
+          (tariff) =>
+            tariff.id ===
+            currentDraft.customerTariffId,
+        );
+
+      return {
+        ...currentDraft,
+        courseType,
+        customerTariffId:
+          currentTariffIsStillValid
+            ? currentDraft.customerTariffId
+            : getDefaultCustomerTariffId(
+                currentCustomer,
+                courseType,
+              ),
+      };
+    });
+
+    markDraftAsChanged();
+  }
+
+  function markDraftAsChanged(): void {
     setIsSaved(false);
     setSaveError(null);
     setRouteCalculationError(null);
@@ -848,6 +960,17 @@ export default function CourseRow({
       return;
     }
 
+    const tariffSelectionError =
+      validateTariffSelectionForSave(
+        selectedCustomer,
+        draft,
+      );
+
+    if (tariffSelectionError) {
+      setSaveError(tariffSelectionError);
+      return;
+    }
+
     const totalKm =
       parseRequiredNumber(draft.totalKm);
 
@@ -896,6 +1019,8 @@ export default function CourseRow({
         : {}),
 
       customerId: draft.customerId,
+      customerTariffId:
+        draft.customerTariffId || null,
       truckId: draft.truckId || null,
       courseType: draft.courseType,
 
@@ -1080,8 +1205,24 @@ export default function CourseRow({
           value={draft.customerId}
           customers={customerOptions}
           rowNumber={rowNumber}
-          onChange={(customerId) =>
-            handleCellChange("customerId", customerId)
+          onChange={handleCustomerChange}
+        />
+      );
+    }
+
+    if (column.key === "customerTariffId") {
+      return (
+        <CustomerTariffSelect
+          value={draft.customerTariffId}
+          tariffs={selectableCustomerTariffs}
+          hasCustomer={selectedCustomer !== undefined}
+          hasAutomaticTableTariff={hasAutomaticTableTariff}
+          rowNumber={rowNumber}
+          onChange={(customerTariffId) =>
+            handleCellChange(
+              "customerTariffId",
+              customerTariffId,
+            )
           }
         />
       );
@@ -1092,9 +1233,7 @@ export default function CourseRow({
         <CourseTypeSelect
           value={draft.courseType}
           rowNumber={rowNumber}
-          onChange={(courseType) =>
-            handleCellChange("courseType", courseType)
-          }
+          onChange={handleCourseTypeChange}
         />
       );
     }
@@ -1286,6 +1425,15 @@ export default function CourseRow({
   const customerSummary =
     selectedCustomer?.name ?? "—";
 
+  const tariffSummary =
+    selectedCustomerTariff !== undefined
+      ? formatCustomerTariffOptionLabel(
+          selectedCustomerTariff,
+        )
+      : hasAutomaticTableTariff
+        ? "Автоматична таблица"
+        : "—";
+
   const courseTypeSummary =
     getCourseTypeLabel(draft.courseType) || "—";
 
@@ -1336,6 +1484,10 @@ export default function CourseRow({
             <SummaryLine
               label="Клиент"
               value={customerSummary}
+            />
+            <SummaryLine
+              label="Тарифа"
+              value={tariffSummary}
             />
             <SummaryLine
               label="Тип"
@@ -1914,10 +2066,17 @@ function formatDistanceKm(value: number): string {
     : String(roundedValue);
 }
 
-function resolveCustomerPricing(
-  customer: CustomerOption | undefined,
-  courseType: string,
-): ResolvedPricing {
+function resolveCustomerPricing({
+  customer,
+  selectedTariff,
+  courseType,
+  selectableTariffs,
+}: {
+  customer: CustomerOption | undefined;
+  selectedTariff: CustomerTariffOption | undefined;
+  courseType: string;
+  selectableTariffs: readonly CustomerTariffOption[];
+}): ResolvedPricing {
   if (!customer) {
     return {
       method: "MANUAL",
@@ -1928,6 +2087,28 @@ function resolveCustomerPricing(
     };
   }
 
+  if (selectedTariff) {
+    return resolvePricingFromTariff(selectedTariff);
+  }
+
+  if (selectableTariffs.length === 1) {
+    const onlyTariff = selectableTariffs[0];
+
+    if (onlyTariff) {
+      return resolvePricingFromTariff(onlyTariff);
+    }
+  }
+
+  if (selectableTariffs.length > 1) {
+    return {
+      method: "MANUAL",
+      pricePerKm: null,
+      fixedPrice: null,
+      isAutomatic: false,
+      hasTariff: true,
+    };
+  }
+
   if (courseType === "SHUNT") {
     const shuntTariff = customer.tariffs.find(
       (tariff) =>
@@ -1935,24 +2116,13 @@ function resolveCustomerPricing(
         tariff.fixedPrice !== null,
     );
 
-    if (
-      shuntTariff &&
-      shuntTariff.fixedPrice !== null
-    ) {
-      return {
-        method: "FIXED_PRICE",
-        pricePerKm: null,
-        fixedPrice: shuntTariff.fixedPrice,
-        isAutomatic: true,
-        hasTariff: true,
-      };
+    if (shuntTariff) {
+      return resolvePricingFromTariff(shuntTariff);
     }
   }
 
   const tableTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "FIXED_TABLE_UPPER_BOUND" ||
-      tariff.type === "DISTANCE_TABLE",
+    (tariff) => isTableTariff(tariff),
   );
 
   if (tableTariff) {
@@ -1965,39 +2135,49 @@ function resolveCustomerPricing(
     };
   }
 
-  const pricePerKmTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "PRICE_PER_KM" &&
-      tariff.pricePerKm !== null,
-  );
+  return {
+    method: "MANUAL",
+    pricePerKm: null,
+    fixedPrice: null,
+    isAutomatic: false,
+    hasTariff: false,
+  };
+}
 
+function resolvePricingFromTariff(
+  tariff: CustomerTariffOption,
+): ResolvedPricing {
   if (
-    pricePerKmTariff &&
-    pricePerKmTariff.pricePerKm !== null
+    tariff.type === "PRICE_PER_KM" &&
+    tariff.pricePerKm !== null
   ) {
     return {
       method: "MSI",
-      pricePerKm: pricePerKmTariff.pricePerKm,
+      pricePerKm: tariff.pricePerKm,
       fixedPrice: null,
       isAutomatic: true,
       hasTariff: true,
     };
   }
 
-  const fixedPriceTariff = customer.tariffs.find(
-    (tariff) =>
-      tariff.type === "FIXED_PRICE" &&
-      tariff.fixedPrice !== null,
-  );
-
   if (
-    fixedPriceTariff &&
-    fixedPriceTariff.fixedPrice !== null
+    (tariff.type === "FIXED_PRICE" || tariff.type === "SHUNT") &&
+    tariff.fixedPrice !== null
   ) {
     return {
       method: "FIXED_PRICE",
       pricePerKm: null,
-      fixedPrice: fixedPriceTariff.fixedPrice,
+      fixedPrice: tariff.fixedPrice,
+      isAutomatic: true,
+      hasTariff: true,
+    };
+  }
+
+  if (isTableTariff(tariff)) {
+    return {
+      method: "VEPCO",
+      pricePerKm: null,
+      fixedPrice: null,
       isAutomatic: true,
       hasTariff: true,
     };
@@ -2008,8 +2188,147 @@ function resolveCustomerPricing(
     pricePerKm: null,
     fixedPrice: null,
     isAutomatic: false,
-    hasTariff: false,
+    hasTariff: true,
   };
+}
+
+function getSelectableTariffsForCourse(
+  customer: CustomerOption | undefined,
+  courseType: string,
+): CustomerTariffOption[] {
+  if (!customer) {
+    return [];
+  }
+
+  if (courseType === "SHUNT") {
+    const shuntTariffs = customer.tariffs.filter(
+      (tariff) =>
+        tariff.type === "SHUNT" &&
+        tariff.fixedPrice !== null,
+    );
+
+    if (shuntTariffs.length > 0) {
+      return shuntTariffs;
+    }
+  }
+
+  return customer.tariffs.filter((tariff) =>
+    isCourseSelectableTariff(tariff),
+  );
+}
+
+function isCourseSelectableTariff(
+  tariff: CustomerTariffOption,
+): boolean {
+  if (
+    tariff.type === "PRICE_PER_KM" &&
+    tariff.pricePerKm !== null
+  ) {
+    return true;
+  }
+
+  if (
+    tariff.type === "FIXED_PRICE" &&
+    tariff.fixedPrice !== null
+  ) {
+    return true;
+  }
+
+  if (tariff.type === "MANUAL") {
+    return true;
+  }
+
+  return false;
+}
+
+function getDefaultCustomerTariffId(
+  customer: CustomerOption | undefined,
+  courseType: string,
+): string {
+  const selectableTariffs = getSelectableTariffsForCourse(
+    customer,
+    courseType,
+  );
+
+  if (selectableTariffs.length !== 1) {
+    return "";
+  }
+
+  return selectableTariffs[0]?.id ?? "";
+}
+
+function hasTableTariff(
+  customer: CustomerOption | undefined,
+): boolean {
+  return (
+    customer?.tariffs.some((tariff) =>
+      isTableTariff(tariff),
+    ) ?? false
+  );
+}
+
+function isTableTariff(
+  tariff: CustomerTariffOption,
+): boolean {
+  return (
+    tariff.type === "FIXED_TABLE_UPPER_BOUND" ||
+    tariff.type === "DISTANCE_TABLE"
+  );
+}
+
+function buildTariffSelectionWarning({
+  customer,
+  courseType,
+  customerTariffId,
+  selectableTariffs,
+}: {
+  customer: CustomerOption | undefined;
+  courseType: string;
+  customerTariffId: string;
+  selectableTariffs: readonly CustomerTariffOption[];
+}): string | null {
+  if (!customer) {
+    return null;
+  }
+
+  if (customerTariffId.trim() !== "") {
+    const selectedTariffBelongsToCustomer =
+      customer.tariffs.some(
+        (tariff) => tariff.id === customerTariffId,
+      );
+
+    if (!selectedTariffBelongsToCustomer) {
+      return "Избраната тарифа не принадлежи на избрания клиент.";
+    }
+
+    const selectedTariffIsValidForCourse =
+      selectableTariffs.some(
+        (tariff) => tariff.id === customerTariffId,
+      );
+
+    if (
+      !selectedTariffIsValidForCourse &&
+      !hasTableTariff(customer)
+    ) {
+      return "Избраната тарифа не е валидна за този тип курс.";
+    }
+
+    return null;
+  }
+
+  if (selectableTariffs.length > 1) {
+    return "Клиентът има повече от една активна тарифа. Избери конкретна тарифа.";
+  }
+
+  if (
+    selectableTariffs.length === 0 &&
+    !hasTableTariff(customer) &&
+    courseType.trim() !== ""
+  ) {
+    return "Клиентът няма активна тарифа за този тип курс.";
+  }
+
+  return null;
 }
 
 function parseRequiredNumber(
@@ -2232,6 +2551,28 @@ function validateCourseForSave(
 
   return null;
 }
+
+function validateTariffSelectionForSave(
+  customer: CustomerOption | undefined,
+  row: CourseRowData,
+): string | null {
+  if (!customer) {
+    return null;
+  }
+
+  const selectableTariffs = getSelectableTariffsForCourse(
+    customer,
+    row.courseType,
+  );
+
+  return buildTariffSelectionWarning({
+    customer,
+    courseType: row.courseType,
+    customerTariffId: row.customerTariffId,
+    selectableTariffs,
+  });
+}
+
 
 function buildCourseStops(
   row: CourseRowData,

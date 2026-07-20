@@ -75,13 +75,32 @@ export default async function CoursesPage() {
             isActive: true,
           },
           select: {
+            id: true,
+            name: true,
             type: true,
+            billableKmLogic: true,
+            minKm: true,
+            maxKm: true,
             pricePerKm: true,
             fixedPrice: true,
+            waitingHourlyRate: true,
+            portFeeIncluded: true,
+            isActive: true,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: [
+            {
+              type: "asc",
+            },
+            {
+              minKm: "asc",
+            },
+            {
+              maxKm: "asc",
+            },
+            {
+              name: "asc",
+            },
+          ],
         },
       },
       orderBy: {
@@ -182,7 +201,18 @@ export default async function CoursesPage() {
     id: customer.id,
     name: customer.name,
     tariffs: customer.tariffs.map((tariff) => ({
+      id: tariff.id,
+      name: tariff.name,
       type: tariff.type,
+      billableKmLogic: tariff.billableKmLogic,
+      minKm:
+        tariff.minKm === null
+          ? null
+          : Number(tariff.minKm),
+      maxKm:
+        tariff.maxKm === null
+          ? null
+          : Number(tariff.maxKm),
       pricePerKm:
         tariff.pricePerKm === null
           ? null
@@ -191,6 +221,12 @@ export default async function CoursesPage() {
         tariff.fixedPrice === null
           ? null
           : Number(tariff.fixedPrice),
+      waitingHourlyRate:
+        tariff.waitingHourlyRate === null
+          ? null
+          : Number(tariff.waitingHourlyRate),
+      portFeeIncluded: tariff.portFeeIncluded,
+      isActive: tariff.isActive,
     })),
   }));
 
@@ -223,6 +259,7 @@ function mapCourseToRow(
     id: string;
     truckId: string | null;
     customerId: string;
+    customerTariffId: string | null;
     courseType: "ROUND_TRIP" | "SHUNT";
     pickupAddressId: string | null;
     deliveryAddressId: string | null;
@@ -325,6 +362,7 @@ function mapCourseToRow(
 
     truckId: course.truckId ?? "",
     customerId: course.customerId,
+    customerTariffId: course.customerTariffId ?? "",
     courseType: course.courseType,
 
     pickupAddressId:
