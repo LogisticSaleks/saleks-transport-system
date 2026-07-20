@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { prisma } from "@/lib/prisma";
 import CustomerCreateForm from "@/components/customers/CustomerCreateForm";
+import CustomerTariffCreateForm from "@/components/customers/CustomerTariffCreateForm";
 
 export const dynamic = "force-dynamic";
 
@@ -237,6 +238,12 @@ function CustomerCard({
                 : ""}
             </p>
           </div>
+
+          <CustomerTariffCreateForm
+            customerId={customer.id}
+            customerName={customer.name}
+            defaultBillableKmLogic={customer.billableKmLogic}
+          />
 
           {customer.tariffs.length === 0 ? (
             <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
