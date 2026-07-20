@@ -47,6 +47,7 @@ type JsonObject = Record<string, unknown>;
 type CourseWriteData = {
   courseNumber?: string | null;
   customerId?: string;
+  customerTariffId?: string | null;
   truckId?: string | null;
   driverId?: string | null;
   courseType?: CourseTypeValue;
@@ -139,6 +140,21 @@ const COURSE_INCLUDE = {
       name: true,
       status: true,
       billableKmLogic: true,
+    },
+  },
+  customerTariff: {
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      billableKmLogic: true,
+      minKm: true,
+      maxKm: true,
+      fixedPrice: true,
+      pricePerKm: true,
+      waitingHourlyRate: true,
+      portFeeIncluded: true,
+      isActive: true,
     },
   },
   truck: {
@@ -243,6 +259,11 @@ export async function POST(request: Request) {
     const relatedData = buildRelatedCourseData(body);
 
     const course = await prisma.$transaction(async (transaction) => {
+      await validateCustomerTariffMatchesCustomer(transaction, {
+        customerId: courseData.customerId ?? null,
+        customerTariffId: courseData.customerTariffId ?? null,
+      });
+
       const createdCourse = await transaction.course.create({
         data: courseData as Prisma.CourseUncheckedCreateInput,
       });
@@ -365,18 +386,34 @@ async function updateCourse(request: Request) {
     }
 
     const course = await prisma.$transaction(async (transaction) => {
+      const existingCourse = await transaction.course.findUniqueOrThrow({
+        where: {
+          id: courseId,
+        },
+        select: {
+          customerId: true,
+          customerTariffId: true,
+        },
+      });
+
+      const nextCustomerId =
+        courseData.customerId ?? existingCourse.customerId;
+
+      const nextCustomerTariffId = hasOwn(body, "customerTariffId")
+        ? courseData.customerTariffId ?? null
+        : existingCourse.customerTariffId;
+
+      await validateCustomerTariffMatchesCustomer(transaction, {
+        customerId: nextCustomerId,
+        customerTariffId: nextCustomerTariffId,
+      });
+
       if (hasCourseFields) {
         await transaction.course.update({
           where: {
             id: courseId,
           },
           data: courseData as Prisma.CourseUncheckedUpdateInput,
-        });
-      } else {
-        await transaction.course.findUniqueOrThrow({
-          where: {
-            id: courseId,
-          },
         });
       }
 
@@ -476,6 +513,48 @@ async function readCourseInsideTransaction(
     },
     include: COURSE_INCLUDE,
   });
+}
+
+async function validateCustomerTariffMatchesCustomer(
+  transaction: Prisma.TransactionClient,
+  {
+    customerId,
+    customerTariffId,
+  }: {
+    customerId: string | null;
+    customerTariffId: string | null;
+  },
+): Promise<void> {
+  if (!customerTariffId) {
+    return;
+  }
+
+  if (!customerId) {
+    throw new ApiValidationError(
+      "Не може да бъде избрана тарифа без клиент.",
+    );
+  }
+
+  const tariff = await transaction.customerTariff.findUnique({
+    where: {
+      id: customerTariffId,
+    },
+    select: {
+      customerId: true,
+    },
+  });
+
+  if (!tariff) {
+    throw new ApiValidationError(
+      "Избраната тарифа не съществува.",
+    );
+  }
+
+  if (tariff.customerId !== customerId) {
+    throw new ApiValidationError(
+      "Избраната тарифа не принадлежи на избрания клиент.",
+    );
+  }
 }
 
 async function resolveCourseStops(
@@ -599,7 +678,10 @@ function parseAddressText(addressText: string): ParsedAddressData {
     /\b(\d{4})\s?([A-Za-z]{2})\b/,
   );
 
-  if (dutchPostalCodeMatch && dutchPostalCodeMatch.index !== undefined) {
+  if (
+    dutchPostalCodeMatch &&
+    dutchPostalCodeMatch.index !== undefined
+  ) {
     postalCode = `${dutchPostalCodeMatch[1]} ${dutchPostalCodeMatch[2].toUpperCase()}`;
     country = country === "UNSPECIFIED" ? "NL" : country;
 
@@ -956,6 +1038,7 @@ function buildCourseWriteData({
     );
   }
 
+  setNullableStringField(data, body, "customerTariffId");
   setNullableStringField(data, body, "truckId");
   setNullableStringField(data, body, "driverId");
 
@@ -1455,7 +1538,7 @@ function handleApiError(error: unknown) {
 
       case "P2003":
         return errorResponse(
-          "Посочен клиент, камион, шофьор или адрес не съществува, или курсът има свързани записи.",
+          "Посочен клиент, тарифа, камион, шофьор или адрес не съществува, или курсът има свързани записи.",
           409,
         );
 
