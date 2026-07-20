@@ -325,6 +325,16 @@ model Course {
   waitingAmount Decimal? @db.Decimal(12, 2)
   portFeeAmount Decimal? @db.Decimal(12, 2)
 
+  tariffNameAtBooking        String?
+  tariffTypeAtBooking        TariffType?
+  pricingMethodAtBooking     String?
+  pricePerKmAtBooking        Decimal?                 @db.Decimal(12, 4)
+  fixedPriceAtBooking        Decimal?                 @db.Decimal(12, 2)
+  waitingHourlyRateAtBooking Decimal?                 @db.Decimal(12, 2)
+  billableKmLogicAtBooking   CustomerBillableKmLogic?
+  portFeeIncludedAtBooking   Boolean?
+  pricingSnapshotCreatedAt   DateTime?
+
   notes String?
 
   customer       Customer        @relation(fields: [customerId], references: [id])
