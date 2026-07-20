@@ -738,7 +738,7 @@ export default function CourseRow({
 
     if (routeStops.length < 2) {
       setRouteCalculationError(
-        "Избери поне два адреса за route calculation.",
+        "Избери поне два адреса за изчисляване на маршрут.",
       );
       return;
     }
@@ -779,7 +779,7 @@ export default function CourseRow({
       if (!response.ok) {
         throw new Error(
           responseData?.error ??
-            "Route calculation не можа да бъде изпълнен.",
+            "Изчисляването на маршрута не можа да бъде изпълнено.",
         );
       }
 
@@ -787,7 +787,7 @@ export default function CourseRow({
 
       if (!route) {
         throw new Error(
-          "Route API не върна route резултат.",
+          "Маршрутният API не върна резултат.",
         );
       }
 
@@ -796,7 +796,7 @@ export default function CourseRow({
 
       if (distanceKm === null) {
         throw new Error(
-          "Route API не върна валидни километри.",
+          "Маршрутният API не върна валидни километри.",
         );
       }
 
@@ -823,13 +823,13 @@ export default function CourseRow({
       }));
 
       setRouteCalculationInfo(
-        `${formattedDistance} km / ${formattedToll} € toll`,
+        `${formattedDistance} км / ${formattedToll} € тол`,
       );
     } catch (error) {
       setRouteCalculationError(
         error instanceof Error
           ? error.message
-          : "Route calculation не можа да бъде изпълнен.",
+          : "Изчисляването на маршрута не можа да бъде изпълнено.",
       );
     } finally {
       setIsCalculatingRoute(false);
@@ -1490,8 +1490,8 @@ export default function CourseRow({
               className="inline-flex h-9 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-sm font-medium text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCalculatingRoute
-                ? "Routing..."
-                : "Route"}
+                ? "Изчислява..."
+                : "Маршрут"}
             </button>
 
             <button
@@ -1502,10 +1502,10 @@ export default function CourseRow({
               className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving
-                ? "Saving..."
+                ? "Записване..."
                 : draft.databaseId
-                  ? "Update"
-                  : "Save"}
+                  ? "Обнови"
+                  : "Запази"}
             </button>
 
             <button
@@ -1520,8 +1520,8 @@ export default function CourseRow({
               className="inline-flex h-9 items-center justify-center rounded-md border border-slate-500 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
             >
               {isEditOpen
-                ? "Close"
-                : "Edit"}
+                ? "Затвори"
+                : "Редакция"}
             </button>
 
             <button
@@ -1543,8 +1543,8 @@ export default function CourseRow({
                 className="inline-flex h-9 items-center justify-center rounded-md border border-red-300 bg-white px-3 text-sm font-medium text-red-700 transition hover:border-red-400 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeleting
-                  ? "Deleting..."
-                  : "Delete"}
+                  ? "Изтриване..."
+                  : "Изтрий"}
               </button>
             )}
           </div>
@@ -1552,7 +1552,7 @@ export default function CourseRow({
           <div className="mt-2 space-y-1">
             {isSaved && (
               <span className="block text-xs font-medium text-emerald-600">
-                Saved in database
+                Запазено в базата
               </span>
             )}
 
@@ -1591,7 +1591,7 @@ export default function CourseRow({
                     Редакция на курс #{rowNumber}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Всички полета са тук, без хоризонтален scroll.
+                    Всички полета са тук, без хоризонтално местене.
                   </p>
                 </div>
 

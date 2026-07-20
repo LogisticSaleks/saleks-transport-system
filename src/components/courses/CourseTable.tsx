@@ -202,7 +202,7 @@ export default function CourseTable({
   async function handleExport(): Promise<void> {
     if (visibleSavedRows.length === 0) {
       setExportError(
-        "Няма записани курсове за export.",
+        "Няма записани курсове за експорт.",
       );
       return;
     }
@@ -292,11 +292,11 @@ export default function CourseTable({
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">
-            Courses
+            Курсове
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Add and manage transport courses.
+            Добавяне и управление на транспортни курсове.
           </p>
         </div>
 
@@ -354,8 +354,8 @@ export default function CourseTable({
             className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isExporting
-              ? "Exporting..."
-              : "Export Excel"}
+              ? "Експортиране..."
+              : "Експорт Excel"}
           </button>
 
           <button
@@ -465,7 +465,7 @@ export default function CourseTable({
       </div>
 
       <p className="text-xs text-slate-500">
-        Таблицата показва кратък преглед на курсовете. Натисни Edit, за да отвориш всички полета на реда без хоризонтално местене. Филтърът използва планираната дата, а когато тя липсва — датата на създаване на курса.
+        Таблицата показва кратък преглед на курсовете. Натисни Редакция, за да отвориш всички полета на реда без хоризонтално местене. Филтърът използва планираната дата, а когато тя липсва — датата на създаване на курса.
       </p>
     </section>
   );
@@ -806,7 +806,7 @@ function getAddressExportLabel(
     return address.name;
   }
 
-  return `${address.name} â€” ${details.join(", ")}`;
+  return `${address.name} — ${details.join(", ")}`;
 }
 
 function getDownloadFileName(

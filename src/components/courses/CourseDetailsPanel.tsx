@@ -247,22 +247,22 @@ export default function CourseDetailsPanel({
 
             <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-                Kilometer breakdown
+                Километри
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-3">
                 <DetailItem
-                  label="Total KM"
+                  label="Общо км"
                   value={formatKm(totalKm)}
                 />
 
                 <DetailItem
-                  label="Billable KM"
+                  label="Платими км"
                   value={formatKm(billableKm)}
                 />
 
                 <DetailItem
-                  label="Non-billable KM"
+                  label="Неплатими км"
                   value={formatKm(nonBillableKm)}
                 />
               </dl>
@@ -270,38 +270,38 @@ export default function CourseDetailsPanel({
 
             <section className="rounded-lg border border-emerald-400 bg-emerald-50 p-4 shadow-sm">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-900">
-                Revenue breakdown
+                Приходи
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Base client price"
+                  label="Основна цена към клиента"
                   value={formatMoney(
                     baseClientPrice,
                   )}
                 />
 
                 <DetailItem
-                  label="Waiting charged to client"
+                  label="Начислен престой към клиента"
                   value={formatMoney(
                     waitingChargedToClient,
                   )}
                 />
 
                 <DetailItem
-                  label="Extra charges"
+                  label="Допълнителни начисления"
                   value={formatMoney(extraCharges)}
                 />
 
                 <DetailItem
-                  label="Waiting time"
+                  label="Време престой"
                   value={formatMinutes(
                     waitingMinutes,
                   )}
                 />
 
                 <DetailItem
-                  label="Total revenue"
+                  label="Общ приход"
                   value={formatMoney(totalRevenue)}
                   fullWidth
                 />
@@ -310,52 +310,52 @@ export default function CourseDetailsPanel({
 
             <section className="rounded-lg border border-slate-400 bg-white p-4 shadow-sm">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-                Cost breakdown
+                Разходи
               </h3>
 
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Fuel"
+                  label="Гориво"
                   value={formatMoney(fuelCost)}
                 />
 
                 <DetailItem
-                  label="Toll"
+                  label="Тол"
                   value={formatMoney(tollCost)}
                 />
 
                 <DetailItem
-                  label="Truck cost"
+                  label="Разход за камион"
                   value={formatMoney(truckCost)}
                 />
 
                 <DetailItem
-                  label="Waiting"
+                  label="Престой"
                   value={formatMoney(waitingCost)}
                 />
 
                 <DetailItem
-                  label="Port fee"
+                  label="Пристанищна такса"
                   value={formatMoney(portCost)}
                 />
 
                 <DetailItem
-                  label="Other costs"
+                  label="Други разходи"
                   value={formatMoney(otherCosts)}
                 />
 
                 <DetailItem
-                  label="Total cost"
+                  label="Общ разход"
                   value={formatMoney(totalCost)}
                   fullWidth
                 />
               </dl>
 
               <p className="mt-4 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                Waiting е показано тук за
-                информация, но не участва в Total
-                cost. То се начислява към клиента и
-                участва в Total revenue.
+                Престоят е показан тук за
+                информация, но не участва в общия
+                разход. Той се начислява към клиента и
+                участва в общия приход.
               </p>
             </section>
 
