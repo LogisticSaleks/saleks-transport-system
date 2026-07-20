@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { prisma } from "@/lib/prisma";
+import CustomerCreateForm from "@/components/customers/CustomerCreateForm";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,8 @@ export default async function CustomersPage() {
             />
           </div>
         </header>
+
+        <CustomerCreateForm />
 
         {customers.length === 0 ? (
           <EmptyState />
