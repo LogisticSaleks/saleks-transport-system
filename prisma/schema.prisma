@@ -277,6 +277,7 @@ model CustomerTariff {
   notes             String?
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  courses  Course[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -287,11 +288,12 @@ model CustomerTariff {
 }
 
 model Course {
-  id           String  @id @default(cuid())
-  courseNumber String? @unique
-  customerId   String
-  truckId      String?
-  driverId     String?
+  id               String  @id @default(cuid())
+  courseNumber     String? @unique
+  customerId       String
+  customerTariffId String?
+  truckId          String?
+  driverId         String?
 
   courseType CourseType @default(ROUND_TRIP)
 
@@ -325,9 +327,10 @@ model Course {
 
   notes String?
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  truck    Truck?   @relation(fields: [truckId], references: [id])
-  driver   Driver?  @relation(fields: [driverId], references: [id])
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  customerTariff CustomerTariff? @relation(fields: [customerTariffId], references: [id], onDelete: SetNull)
+  truck          Truck?          @relation(fields: [truckId], references: [id])
+  driver         Driver?         @relation(fields: [driverId], references: [id])
 
   pickupAddress   Address? @relation("CoursePickupAddress", fields: [pickupAddressId], references: [id])
   deliveryAddress Address? @relation("CourseDeliveryAddress", fields: [deliveryAddressId], references: [id])
@@ -342,6 +345,7 @@ model Course {
   updatedAt DateTime @updatedAt
 
   @@index([customerId])
+  @@index([customerTariffId])
   @@index([truckId])
   @@index([driverId])
   @@index([plannedDate])
@@ -491,8 +495,8 @@ model Document {
 }
 
 model RouteCache {
-  id         String   @id @default(cuid())
-  cacheKey   String   @unique
+  id         String @id @default(cuid())
+  cacheKey   String @unique
   providerId String
 
   requestJson Json
