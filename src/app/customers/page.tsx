@@ -2,6 +2,9 @@ import { AppShell } from "@/components/layout/AppShell";
 import { prisma } from "@/lib/prisma";
 import CustomerCreateForm from "@/components/customers/CustomerCreateForm";
 import CustomerTariffCreateForm from "@/components/customers/CustomerTariffCreateForm";
+import CustomerTariffActions, {
+  type CustomerTariffActionTariff,
+} from "@/components/customers/CustomerTariffActions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +38,8 @@ export default async function CustomersPage() {
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               Преглед на клиентите, тяхната логика за платими
-              километри и активните тарифни правила. Тази първа
-              версия е само за преглед, без редакция на данни.
+              километри и активните тарифни правила. Можеш да
+              добавяш, редактираш, активираш и деактивираш тарифи.
             </p>
           </div>
 
@@ -251,7 +254,7 @@ function CustomerCard({
             </p>
           ) : (
             <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-slate-300 bg-white">
-              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-200 text-xs uppercase tracking-wide text-slate-700">
                   <tr>
                     <th className="border-b border-slate-400 px-3 py-2">
@@ -275,6 +278,9 @@ function CustomerCard({
                     <th className="border-b border-slate-400 px-3 py-2">
                       Статус
                     </th>
+                    <th className="border-b border-slate-400 px-3 py-2">
+                      Действия
+                    </th>
                   </tr>
                 </thead>
 
@@ -282,6 +288,7 @@ function CustomerCard({
                   {customer.tariffs.map((tariff) => (
                     <TariffRow
                       key={tariff.id}
+                      customerName={customer.name}
                       tariff={tariff}
                     />
                   ))}
@@ -296,8 +303,10 @@ function CustomerCard({
 }
 
 function TariffRow({
+  customerName,
   tariff,
 }: {
+  customerName: string;
   tariff: CustomerTariffRow;
 }) {
   return (
@@ -377,8 +386,34 @@ function TariffRow({
           )}
         </div>
       </td>
+
+      <td className="px-3 py-2 align-top">
+        <CustomerTariffActions
+          customerName={customerName}
+          tariff={toCustomerTariffActionTariff(tariff)}
+        />
+      </td>
     </tr>
   );
+}
+
+function toCustomerTariffActionTariff(
+  tariff: CustomerTariffRow,
+): CustomerTariffActionTariff {
+  return {
+    id: tariff.id,
+    name: tariff.name,
+    type: tariff.type,
+    billableKmLogic: tariff.billableKmLogic,
+    minKm: toNumber(tariff.minKm),
+    maxKm: toNumber(tariff.maxKm),
+    fixedPrice: toNumber(tariff.fixedPrice),
+    pricePerKm: toNumber(tariff.pricePerKm),
+    waitingHourlyRate: toNumber(tariff.waitingHourlyRate),
+    portFeeIncluded: tariff.portFeeIncluded,
+    isActive: tariff.isActive,
+    notes: tariff.notes,
+  };
 }
 
 function SummaryCard({
