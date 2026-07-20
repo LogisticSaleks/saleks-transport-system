@@ -20,51 +20,126 @@ export default function CustomerTariffSelect({
   onChange,
 }: CustomerTariffSelectProps) {
   const isDisabled = !hasCustomer || tariffs.length === 0;
+  const selectedTariff = tariffs.find(
+    (tariff) => tariff.id === value,
+  );
 
   return (
-    <select
-      value={isDisabled ? "" : value}
-      disabled={isDisabled}
-      aria-label={`Тарифа, ред ${rowNumber}`}
-      onChange={(event) => onChange(event.target.value)}
-      className={[
-        "h-10 w-full rounded border px-2 text-slate-900 outline-none transition",
-        isDisabled
-          ? "cursor-not-allowed border-slate-300 bg-slate-100 text-slate-500"
-          : "border-transparent bg-transparent hover:border-slate-200 focus:border-slate-400 focus:bg-white",
-      ].join(" ")}
-    >
-      {!hasCustomer ? (
-        <option value="">Първо избери клиент</option>
-      ) : tariffs.length === 0 && hasAutomaticTableTariff ? (
-        <option value="">Автоматична тарифна таблица</option>
-      ) : tariffs.length === 0 ? (
-        <option value="">Няма тарифи за избор</option>
-      ) : (
-        <>
-          <option value="">Избери тарифа</option>
+    <div className="space-y-1">
+      <select
+        value={isDisabled ? "" : value}
+        disabled={isDisabled}
+        aria-label={`Тарифа, ред ${rowNumber}`}
+        onChange={(event) => onChange(event.target.value)}
+        className={[
+          "h-10 w-full rounded-md border px-2 text-slate-900 outline-none transition shadow-sm",
+          isDisabled
+            ? "cursor-not-allowed border-slate-300 bg-slate-100 text-slate-500"
+            : "border-slate-400 bg-white hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200",
+        ].join(" ")}
+      >
+        {!hasCustomer ? (
+          <option value="">Първо избери клиент</option>
+        ) : tariffs.length === 0 && hasAutomaticTableTariff ? (
+          <option value="">Автоматична тарифна таблица</option>
+        ) : tariffs.length === 0 ? (
+          <option value="">Няма тарифи за избор</option>
+        ) : (
+          <>
+            <option value="">Избери конкретна тарифа</option>
 
-          {tariffs.map((tariff) => (
-            <option key={tariff.id} value={tariff.id}>
-              {formatCustomerTariffOptionLabel(tariff)}
-            </option>
-          ))}
-        </>
-      )}
-    </select>
+            {tariffs.map((tariff) => (
+              <option key={tariff.id} value={tariff.id}>
+                {formatCustomerTariffOptionLabel(tariff)}
+              </option>
+            ))}
+          </>
+        )}
+      </select>
+
+      <p
+        className={[
+          "text-xs leading-4",
+          hasCustomer && tariffs.length > 1 && value.trim() === ""
+            ? "font-medium text-amber-700"
+            : "text-slate-500",
+        ].join(" ")}
+      >
+        {getTariffHelperText({
+          hasCustomer,
+          hasAutomaticTableTariff,
+          tariffs,
+          selectedTariff,
+          value,
+        })}
+      </p>
+    </div>
   );
 }
 
 export function formatCustomerTariffOptionLabel(
   tariff: CustomerTariffOption,
 ): string {
+  const typeLabel = getTariffTypeLabel(tariff.type);
   const priceLabel = getTariffPriceLabel(tariff);
   const rangeLabel = getTariffRangeLabel(tariff);
-  const typeLabel = getTariffTypeLabel(tariff.type);
+  const billableLogicLabel = getBillableKmLogicLabel(
+    tariff.billableKmLogic,
+  );
+  const portFeeLabel = tariff.portFeeIncluded
+    ? "порт включен"
+    : "";
 
-  return [tariff.name, typeLabel, rangeLabel, priceLabel]
+  return [
+    tariff.name,
+    typeLabel,
+    priceLabel,
+    rangeLabel,
+    billableLogicLabel,
+    portFeeLabel,
+  ]
     .filter(Boolean)
     .join(" — ");
+}
+
+function getTariffHelperText({
+  hasCustomer,
+  hasAutomaticTableTariff,
+  tariffs,
+  selectedTariff,
+  value,
+}: {
+  hasCustomer: boolean;
+  hasAutomaticTableTariff: boolean;
+  tariffs: readonly CustomerTariffOption[];
+  selectedTariff: CustomerTariffOption | undefined;
+  value: string;
+}): string {
+  if (!hasCustomer) {
+    return "Първо избери клиент, за да се заредят тарифите.";
+  }
+
+  if (tariffs.length === 0 && hasAutomaticTableTariff) {
+    return "Цената ще се сметне автоматично по тарифната таблица на клиента.";
+  }
+
+  if (tariffs.length === 0) {
+    return "Няма активна course-level тарифа. Цената ще остане ръчна.";
+  }
+
+  if (selectedTariff) {
+    return `Избрана тарифа: ${formatCustomerTariffOptionLabel(selectedTariff)}`;
+  }
+
+  if (value.trim() !== "") {
+    return "Избраната тарифа вече не е налична за този клиент или тип курс.";
+  }
+
+  if (tariffs.length === 1) {
+    return "Има само една подходяща тарифа и тя може да бъде избрана автоматично.";
+  }
+
+  return "Клиентът има няколко активни тарифи. Избери точната тарифа за този курс.";
 }
 
 function getTariffPriceLabel(
@@ -81,8 +156,15 @@ function getTariffPriceLabel(
     return `${formatMoney(tariff.fixedPrice)} €`;
   }
 
-  if (tariff.type === "WAITING_TIME" && tariff.waitingHourlyRate !== null) {
+  if (
+    tariff.type === "WAITING_TIME" &&
+    tariff.waitingHourlyRate !== null
+  ) {
     return `${formatMoney(tariff.waitingHourlyRate)} €/час`;
+  }
+
+  if (tariff.type === "MANUAL") {
+    return "ръчна цена";
   }
 
   return "";
@@ -111,7 +193,7 @@ function getTariffRangeLabel(tariff: CustomerTariffOption): string {
 function getTariffTypeLabel(type: string): string {
   switch (type) {
     case "FIXED_TABLE_UPPER_BOUND":
-      return "Таблица";
+      return "Тарифна таблица";
 
     case "DISTANCE_TABLE":
       return "Дистанционна таблица";
@@ -120,7 +202,7 @@ function getTariffTypeLabel(type: string): string {
       return "Цена / км";
 
     case "FIXED_PRICE":
-      return "Фикс цена";
+      return "Фиксирана цена";
 
     case "SHUNT":
       return "Шунт";
@@ -133,6 +215,28 @@ function getTariffTypeLabel(type: string): string {
 
     default:
       return type;
+  }
+}
+
+function getBillableKmLogicLabel(logic: string): string {
+  switch (logic) {
+    case "TOTAL_ROUTE":
+      return "цял маршрут";
+
+    case "ONE_WAY":
+      return "еднопосочно";
+
+    case "SELECTED_LEGS":
+      return "избрани отсечки";
+
+    case "FIXED_PRICE":
+      return "фиксирана цена";
+
+    case "MANUAL":
+      return "ръчни км";
+
+    default:
+      return logic;
   }
 }
 

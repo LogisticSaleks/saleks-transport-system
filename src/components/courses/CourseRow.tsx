@@ -1431,7 +1431,7 @@ export default function CourseRow({
           selectedCustomerTariff,
         )
       : hasAutomaticTableTariff
-        ? "Автоматична таблица"
+        ? "Автоматична тарифна таблица"
         : "—";
 
   const courseTypeSummary =
@@ -2292,12 +2292,11 @@ function buildTariffSelectionWarning({
   }
 
   if (customerTariffId.trim() !== "") {
-    const selectedTariffBelongsToCustomer =
-      customer.tariffs.some(
-        (tariff) => tariff.id === customerTariffId,
-      );
+    const selectedTariff = customer.tariffs.find(
+      (tariff) => tariff.id === customerTariffId,
+    );
 
-    if (!selectedTariffBelongsToCustomer) {
+    if (!selectedTariff) {
       return "Избраната тарифа не принадлежи на избрания клиент.";
     }
 
@@ -2308,7 +2307,7 @@ function buildTariffSelectionWarning({
 
     if (
       !selectedTariffIsValidForCourse &&
-      !hasTableTariff(customer)
+      !isTableTariff(selectedTariff)
     ) {
       return "Избраната тарифа не е валидна за този тип курс.";
     }
