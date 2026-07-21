@@ -1,0 +1,762 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+
+export type DashboardTruckOption = {
+  id: string;
+  name: string;
+  licensePlate: string;
+  status: string;
+};
+
+export type WeeklyTruckRevenueReportCourseRow = {
+  id: string;
+  courseDate: string;
+  customerNameAtReport: string;
+  courseTypeAtReport: "ROUND_TRIP" | "SHUNT";
+  containerNumber: string | null;
+  routeLabel: string;
+  tariffNameAtBooking: string | null;
+  agreedPrice: number;
+  waitingAmount: number;
+  totalRevenue: number;
+};
+
+export type WeeklyTruckRevenueReportRow = {
+  id: string;
+  year: number;
+  weekNumber: number;
+  weekStartDate: string;
+  weekEndDate: string;
+  truckId: string | null;
+  truckNameAtReport: string;
+  truckLicensePlateAtReport: string;
+  courseCount: number;
+  totalRevenue: number;
+  generatedAt: string;
+  isLocked: boolean;
+  courses: WeeklyTruckRevenueReportCourseRow[];
+};
+
+type WeeklyReportsApiResponse = {
+  reports?: WeeklyTruckRevenueReportRow[];
+  report?: WeeklyTruckRevenueReportRow;
+  error?: string;
+};
+
+type DashboardWeeklyReportsProps = {
+  initialYear: number;
+  initialWeekNumber: number;
+  trucks: readonly DashboardTruckOption[];
+  initialReports: readonly WeeklyTruckRevenueReportRow[];
+};
+
+export default function DashboardWeeklyReports({
+  initialYear,
+  initialWeekNumber,
+  trucks,
+  initialReports,
+}: DashboardWeeklyReportsProps) {
+  const [year, setYear] = useState(String(initialYear));
+  const [weekNumber, setWeekNumber] = useState(
+    String(initialWeekNumber),
+  );
+  const [reports, setReports] = useState<
+    WeeklyTruckRevenueReportRow[]
+  >([...initialReports]);
+  const [expandedReportId, setExpandedReportId] =
+    useState<string | null>(null);
+  const [isLoadingReports, setIsLoadingReports] =
+    useState(false);
+  const [isGeneratingReports, setIsGeneratingReports] =
+    useState(false);
+  const [isUpdatingLock, setIsUpdatingLock] =
+    useState<string | null>(null);
+  const [errorMessage, setErrorMessage] =
+    useState<string | null>(null);
+  const [successMessage, setSuccessMessage] =
+    useState<string | null>(null);
+
+  const parsedYear = parsePositiveInteger(year);
+  const parsedWeekNumber = parsePositiveInteger(weekNumber);
+
+  const hasValidWeekSelection =
+    parsedYear !== null &&
+    parsedWeekNumber !== null &&
+    parsedWeekNumber >= 1 &&
+    parsedWeekNumber <= 53;
+
+  const sortedReports = useMemo(
+    () =>
+      [...reports].sort((firstReport, secondReport) =>
+        `${firstReport.truckNameAtReport} ${firstReport.truckLicensePlateAtReport}`.localeCompare(
+          `${secondReport.truckNameAtReport} ${secondReport.truckLicensePlateAtReport}`,
+          "bg-BG",
+        ),
+      ),
+    [reports],
+  );
+
+  const dashboardTotals = useMemo(
+    () => ({
+      reportsCount: sortedReports.length,
+      courseCount: sortedReports.reduce(
+        (sum, report) => sum + report.courseCount,
+        0,
+      ),
+      totalRevenue: sortedReports.reduce(
+        (sum, report) => sum + report.totalRevenue,
+        0,
+      ),
+      lockedCount: sortedReports.filter(
+        (report) => report.isLocked,
+      ).length,
+    }),
+    [sortedReports],
+  );
+
+  async function handleLoadReports(): Promise<void> {
+    if (!hasValidWeekSelection) {
+      setErrorMessage(
+        "Въведи валидна година и седмица между 1 и 53.",
+      );
+      return;
+    }
+
+    setIsLoadingReports(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/weekly-truck-revenue-reports?year=${parsedYear}&weekNumber=${parsedWeekNumber}`,
+      );
+
+      const responseData =
+        (await response.json().catch(() => null)) as
+          | WeeklyReportsApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Седмичните отчети не можаха да бъдат заредени.",
+        );
+      }
+
+      setReports(responseData?.reports ?? []);
+      setExpandedReportId(null);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Седмичните отчети не можаха да бъдат заредени.",
+      );
+    } finally {
+      setIsLoadingReports(false);
+    }
+  }
+
+  async function handleGenerateReports(
+    forceRefresh: boolean,
+  ): Promise<void> {
+    if (!hasValidWeekSelection) {
+      setErrorMessage(
+        "Въведи валидна година и седмица между 1 и 53.",
+      );
+      return;
+    }
+
+    if (trucks.length === 0) {
+      setErrorMessage(
+        "Няма активни камиони, за които да се генерира отчет.",
+      );
+      return;
+    }
+
+    setIsGeneratingReports(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const generatedReports: WeeklyTruckRevenueReportRow[] = [];
+
+      for (const truck of trucks) {
+        const response = await fetch(
+          "/api/weekly-truck-revenue-reports",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              year: parsedYear,
+              weekNumber: parsedWeekNumber,
+              truckId: truck.id,
+              forceRefresh,
+            }),
+          },
+        );
+
+        const responseData =
+          (await response.json().catch(() => null)) as
+            | WeeklyReportsApiResponse
+            | null;
+
+        if (!response.ok || !responseData?.report) {
+          throw new Error(
+            responseData?.error ??
+              `Отчетът за ${truck.name} не можа да бъде генериран.`,
+          );
+        }
+
+        generatedReports.push(responseData.report);
+      }
+
+      setReports(generatedReports);
+      setExpandedReportId(null);
+      setSuccessMessage(
+        forceRefresh
+          ? "Седмичните отчети са обновени."
+          : "Седмичните отчети са генерирани.",
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Седмичните отчети не можаха да бъдат генерирани.",
+      );
+    } finally {
+      setIsGeneratingReports(false);
+    }
+  }
+
+  async function handleToggleLock(
+    report: WeeklyTruckRevenueReportRow,
+  ): Promise<void> {
+    setIsUpdatingLock(report.id);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch(
+        "/api/weekly-truck-revenue-reports",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: report.id,
+            isLocked: !report.isLocked,
+          }),
+        },
+      );
+
+      const responseData =
+        (await response.json().catch(() => null)) as
+          | WeeklyReportsApiResponse
+          | null;
+
+      if (!response.ok || !responseData?.report) {
+        throw new Error(
+          responseData?.error ??
+            "Статусът на отчета не можа да бъде обновен.",
+        );
+      }
+
+      setReports((currentReports) =>
+        currentReports.map((currentReport) =>
+          currentReport.id === report.id
+            ? responseData.report!
+            : currentReport,
+        ),
+      );
+
+      setSuccessMessage(
+        responseData.report.isLocked
+          ? "Отчетът е заключен."
+          : "Отчетът е отключен.",
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Статусът на отчета не можа да бъде обновен.",
+      );
+    } finally {
+      setIsUpdatingLock(null);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-950">
+              Седмични приходи по камион
+            </h2>
+
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              Избери година и седмица, генерирай отчетите за
+              активните камиони и ги отвори по всяко време.
+              Тук се показват само приходи: цена на курса плюс
+              начислен престой. Разходите остават в Courses.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+              Година
+              <input
+                type="number"
+                min="2020"
+                max="2100"
+                value={year}
+                onChange={(event) => {
+                  setYear(event.target.value);
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="h-10 w-32 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+              Седмица
+              <input
+                type="number"
+                min="1"
+                max="53"
+                value={weekNumber}
+                onChange={(event) => {
+                  setWeekNumber(event.target.value);
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="h-10 w-28 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleLoadReports}
+              disabled={isLoadingReports || isGeneratingReports}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-slate-500 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoadingReports ? "Зарежда..." : "Зареди"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleGenerateReports(false)}
+              disabled={isLoadingReports || isGeneratingReports}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isGeneratingReports
+                ? "Генерира..."
+                : "Генерирай"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleGenerateReports(true)}
+              disabled={isLoadingReports || isGeneratingReports}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {(errorMessage || successMessage) && (
+          <div className="mt-4">
+            {errorMessage && (
+              <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {errorMessage}
+              </p>
+            )}
+
+            {successMessage && (
+              <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                {successMessage}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Отчети"
+          value={String(dashboardTotals.reportsCount)}
+        />
+
+        <MetricCard
+          label="Курсове"
+          value={String(dashboardTotals.courseCount)}
+        />
+
+        <MetricCard
+          label="Общ приход"
+          value={formatMoney(dashboardTotals.totalRevenue)}
+        />
+
+        <MetricCard
+          label="Заключени"
+          value={`${dashboardTotals.lockedCount}/${dashboardTotals.reportsCount}`}
+        />
+      </section>
+
+      <section className="rounded-2xl border border-slate-400 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-slate-300 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-950">
+              Week {weekNumber} / {year}
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Запазени седмични отчети по камион.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/courses"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
+            >
+              Към Courses
+            </Link>
+
+            <Link
+              href="/trucks"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
+            >
+              Към Trucks
+            </Link>
+          </div>
+        </div>
+
+        {sortedReports.length === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <p className="text-sm font-medium text-slate-700">
+              Няма запазени отчети за тази седмица.
+            </p>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Натисни “Генерирай”, за да създадеш отчети за
+              активните камиони.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+              <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="border-b border-slate-300 px-4 py-3">
+                    Камион
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3">
+                    Седмица
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3 text-right">
+                    Курсове
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3 text-right">
+                    Общ приход
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3">
+                    Статус
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3">
+                    Генериран
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3 text-right">
+                    Действия
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {sortedReports.map((report) => (
+                  <ReportRows
+                    key={report.id}
+                    report={report}
+                    isExpanded={expandedReportId === report.id}
+                    isUpdatingLock={isUpdatingLock === report.id}
+                    onToggleDetails={() =>
+                      setExpandedReportId((currentReportId) =>
+                        currentReportId === report.id
+                          ? null
+                          : report.id,
+                      )
+                    }
+                    onToggleLock={() => handleToggleLock(report)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ReportRows({
+  report,
+  isExpanded,
+  isUpdatingLock,
+  onToggleDetails,
+  onToggleLock,
+}: {
+  report: WeeklyTruckRevenueReportRow;
+  isExpanded: boolean;
+  isUpdatingLock: boolean;
+  onToggleDetails: () => void;
+  onToggleLock: () => void;
+}) {
+  return (
+    <>
+      <tr className="align-top hover:bg-slate-50">
+        <td className="border-b border-slate-200 px-4 py-3">
+          <div className="font-semibold text-slate-950">
+            {report.truckNameAtReport}
+          </div>
+
+          <div className="text-xs text-slate-500">
+            {report.truckLicensePlateAtReport}
+          </div>
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3">
+          <div className="font-medium text-slate-900">
+            Week {report.weekNumber} / {report.year}
+          </div>
+
+          <div className="text-xs text-slate-500">
+            {formatDate(report.weekStartDate)} –{" "}
+            {formatDate(report.weekEndDate)}
+          </div>
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-950">
+          {report.courseCount}
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3 text-right font-bold text-emerald-700">
+          {formatMoney(report.totalRevenue)}
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3">
+          <span
+            className={[
+              "inline-flex rounded-full px-2 py-1 text-xs font-semibold",
+              report.isLocked
+                ? "bg-slate-200 text-slate-700"
+                : "bg-emerald-100 text-emerald-800",
+            ].join(" ")}
+          >
+            {report.isLocked ? "Заключен" : "Отворен"}
+          </span>
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
+          {formatDateTime(report.generatedAt)}
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onToggleDetails}
+              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
+            >
+              {isExpanded ? "Скрий" : "Детайли"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleLock}
+              disabled={isUpdatingLock}
+              className="inline-flex h-8 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-semibold text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isUpdatingLock
+                ? "..."
+                : report.isLocked
+                  ? "Отключи"
+                  : "Заключи"}
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {isExpanded && (
+        <tr>
+          <td
+            colSpan={7}
+            className="border-b border-slate-300 bg-slate-50 px-4 py-4"
+          >
+            <ReportCoursesTable report={report} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function ReportCoursesTable({
+  report,
+}: {
+  report: WeeklyTruckRevenueReportRow;
+}) {
+  if (report.courses.length === 0) {
+    return (
+      <p className="rounded-md border border-slate-300 bg-white px-3 py-3 text-sm text-slate-600">
+        Няма курсове в този отчет.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
+      <table className="w-full min-w-[900px] border-collapse text-left text-xs">
+        <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
+          <tr>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Дата
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Клиент
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Контейнер
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Маршрут
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Тарифа
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Цена
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Престой
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Приход
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {report.courses.map((course) => (
+            <tr
+              key={course.id}
+              className="hover:bg-slate-50"
+            >
+              <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
+                {formatDate(course.courseDate)}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 font-medium text-slate-900">
+                {course.customerNameAtReport}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
+                {course.containerNumber ?? "—"}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
+                {course.routeLabel}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
+                {course.tariffNameAtBooking ?? "—"}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
+                {formatMoney(course.agreedPrice)}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
+                {formatMoney(course.waitingAmount)}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-right font-semibold text-emerald-700">
+                {formatMoney(course.totalRevenue)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-2 text-2xl font-bold text-slate-950">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function parsePositiveInteger(value: string): number | null {
+  const parsedValue = Number(value);
+
+  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
+function formatMoney(value: number): string {
+  return `€${value.toFixed(2)}`;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("bg-BG", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("bg-BG", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
