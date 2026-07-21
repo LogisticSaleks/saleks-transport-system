@@ -233,8 +233,9 @@ model Truck {
 
   notes String?
 
-  courses Course[]
-  costs   Cost[]
+  courses              Course[]
+  costs                Cost[]
+  weeklyRevenueReports WeeklyTruckRevenueReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,11 +346,12 @@ model Course {
   pickupAddress   Address? @relation("CoursePickupAddress", fields: [pickupAddressId], references: [id])
   deliveryAddress Address? @relation("CourseDeliveryAddress", fields: [deliveryAddressId], references: [id])
 
-  stops        CourseStop[]
-  routeLegs    RouteLeg[]
-  costs        Cost[]
-  invoiceLines InvoiceLine[]
-  documents    Document[]
+  stops                      CourseStop[]
+  routeLegs                  RouteLeg[]
+  costs                      Cost[]
+  invoiceLines               InvoiceLine[]
+  documents                  Document[]
+  weeklyRevenueReportCourses WeeklyTruckRevenueReportCourse[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -502,6 +504,71 @@ model Document {
   @@index([courseId])
   @@index([invoiceId])
   @@index([type])
+}
+
+model WeeklyTruckRevenueReport {
+  id String @id @default(cuid())
+
+  year          Int
+  weekNumber    Int
+  weekStartDate DateTime
+  weekEndDate   DateTime
+
+  truckId                   String?
+  truckNameAtReport         String
+  truckLicensePlateAtReport String
+
+  courseCount  Int     @default(0)
+  totalRevenue Decimal @default(0) @db.Decimal(12, 2)
+
+  generatedAt DateTime @default(now())
+  isLocked    Boolean  @default(false)
+  notes       String?
+
+  truck   Truck?                           @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  courses WeeklyTruckRevenueReportCourse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, weekNumber, truckId])
+  @@index([year, weekNumber])
+  @@index([truckId])
+  @@index([weekStartDate])
+  @@index([isLocked])
+  @@map("weekly_truck_revenue_reports")
+}
+
+model WeeklyTruckRevenueReportCourse {
+  id String @id @default(cuid())
+
+  reportId String
+  courseId String?
+
+  courseDate DateTime
+
+  customerNameAtReport String
+  courseTypeAtReport   CourseType
+  containerNumber      String?
+  routeLabel           String
+
+  tariffNameAtBooking String?
+
+  agreedPrice   Decimal @default(0) @db.Decimal(12, 2)
+  waitingAmount Decimal @default(0) @db.Decimal(12, 2)
+  totalRevenue  Decimal @default(0) @db.Decimal(12, 2)
+
+  report WeeklyTruckRevenueReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  course Course?                  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([reportId, courseId])
+  @@index([reportId])
+  @@index([courseId])
+  @@index([courseDate])
+  @@map("weekly_truck_revenue_report_courses")
 }
 
 model RouteCache {
