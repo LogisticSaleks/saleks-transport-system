@@ -17,6 +17,24 @@ const COURSE_STATUSES = [
 
 const COURSE_TYPES = ["ROUND_TRIP", "SHUNT"] as const;
 
+const TARIFF_TYPES = [
+  "FIXED_TABLE_UPPER_BOUND",
+  "DISTANCE_TABLE",
+  "PRICE_PER_KM",
+  "FIXED_PRICE",
+  "SHUNT",
+  "WAITING_TIME",
+  "MANUAL",
+] as const;
+
+const CUSTOMER_BILLABLE_KM_LOGICS = [
+  "TOTAL_ROUTE",
+  "ONE_WAY",
+  "SELECTED_LEGS",
+  "FIXED_PRICE",
+  "MANUAL",
+] as const;
+
 const COURSE_STOP_TYPES = [
   "PICKUP",
   "LOAD_UNLOAD",
@@ -39,6 +57,9 @@ const COURSE_ROW_COST_MARKER = "SOURCE:COURSE_ROW";
 
 type CourseStatusValue = (typeof COURSE_STATUSES)[number];
 type CourseTypeValue = (typeof COURSE_TYPES)[number];
+type TariffTypeValue = (typeof TARIFF_TYPES)[number];
+type CustomerBillableKmLogicValue =
+  (typeof CUSTOMER_BILLABLE_KM_LOGICS)[number];
 type CourseStopTypeValue = (typeof COURSE_STOP_TYPES)[number];
 type CostTypeValue = (typeof COST_TYPES)[number];
 
@@ -79,6 +100,16 @@ type CourseWriteData = {
   waitingHours?: number | null;
   waitingAmount?: number | null;
   portFeeAmount?: number | null;
+
+  tariffNameAtBooking?: string | null;
+  tariffTypeAtBooking?: TariffTypeValue | null;
+  pricingMethodAtBooking?: string | null;
+  pricePerKmAtBooking?: number | null;
+  fixedPriceAtBooking?: number | null;
+  waitingHourlyRateAtBooking?: number | null;
+  billableKmLogicAtBooking?: CustomerBillableKmLogicValue | null;
+  portFeeIncludedAtBooking?: boolean | null;
+  pricingSnapshotCreatedAt?: Date | null;
 
   notes?: string | null;
 };
@@ -125,6 +156,28 @@ type CourseCostWriteData = {
   description: string;
   amount: number;
   notes: string | null;
+};
+
+type CoursePricingSnapshotWriteData = {
+  tariffNameAtBooking: string | null;
+  tariffTypeAtBooking: TariffTypeValue | null;
+  pricingMethodAtBooking: string | null;
+  pricePerKmAtBooking: number | null;
+  fixedPriceAtBooking: number | null;
+  waitingHourlyRateAtBooking: number | null;
+  billableKmLogicAtBooking: CustomerBillableKmLogicValue | null;
+  portFeeIncludedAtBooking: boolean | null;
+  pricingSnapshotCreatedAt: Date | null;
+};
+
+type CustomerTariffSnapshotSource = {
+  name: string;
+  type: TariffTypeValue;
+  billableKmLogic: CustomerBillableKmLogicValue;
+  fixedPrice: unknown;
+  pricePerKm: unknown;
+  waitingHourlyRate: unknown;
+  portFeeIncluded: boolean;
 };
 
 type RelatedCourseData = {
@@ -264,6 +317,14 @@ export async function POST(request: Request) {
         customerTariffId: courseData.customerTariffId ?? null,
       });
 
+      Object.assign(
+        courseData,
+        await buildCoursePricingSnapshot(
+          transaction,
+          courseData.customerTariffId ?? null,
+        ),
+      );
+
       const createdCourse = await transaction.course.create({
         data: courseData as Prisma.CourseUncheckedCreateInput,
       });
@@ -393,6 +454,7 @@ async function updateCourse(request: Request) {
         select: {
           customerId: true,
           customerTariffId: true,
+          pricingSnapshotCreatedAt: true,
         },
       });
 
@@ -407,6 +469,22 @@ async function updateCourse(request: Request) {
         customerId: nextCustomerId,
         customerTariffId: nextCustomerTariffId,
       });
+
+      const shouldUpdatePricingSnapshot =
+        hasOwn(body, "customerTariffId") &&
+        (nextCustomerTariffId !== existingCourse.customerTariffId ||
+          (nextCustomerTariffId !== null &&
+            existingCourse.pricingSnapshotCreatedAt === null));
+
+      if (shouldUpdatePricingSnapshot) {
+        Object.assign(
+          courseData,
+          await buildCoursePricingSnapshot(
+            transaction,
+            nextCustomerTariffId,
+          ),
+        );
+      }
 
       if (hasCourseFields) {
         await transaction.course.update({
@@ -554,6 +632,96 @@ async function validateCustomerTariffMatchesCustomer(
     throw new ApiValidationError(
       "Избраната тарифа не принадлежи на избрания клиент.",
     );
+  }
+}
+
+async function buildCoursePricingSnapshot(
+  transaction: Prisma.TransactionClient,
+  customerTariffId: string | null,
+): Promise<CoursePricingSnapshotWriteData> {
+  if (!customerTariffId) {
+    return createEmptyCoursePricingSnapshot();
+  }
+
+  const tariff = await transaction.customerTariff.findUnique({
+    where: {
+      id: customerTariffId,
+    },
+    select: {
+      name: true,
+      type: true,
+      billableKmLogic: true,
+      fixedPrice: true,
+      pricePerKm: true,
+      waitingHourlyRate: true,
+      portFeeIncluded: true,
+    },
+  });
+
+  if (!tariff) {
+    throw new ApiValidationError(
+      "Избраната тарифа не съществува.",
+    );
+  }
+
+  return createCoursePricingSnapshotFromTariff(tariff);
+}
+
+function createCoursePricingSnapshotFromTariff(
+  tariff: CustomerTariffSnapshotSource,
+): CoursePricingSnapshotWriteData {
+  return {
+    tariffNameAtBooking: tariff.name,
+    tariffTypeAtBooking: tariff.type,
+    pricingMethodAtBooking: getPricingMethodFromTariffType(
+      tariff.type,
+    ),
+    pricePerKmAtBooking: decimalToNullableNumber(tariff.pricePerKm),
+    fixedPriceAtBooking: decimalToNullableNumber(tariff.fixedPrice),
+    waitingHourlyRateAtBooking: decimalToNullableNumber(
+      tariff.waitingHourlyRate,
+    ),
+    billableKmLogicAtBooking: tariff.billableKmLogic,
+    portFeeIncludedAtBooking: tariff.portFeeIncluded,
+    pricingSnapshotCreatedAt: new Date(),
+  };
+}
+
+function createEmptyCoursePricingSnapshot(): CoursePricingSnapshotWriteData {
+  return {
+    tariffNameAtBooking: null,
+    tariffTypeAtBooking: null,
+    pricingMethodAtBooking: null,
+    pricePerKmAtBooking: null,
+    fixedPriceAtBooking: null,
+    waitingHourlyRateAtBooking: null,
+    billableKmLogicAtBooking: null,
+    portFeeIncludedAtBooking: null,
+    pricingSnapshotCreatedAt: null,
+  };
+}
+
+function getPricingMethodFromTariffType(
+  tariffType: TariffTypeValue,
+): string {
+  switch (tariffType) {
+    case "FIXED_TABLE_UPPER_BOUND":
+    case "DISTANCE_TABLE":
+      return "VEPCO";
+
+    case "PRICE_PER_KM":
+      return "MSI";
+
+    case "FIXED_PRICE":
+    case "SHUNT":
+      return "FIXED_PRICE";
+
+    case "WAITING_TIME":
+    case "MANUAL":
+      return "MANUAL";
+
+    default:
+      return "MANUAL";
   }
 }
 
@@ -1475,6 +1643,36 @@ function hasOwn(
   property: PropertyKey,
 ): boolean {
   return Object.prototype.hasOwnProperty.call(object, property);
+}
+
+function decimalToNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const parsedValue = Number(value);
+
+    return Number.isFinite(parsedValue) ? parsedValue : null;
+  }
+
+  if (
+    typeof value === "object" &&
+    "toNumber" in value &&
+    typeof value.toNumber === "function"
+  ) {
+    const parsedValue = value.toNumber();
+
+    return Number.isFinite(parsedValue) ? parsedValue : null;
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
 function serializeForJson(value: unknown): unknown {
