@@ -231,6 +231,11 @@ model Truck {
   euroClass                       String  @default("Euro 6")
   defaultFuelConsumptionLPer100Km Decimal @default(30) @db.Decimal(10, 2)
 
+  monthlyLeaseCost      Decimal @default(0) @db.Decimal(12, 2)
+  monthlyInsuranceCost  Decimal @default(0) @db.Decimal(12, 2)
+  monthlyRoadTaxCost    Decimal @default(0) @db.Decimal(12, 2)
+  monthlyOtherFixedCost Decimal @default(0) @db.Decimal(12, 2)
+
   notes String?
 
   courses              Course[]

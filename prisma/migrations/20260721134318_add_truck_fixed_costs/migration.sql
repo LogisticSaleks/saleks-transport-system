@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Truck" ADD COLUMN     "monthlyInsuranceCost" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "monthlyLeaseCost" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "monthlyOtherFixedCost" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "monthlyRoadTaxCost" DECIMAL(12,2) NOT NULL DEFAULT 0;
