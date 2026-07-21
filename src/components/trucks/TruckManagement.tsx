@@ -17,6 +17,10 @@ export type TruckRow = {
   status: string;
   euroClass: string;
   defaultFuelConsumptionLPer100Km: number;
+  monthlyLeaseCost: number;
+  monthlyInsuranceCost: number;
+  monthlyRoadTaxCost: number;
+  monthlyOtherFixedCost: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -36,6 +40,10 @@ type TruckFormState = {
   status: TruckStatusValue;
   euroClass: string;
   defaultFuelConsumptionLPer100Km: string;
+  monthlyLeaseCost: string;
+  monthlyInsuranceCost: string;
+  monthlyRoadTaxCost: string;
+  monthlyOtherFixedCost: string;
   notes: string;
 };
 
@@ -86,6 +94,10 @@ const EMPTY_FORM_STATE: TruckFormState = {
   status: "ACTIVE",
   euroClass: "Euro 6",
   defaultFuelConsumptionLPer100Km: "30",
+  monthlyLeaseCost: "0",
+  monthlyInsuranceCost: "0",
+  monthlyRoadTaxCost: "0",
+  monthlyOtherFixedCost: "0",
   notes: "",
 };
 
@@ -126,6 +138,10 @@ export default function TruckManagement({
       inactive: trucks.filter(
         (truck) => truck.status === "INACTIVE",
       ).length,
+      monthlyFixedCost: trucks.reduce(
+        (sum, truck) => sum + getMonthlyFixedCost(truck),
+        0,
+      ),
     }),
     [trucks],
   );
@@ -168,6 +184,31 @@ export default function TruckManagement({
       return;
     }
 
+    const monthlyLeaseCost = normalizeMoneyForRequest(
+      formState.monthlyLeaseCost,
+    );
+    const monthlyInsuranceCost = normalizeMoneyForRequest(
+      formState.monthlyInsuranceCost,
+    );
+    const monthlyRoadTaxCost = normalizeMoneyForRequest(
+      formState.monthlyRoadTaxCost,
+    );
+    const monthlyOtherFixedCost = normalizeMoneyForRequest(
+      formState.monthlyOtherFixedCost,
+    );
+
+    if (
+      monthlyLeaseCost === null ||
+      monthlyInsuranceCost === null ||
+      monthlyRoadTaxCost === null ||
+      monthlyOtherFixedCost === null
+    ) {
+      setErrorMessage(
+        "Всички постоянни разходи трябва да са положителни числа или 0.",
+      );
+      return;
+    }
+
     setIsSaving(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -186,6 +227,10 @@ export default function TruckManagement({
           status: formState.status,
           euroClass,
           defaultFuelConsumptionLPer100Km: fuelConsumption,
+          monthlyLeaseCost,
+          monthlyInsuranceCost,
+          monthlyRoadTaxCost,
+          monthlyOtherFixedCost,
           notes: formState.notes.trim() || null,
         }),
       });
@@ -242,6 +287,10 @@ export default function TruckManagement({
       defaultFuelConsumptionLPer100Km: String(
         truck.defaultFuelConsumptionLPer100Km,
       ),
+      monthlyLeaseCost: String(truck.monthlyLeaseCost),
+      monthlyInsuranceCost: String(truck.monthlyInsuranceCost),
+      monthlyRoadTaxCost: String(truck.monthlyRoadTaxCost),
+      monthlyOtherFixedCost: String(truck.monthlyOtherFixedCost),
       notes: truck.notes ?? "",
     });
     setErrorMessage(null);
@@ -253,6 +302,15 @@ export default function TruckManagement({
     setErrorMessage(null);
     setSuccessMessage(null);
   }
+
+  const currentFormMonthlyTotal =
+    (normalizeMoneyForRequest(formState.monthlyLeaseCost) ?? 0) +
+    (normalizeMoneyForRequest(formState.monthlyInsuranceCost) ??
+      0) +
+    (normalizeMoneyForRequest(formState.monthlyRoadTaxCost) ??
+      0) +
+    (normalizeMoneyForRequest(formState.monthlyOtherFixedCost) ??
+      0);
 
   return (
     <div className="space-y-6">
@@ -305,7 +363,7 @@ export default function TruckManagement({
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-5">
         <MetricCard label="Всички" value={String(totals.all)} />
         <MetricCard
           label="Active"
@@ -319,9 +377,13 @@ export default function TruckManagement({
           label="Inactive"
           value={String(totals.inactive)}
         />
+        <MetricCard
+          label="Месечни fixed costs"
+          value={formatMoney(totals.monthlyFixedCost)}
+        />
       </section>
 
-      <section className="grid gap-6 2xl:grid-cols-[440px_1fr]">
+      <section className="grid gap-6 2xl:grid-cols-[460px_1fr]">
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm"
@@ -332,7 +394,8 @@ export default function TruckManagement({
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Попълни основните данни за камиона.
+              Попълни основните данни и месечните постоянни
+              разходи.
             </p>
           </div>
 
@@ -469,11 +532,71 @@ export default function TruckManagement({
                   L/100 km
                 </span>
               </div>
-
-              <span className="text-xs font-normal text-slate-500">
-                Записва се в Truck.defaultFuelConsumptionLPer100Km.
-              </span>
             </label>
+
+            <div className="rounded-xl border border-slate-300 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-slate-950">
+                  Месечни постоянни разходи
+                </h3>
+
+                <span className="text-sm font-bold text-emerald-700">
+                  {formatMoney(currentFormMonthlyTotal)}
+                </span>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
+                <MoneyInput
+                  label="Лизинг / наем"
+                  value={formState.monthlyLeaseCost}
+                  onChange={(value) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      monthlyLeaseCost: value,
+                    }))
+                  }
+                />
+
+                <MoneyInput
+                  label="Застраховка"
+                  value={formState.monthlyInsuranceCost}
+                  onChange={(value) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      monthlyInsuranceCost: value,
+                    }))
+                  }
+                />
+
+                <MoneyInput
+                  label="Пътен данък"
+                  value={formState.monthlyRoadTaxCost}
+                  onChange={(value) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      monthlyRoadTaxCost: value,
+                    }))
+                  }
+                />
+
+                <MoneyInput
+                  label="Други fixed costs"
+                  value={formState.monthlyOtherFixedCost}
+                  onChange={(value) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      monthlyOtherFixedCost: value,
+                    }))
+                  }
+                />
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Тези стойности още не се разпределят върху курсове.
+                Следващата задача ще ги свърже с profit
+                calculation.
+              </p>
+            </div>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
               Бележки
@@ -538,7 +661,7 @@ export default function TruckManagement({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
                 <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                   <tr>
                     <th className="border-b border-slate-300 px-4 py-3">
@@ -548,16 +671,19 @@ export default function TruckManagement({
                       Рег. номер
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3">
-                      VIN
-                    </th>
-                    <th className="border-b border-slate-300 px-4 py-3">
                       Статус
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3">
                       Euro
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3 text-right">
-                      Разход
+                      Гориво
+                    </th>
+                    <th className="border-b border-slate-300 px-4 py-3 text-right">
+                      Fixed / месец
+                    </th>
+                    <th className="border-b border-slate-300 px-4 py-3 text-right">
+                      Fixed / ден
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3">
                       Обновен
@@ -569,63 +695,76 @@ export default function TruckManagement({
                 </thead>
 
                 <tbody>
-                  {sortedTrucks.map((truck) => (
-                    <tr
-                      key={truck.id}
-                      className="hover:bg-slate-50"
-                    >
-                      <td className="border-b border-slate-200 px-4 py-3">
-                        <div className="font-semibold text-slate-950">
-                          {truck.name}
-                        </div>
+                  {sortedTrucks.map((truck) => {
+                    const monthlyFixedCost =
+                      getMonthlyFixedCost(truck);
 
-                        {truck.notes && (
-                          <div className="mt-1 max-w-56 truncate text-xs text-slate-500">
-                            {truck.notes}
+                    return (
+                      <tr
+                        key={truck.id}
+                        className="hover:bg-slate-50"
+                      >
+                        <td className="border-b border-slate-200 px-4 py-3">
+                          <div className="font-semibold text-slate-950">
+                            {truck.name}
                           </div>
-                        )}
-                      </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3 font-medium text-slate-900">
-                        {truck.licensePlate}
-                      </td>
+                          <div className="text-xs text-slate-500">
+                            VIN: {truck.vin ?? "—"}
+                          </div>
 
-                      <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
-                        {truck.vin ?? "—"}
-                      </td>
+                          {truck.notes && (
+                            <div className="mt-1 max-w-56 truncate text-xs text-slate-500">
+                              {truck.notes}
+                            </div>
+                          )}
+                        </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3">
-                        <TruckStatusBadge status={truck.status} />
-                      </td>
+                        <td className="border-b border-slate-200 px-4 py-3 font-medium text-slate-900">
+                          {truck.licensePlate}
+                        </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3 text-slate-700">
-                        {truck.euroClass}
-                      </td>
+                        <td className="border-b border-slate-200 px-4 py-3">
+                          <TruckStatusBadge status={truck.status} />
+                        </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3 text-right text-slate-700">
-                        {truck.defaultFuelConsumptionLPer100Km.toFixed(
-                          2,
-                        )}{" "}
-                        L/100 km
-                      </td>
+                        <td className="border-b border-slate-200 px-4 py-3 text-slate-700">
+                          {truck.euroClass}
+                        </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
-                        {formatDateTime(truck.updatedAt)}
-                      </td>
+                        <td className="border-b border-slate-200 px-4 py-3 text-right text-slate-700">
+                          {truck.defaultFuelConsumptionLPer100Km.toFixed(
+                            2,
+                          )}{" "}
+                          L/100 km
+                        </td>
 
-                      <td className="border-b border-slate-200 px-4 py-3">
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(truck)}
-                            className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
-                          >
-                            Редактирай
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-900">
+                          {formatMoney(monthlyFixedCost)}
+                        </td>
+
+                        <td className="border-b border-slate-200 px-4 py-3 text-right text-slate-700">
+                          {formatMoney(monthlyFixedCost / 30)}
+                        </td>
+
+                        <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
+                          {formatDateTime(truck.updatedAt)}
+                        </td>
+
+                        <td className="border-b border-slate-200 px-4 py-3">
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(truck)}
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
+                            >
+                              Редактирай
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -633,6 +772,37 @@ export default function TruckManagement({
         </section>
       </section>
     </div>
+  );
+}
+
+function MoneyInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+      {label}
+      <div className="relative">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="0.00"
+          className="h-10 w-full rounded-md border border-slate-400 bg-white px-3 pr-10 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+        />
+
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-semibold text-slate-500">
+          €
+        </span>
+      </div>
+    </label>
   );
 }
 
@@ -680,6 +850,31 @@ function MetricCard({
   );
 }
 
+function getMonthlyFixedCost(truck: TruckRow): number {
+  return (
+    truck.monthlyLeaseCost +
+    truck.monthlyInsuranceCost +
+    truck.monthlyRoadTaxCost +
+    truck.monthlyOtherFixedCost
+  );
+}
+
+function normalizeMoneyForRequest(value: string): number | null {
+  const normalizedValue = value.trim().replace(",", ".");
+
+  if (!normalizedValue) {
+    return 0;
+  }
+
+  const parsedValue = Number(normalizedValue);
+
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+    return null;
+  }
+
+  return Math.round((parsedValue + Number.EPSILON) * 100) / 100;
+}
+
 function normalizeStatusForForm(status: string): TruckStatusValue {
   if (
     status === "ACTIVE" ||
@@ -691,6 +886,10 @@ function normalizeStatusForForm(status: string): TruckStatusValue {
   }
 
   return "ACTIVE";
+}
+
+function formatMoney(value: number): string {
+  return `€${value.toFixed(2)}`;
 }
 
 function formatDateTime(value: string): string {

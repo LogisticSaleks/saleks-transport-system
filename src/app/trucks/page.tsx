@@ -33,6 +33,10 @@ function mapTruckForClient(truck: {
   status: string;
   euroClass: string;
   defaultFuelConsumptionLPer100Km: unknown;
+  monthlyLeaseCost: unknown;
+  monthlyInsuranceCost: unknown;
+  monthlyRoadTaxCost: unknown;
+  monthlyOtherFixedCost: unknown;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +51,10 @@ function mapTruckForClient(truck: {
     defaultFuelConsumptionLPer100Km: toNumber(
       truck.defaultFuelConsumptionLPer100Km,
     ),
+    monthlyLeaseCost: toNumber(truck.monthlyLeaseCost),
+    monthlyInsuranceCost: toNumber(truck.monthlyInsuranceCost),
+    monthlyRoadTaxCost: toNumber(truck.monthlyRoadTaxCost),
+    monthlyOtherFixedCost: toNumber(truck.monthlyOtherFixedCost),
     notes: truck.notes,
     createdAt: truck.createdAt.toISOString(),
     updatedAt: truck.updatedAt.toISOString(),

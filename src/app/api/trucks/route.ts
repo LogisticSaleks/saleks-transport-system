@@ -11,6 +11,10 @@ type TruckRequestBody = {
   status?: unknown;
   euroClass?: unknown;
   defaultFuelConsumptionLPer100Km?: unknown;
+  monthlyLeaseCost?: unknown;
+  monthlyInsuranceCost?: unknown;
+  monthlyRoadTaxCost?: unknown;
+  monthlyOtherFixedCost?: unknown;
   notes?: unknown;
 };
 
@@ -49,6 +53,22 @@ export async function POST(request: Request) {
         body.defaultFuelConsumptionLPer100Km,
         30,
       );
+    const monthlyLeaseCost = normalizeMoneyAmount(
+      body.monthlyLeaseCost,
+      "Monthly lease cost",
+    );
+    const monthlyInsuranceCost = normalizeMoneyAmount(
+      body.monthlyInsuranceCost,
+      "Monthly insurance cost",
+    );
+    const monthlyRoadTaxCost = normalizeMoneyAmount(
+      body.monthlyRoadTaxCost,
+      "Monthly road tax cost",
+    );
+    const monthlyOtherFixedCost = normalizeMoneyAmount(
+      body.monthlyOtherFixedCost,
+      "Monthly other fixed cost",
+    );
     const notes = normalizeOptionalString(body.notes);
 
     const truck = await prisma.truck.create({
@@ -60,6 +80,14 @@ export async function POST(request: Request) {
         euroClass,
         defaultFuelConsumptionLPer100Km:
           new Prisma.Decimal(defaultFuelConsumptionLPer100Km),
+        monthlyLeaseCost: new Prisma.Decimal(monthlyLeaseCost),
+        monthlyInsuranceCost: new Prisma.Decimal(
+          monthlyInsuranceCost,
+        ),
+        monthlyRoadTaxCost: new Prisma.Decimal(monthlyRoadTaxCost),
+        monthlyOtherFixedCost: new Prisma.Decimal(
+          monthlyOtherFixedCost,
+        ),
         notes,
       },
     });
@@ -96,6 +124,22 @@ export async function PATCH(request: Request) {
         body.defaultFuelConsumptionLPer100Km,
         30,
       );
+    const monthlyLeaseCost = normalizeMoneyAmount(
+      body.monthlyLeaseCost,
+      "Monthly lease cost",
+    );
+    const monthlyInsuranceCost = normalizeMoneyAmount(
+      body.monthlyInsuranceCost,
+      "Monthly insurance cost",
+    );
+    const monthlyRoadTaxCost = normalizeMoneyAmount(
+      body.monthlyRoadTaxCost,
+      "Monthly road tax cost",
+    );
+    const monthlyOtherFixedCost = normalizeMoneyAmount(
+      body.monthlyOtherFixedCost,
+      "Monthly other fixed cost",
+    );
     const notes = normalizeOptionalString(body.notes);
 
     const truck = await prisma.truck.update({
@@ -110,6 +154,14 @@ export async function PATCH(request: Request) {
         euroClass,
         defaultFuelConsumptionLPer100Km:
           new Prisma.Decimal(defaultFuelConsumptionLPer100Km),
+        monthlyLeaseCost: new Prisma.Decimal(monthlyLeaseCost),
+        monthlyInsuranceCost: new Prisma.Decimal(
+          monthlyInsuranceCost,
+        ),
+        monthlyRoadTaxCost: new Prisma.Decimal(monthlyRoadTaxCost),
+        monthlyOtherFixedCost: new Prisma.Decimal(
+          monthlyOtherFixedCost,
+        ),
         notes,
       },
     });
@@ -130,6 +182,10 @@ function serializeTruck(truck: {
   status: string;
   euroClass: string;
   defaultFuelConsumptionLPer100Km: unknown;
+  monthlyLeaseCost: unknown;
+  monthlyInsuranceCost: unknown;
+  monthlyRoadTaxCost: unknown;
+  monthlyOtherFixedCost: unknown;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -144,6 +200,10 @@ function serializeTruck(truck: {
     defaultFuelConsumptionLPer100Km: toNumber(
       truck.defaultFuelConsumptionLPer100Km,
     ),
+    monthlyLeaseCost: toNumber(truck.monthlyLeaseCost),
+    monthlyInsuranceCost: toNumber(truck.monthlyInsuranceCost),
+    monthlyRoadTaxCost: toNumber(truck.monthlyRoadTaxCost),
+    monthlyOtherFixedCost: toNumber(truck.monthlyOtherFixedCost),
     notes: truck.notes,
     createdAt: truck.createdAt.toISOString(),
     updatedAt: truck.updatedAt.toISOString(),
@@ -219,6 +279,23 @@ function normalizeFuelConsumption(
     throw new Error(
       "Fuel consumption must be a positive number.",
     );
+  }
+
+  return roundToTwoDecimals(normalizedValue);
+}
+
+function normalizeMoneyAmount(value: unknown, label: string): number {
+  if (value === null || value === undefined || value === "") {
+    return 0;
+  }
+
+  const normalizedValue =
+    typeof value === "string"
+      ? Number(value.replace(",", "."))
+      : Number(value);
+
+  if (!Number.isFinite(normalizedValue) || normalizedValue < 0) {
+    throw new Error(`${label} must be a positive number or zero.`);
   }
 
   return roundToTwoDecimals(normalizedValue);
