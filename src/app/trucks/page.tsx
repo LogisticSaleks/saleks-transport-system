@@ -29,56 +29,43 @@ function mapTruckForClient(truck: {
   id: string;
   name: string;
   licensePlate: string;
+  vin: string | null;
   status: string;
+  euroClass: string;
+  defaultFuelConsumptionLPer100Km: unknown;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): TruckRow {
-  const truckRecord = truck as unknown as Record<string, unknown>;
-
   return {
     id: truck.id,
     name: truck.name,
     licensePlate: truck.licensePlate,
+    vin: truck.vin,
     status: truck.status,
-    defaultFuelConsumptionL100Km: getTruckFuelConsumption(truckRecord),
+    euroClass: truck.euroClass,
+    defaultFuelConsumptionLPer100Km: toNumber(
+      truck.defaultFuelConsumptionLPer100Km,
+    ),
+    notes: truck.notes,
     createdAt: truck.createdAt.toISOString(),
     updatedAt: truck.updatedAt.toISOString(),
   };
 }
 
-function getTruckFuelConsumption(
-  truckRecord: Record<string, unknown>,
-): number | null {
-  const possibleFieldNames = [
-    "defaultFuelConsumptionL100Km",
-    "defaultFuelConsumptionLitersPer100Km",
-    "fuelConsumptionLitersPer100Km",
-    "fuelConsumptionL100Km",
-    "fuelConsumption",
-  ];
-
-  for (const fieldName of possibleFieldNames) {
-    if (fieldName in truckRecord) {
-      return toNullableNumber(truckRecord[fieldName]);
-    }
-  }
-
-  return null;
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") {
-    return null;
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined) {
+    return 0;
   }
 
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
+    return Number.isFinite(value) ? value : 0;
   }
 
   if (typeof value === "string") {
     const parsedValue = Number(value);
 
-    return Number.isFinite(parsedValue) ? parsedValue : null;
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
   }
 
   if (
@@ -88,10 +75,10 @@ function toNullableNumber(value: unknown): number | null {
   ) {
     const parsedValue = value.toNumber();
 
-    return Number.isFinite(parsedValue) ? parsedValue : null;
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
   }
 
   const parsedValue = Number(value);
 
-  return Number.isFinite(parsedValue) ? parsedValue : null;
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
 }

@@ -7,21 +7,12 @@ type TruckRequestBody = {
   id?: unknown;
   name?: unknown;
   licensePlate?: unknown;
+  vin?: unknown;
   status?: unknown;
-  defaultFuelConsumptionL100Km?: unknown;
-  defaultFuelConsumptionLitersPer100Km?: unknown;
-  fuelConsumptionLitersPer100Km?: unknown;
-  fuelConsumptionL100Km?: unknown;
-  fuelConsumption?: unknown;
+  euroClass?: unknown;
+  defaultFuelConsumptionLPer100Km?: unknown;
+  notes?: unknown;
 };
-
-const FUEL_FIELD_CANDIDATES = [
-  "defaultFuelConsumptionL100Km",
-  "defaultFuelConsumptionLitersPer100Km",
-  "fuelConsumptionLitersPer100Km",
-  "fuelConsumptionL100Km",
-  "fuelConsumption",
-];
 
 export async function GET() {
   const trucks = await prisma.truck.findMany({
@@ -48,24 +39,29 @@ export async function POST(request: Request) {
     const licensePlate = normalizeRequiredString(
       body.licensePlate,
       "License plate",
-    );
+    ).toUpperCase();
+    const vin = normalizeOptionalString(body.vin);
     const status = normalizeTruckStatus(body.status);
-    const fuelConsumption = normalizeOptionalFuelConsumption(body);
-
-    const createData: Prisma.TruckCreateInput = {
-      name,
-      licensePlate,
-      status,
-    };
-
-    applyFuelConsumptionIfSupported(
-      createData,
-      fuelConsumption,
-      "create",
-    );
+    const euroClass =
+      normalizeOptionalString(body.euroClass) ?? "Euro 6";
+    const defaultFuelConsumptionLPer100Km =
+      normalizeFuelConsumption(
+        body.defaultFuelConsumptionLPer100Km,
+        30,
+      );
+    const notes = normalizeOptionalString(body.notes);
 
     const truck = await prisma.truck.create({
-      data: createData,
+      data: {
+        name,
+        licensePlate,
+        vin,
+        status,
+        euroClass,
+        defaultFuelConsumptionLPer100Km:
+          new Prisma.Decimal(defaultFuelConsumptionLPer100Km),
+        notes,
+      },
     });
 
     return NextResponse.json(
@@ -90,27 +86,32 @@ export async function PATCH(request: Request) {
     const licensePlate = normalizeRequiredString(
       body.licensePlate,
       "License plate",
-    );
+    ).toUpperCase();
+    const vin = normalizeOptionalString(body.vin);
     const status = normalizeTruckStatus(body.status);
-    const fuelConsumption = normalizeOptionalFuelConsumption(body);
-
-    const updateData: Prisma.TruckUpdateInput = {
-      name,
-      licensePlate,
-      status,
-    };
-
-    applyFuelConsumptionIfSupported(
-      updateData,
-      fuelConsumption,
-      "update",
-    );
+    const euroClass =
+      normalizeOptionalString(body.euroClass) ?? "Euro 6";
+    const defaultFuelConsumptionLPer100Km =
+      normalizeFuelConsumption(
+        body.defaultFuelConsumptionLPer100Km,
+        30,
+      );
+    const notes = normalizeOptionalString(body.notes);
 
     const truck = await prisma.truck.update({
       where: {
         id,
       },
-      data: updateData,
+      data: {
+        name,
+        licensePlate,
+        vin,
+        status,
+        euroClass,
+        defaultFuelConsumptionLPer100Km:
+          new Prisma.Decimal(defaultFuelConsumptionLPer100Km),
+        notes,
+      },
     });
 
     return NextResponse.json({
@@ -125,84 +126,28 @@ function serializeTruck(truck: {
   id: string;
   name: string;
   licensePlate: string;
+  vin: string | null;
   status: string;
+  euroClass: string;
+  defaultFuelConsumptionLPer100Km: unknown;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
-  const truckRecord = truck as unknown as Record<string, unknown>;
-
   return {
     id: truck.id,
     name: truck.name,
     licensePlate: truck.licensePlate,
+    vin: truck.vin,
     status: truck.status,
-    defaultFuelConsumptionL100Km:
-      getTruckFuelConsumption(truckRecord),
+    euroClass: truck.euroClass,
+    defaultFuelConsumptionLPer100Km: toNumber(
+      truck.defaultFuelConsumptionLPer100Km,
+    ),
+    notes: truck.notes,
     createdAt: truck.createdAt.toISOString(),
     updatedAt: truck.updatedAt.toISOString(),
   };
-}
-
-function applyFuelConsumptionIfSupported(
-  data: Prisma.TruckCreateInput | Prisma.TruckUpdateInput,
-  fuelConsumption: number | null | undefined,
-  mode: "create" | "update",
-): void {
-  const fuelFieldName = getTruckFuelFieldName();
-
-  if (!fuelFieldName) {
-    return;
-  }
-
-  if (mode === "create" && fuelConsumption === undefined) {
-    return;
-  }
-
-  const dataRecord = data as unknown as Record<string, unknown>;
-
-  dataRecord[fuelFieldName] =
-    fuelConsumption === undefined ? null : fuelConsumption;
-}
-
-function getTruckFuelFieldName(): string | null {
-  const prismaNamespace = Prisma as unknown as {
-    dmmf?: {
-      datamodel?: {
-        models?: Array<{
-          name: string;
-          fields: Array<{
-            name: string;
-          }>;
-        }>;
-      };
-    };
-  };
-
-  const truckModel = prismaNamespace.dmmf?.datamodel?.models?.find(
-    (model) => model.name === "Truck",
-  );
-
-  const fieldNames = new Set(
-    truckModel?.fields.map((field) => field.name) ?? [],
-  );
-
-  return (
-    FUEL_FIELD_CANDIDATES.find((fieldName) =>
-      fieldNames.has(fieldName),
-    ) ?? null
-  );
-}
-
-function getTruckFuelConsumption(
-  truckRecord: Record<string, unknown>,
-): number | null {
-  for (const fieldName of FUEL_FIELD_CANDIDATES) {
-    if (fieldName in truckRecord) {
-      return toNullableNumber(truckRecord[fieldName]);
-    }
-  }
-
-  return null;
 }
 
 function normalizeRequiredString(
@@ -220,6 +165,20 @@ function normalizeRequiredString(
   }
 
   return normalizedValue;
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue ? normalizedValue : null;
 }
 
 function normalizeTruckStatus(value: unknown): TruckStatus {
@@ -243,64 +202,41 @@ function normalizeTruckStatus(value: unknown): TruckStatus {
   return requestedStatus as TruckStatus;
 }
 
-function normalizeOptionalFuelConsumption(
-  body: TruckRequestBody,
-): number | null | undefined {
-  const rawValue = getFirstExistingBodyValue(
-    body,
-    FUEL_FIELD_CANDIDATES,
-  );
-
-  if (rawValue === undefined) {
-    return undefined;
-  }
-
-  if (rawValue === null || rawValue === "") {
-    return null;
+function normalizeFuelConsumption(
+  value: unknown,
+  defaultValue: number,
+): number {
+  if (value === null || value === undefined || value === "") {
+    return defaultValue;
   }
 
   const normalizedValue =
-    typeof rawValue === "string"
-      ? Number(rawValue.replace(",", "."))
-      : Number(rawValue);
+    typeof value === "string"
+      ? Number(value.replace(",", "."))
+      : Number(value);
 
   if (!Number.isFinite(normalizedValue) || normalizedValue < 0) {
     throw new Error(
-      "Fuel consumption must be a positive number or empty.",
+      "Fuel consumption must be a positive number.",
     );
   }
 
   return roundToTwoDecimals(normalizedValue);
 }
 
-function getFirstExistingBodyValue(
-  body: TruckRequestBody,
-  fieldNames: readonly string[],
-): unknown {
-  const bodyRecord = body as Record<string, unknown>;
-
-  for (const fieldName of fieldNames) {
-    if (fieldName in bodyRecord) {
-      return bodyRecord[fieldName];
-    }
-  }
-
-  return undefined;
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") {
-    return null;
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined) {
+    return 0;
   }
 
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
+    return Number.isFinite(value) ? value : 0;
   }
 
   if (typeof value === "string") {
     const parsedValue = Number(value);
 
-    return Number.isFinite(parsedValue) ? parsedValue : null;
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
   }
 
   if (
@@ -310,12 +246,12 @@ function toNullableNumber(value: unknown): number | null {
   ) {
     const parsedValue = value.toNumber();
 
-    return Number.isFinite(parsedValue) ? parsedValue : null;
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
   }
 
   const parsedValue = Number(value);
 
-  return Number.isFinite(parsedValue) ? parsedValue : null;
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
 }
 
 function roundToTwoDecimals(value: number): number {

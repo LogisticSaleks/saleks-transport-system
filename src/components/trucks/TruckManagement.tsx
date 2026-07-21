@@ -13,8 +13,11 @@ export type TruckRow = {
   id: string;
   name: string;
   licensePlate: string;
+  vin: string | null;
   status: string;
-  defaultFuelConsumptionL100Km: number | null;
+  euroClass: string;
+  defaultFuelConsumptionLPer100Km: number;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -29,8 +32,11 @@ type TruckFormState = {
   id: string | null;
   name: string;
   licensePlate: string;
+  vin: string;
   status: TruckStatusValue;
-  defaultFuelConsumptionL100Km: string;
+  euroClass: string;
+  defaultFuelConsumptionLPer100Km: string;
+  notes: string;
 };
 
 type TruckManagementProps = {
@@ -64,12 +70,23 @@ const TRUCK_STATUSES: Array<{
   },
 ];
 
+const EURO_CLASSES = [
+  "Euro 6",
+  "Euro 5",
+  "Euro 4",
+  "Euro 3",
+  "Unknown",
+];
+
 const EMPTY_FORM_STATE: TruckFormState = {
   id: null,
   name: "",
   licensePlate: "",
+  vin: "",
   status: "ACTIVE",
-  defaultFuelConsumptionL100Km: "",
+  euroClass: "Euro 6",
+  defaultFuelConsumptionLPer100Km: "30",
+  notes: "",
 };
 
 export default function TruckManagement({
@@ -124,6 +141,11 @@ export default function TruckManagement({
     const licensePlate = formState.licensePlate
       .trim()
       .toUpperCase();
+    const euroClass = formState.euroClass.trim() || "Euro 6";
+    const fuelConsumption =
+      formState.defaultFuelConsumptionLPer100Km
+        .trim()
+        .replace(",", ".");
 
     if (!name) {
       setErrorMessage("Въведи име на камиона.");
@@ -132,6 +154,17 @@ export default function TruckManagement({
 
     if (!licensePlate) {
       setErrorMessage("Въведи регистрационен номер.");
+      return;
+    }
+
+    if (
+      !fuelConsumption ||
+      !Number.isFinite(Number(fuelConsumption)) ||
+      Number(fuelConsumption) < 0
+    ) {
+      setErrorMessage(
+        "Въведи валиден разход гориво L/100 km.",
+      );
       return;
     }
 
@@ -149,13 +182,11 @@ export default function TruckManagement({
           id: formState.id,
           name,
           licensePlate,
+          vin: formState.vin.trim() || null,
           status: formState.status,
-          defaultFuelConsumptionL100Km:
-            formState.defaultFuelConsumptionL100Km.trim() === ""
-              ? null
-              : formState.defaultFuelConsumptionL100Km
-                  .trim()
-                  .replace(",", "."),
+          euroClass,
+          defaultFuelConsumptionLPer100Km: fuelConsumption,
+          notes: formState.notes.trim() || null,
         }),
       });
 
@@ -205,11 +236,13 @@ export default function TruckManagement({
       id: truck.id,
       name: truck.name,
       licensePlate: truck.licensePlate,
+      vin: truck.vin ?? "",
       status: normalizeStatusForForm(truck.status),
-      defaultFuelConsumptionL100Km:
-        truck.defaultFuelConsumptionL100Km === null
-          ? ""
-          : String(truck.defaultFuelConsumptionL100Km),
+      euroClass: truck.euroClass || "Euro 6",
+      defaultFuelConsumptionLPer100Km: String(
+        truck.defaultFuelConsumptionLPer100Km,
+      ),
+      notes: truck.notes ?? "",
     });
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -288,7 +321,7 @@ export default function TruckManagement({
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <section className="grid gap-6 2xl:grid-cols-[440px_1fr]">
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm"
@@ -328,7 +361,8 @@ export default function TruckManagement({
                 onChange={(event) =>
                   setFormState((currentState) => ({
                     ...currentState,
-                    licensePlate: event.target.value.toUpperCase(),
+                    licensePlate:
+                      event.target.value.toUpperCase(),
                   }))
                 }
                 placeholder="04-BRS-7"
@@ -337,35 +371,78 @@ export default function TruckManagement({
             </label>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
-              Статус
-              <select
-                value={formState.status}
+              VIN
+              <input
+                type="text"
+                value={formState.vin}
                 onChange={(event) =>
                   setFormState((currentState) => ({
                     ...currentState,
-                    status: event.target.value as TruckStatusValue,
+                    vin: event.target.value.toUpperCase(),
                   }))
                 }
-                className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-              >
-                {TRUCK_STATUSES.map((status) => (
-                  <option
-                    key={status.value}
-                    value={status.value}
-                  >
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-
-              <span className="text-xs font-normal text-slate-500">
-                {
-                  TRUCK_STATUSES.find(
-                    (status) => status.value === formState.status,
-                  )?.description
-                }
-              </span>
+                placeholder="WMA..."
+                className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              />
             </label>
+
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-1">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+                Статус
+                <select
+                  value={formState.status}
+                  onChange={(event) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      status:
+                        event.target.value as TruckStatusValue,
+                    }))
+                  }
+                  className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+                >
+                  {TRUCK_STATUSES.map((status) => (
+                    <option
+                      key={status.value}
+                      value={status.value}
+                    >
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-xs font-normal text-slate-500">
+                  {
+                    TRUCK_STATUSES.find(
+                      (status) =>
+                        status.value === formState.status,
+                    )?.description
+                  }
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+                Euro class
+                <select
+                  value={formState.euroClass}
+                  onChange={(event) =>
+                    setFormState((currentState) => ({
+                      ...currentState,
+                      euroClass: event.target.value,
+                    }))
+                  }
+                  className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+                >
+                  {EURO_CLASSES.map((euroClass) => (
+                    <option
+                      key={euroClass}
+                      value={euroClass}
+                    >
+                      {euroClass}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
               Разход гориво по подразбиране
@@ -374,15 +451,17 @@ export default function TruckManagement({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formState.defaultFuelConsumptionL100Km}
+                  value={
+                    formState.defaultFuelConsumptionLPer100Km
+                  }
                   onChange={(event) =>
                     setFormState((currentState) => ({
                       ...currentState,
-                      defaultFuelConsumptionL100Km:
+                      defaultFuelConsumptionLPer100Km:
                         event.target.value,
                     }))
                   }
-                  placeholder="Напр. 32.50"
+                  placeholder="Напр. 28"
                   className="h-10 w-full rounded-md border border-slate-400 bg-white px-3 pr-20 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
                 />
 
@@ -392,10 +471,24 @@ export default function TruckManagement({
               </div>
 
               <span className="text-xs font-normal text-slate-500">
-                Ако в schema няма поле за разход на камион, тази
-                стойност няма да се запише. Таблицата пак ще работи
-                с име, номер и статус.
+                Записва се в Truck.defaultFuelConsumptionLPer100Km.
               </span>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+              Бележки
+              <textarea
+                value={formState.notes}
+                onChange={(event) =>
+                  setFormState((currentState) => ({
+                    ...currentState,
+                    notes: event.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Напр. Beequip lease, chassis notes, service notes..."
+                className="rounded-md border border-slate-400 bg-white px-3 py-2 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              />
             </label>
           </div>
 
@@ -445,7 +538,7 @@ export default function TruckManagement({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
                 <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                   <tr>
                     <th className="border-b border-slate-300 px-4 py-3">
@@ -455,7 +548,13 @@ export default function TruckManagement({
                       Рег. номер
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3">
+                      VIN
+                    </th>
+                    <th className="border-b border-slate-300 px-4 py-3">
                       Статус
+                    </th>
+                    <th className="border-b border-slate-300 px-4 py-3">
+                      Euro
                     </th>
                     <th className="border-b border-slate-300 px-4 py-3 text-right">
                       Разход
@@ -480,25 +579,34 @@ export default function TruckManagement({
                           {truck.name}
                         </div>
 
-                        <div className="text-xs text-slate-500">
-                          ID: {truck.id}
-                        </div>
+                        {truck.notes && (
+                          <div className="mt-1 max-w-56 truncate text-xs text-slate-500">
+                            {truck.notes}
+                          </div>
+                        )}
                       </td>
 
                       <td className="border-b border-slate-200 px-4 py-3 font-medium text-slate-900">
                         {truck.licensePlate}
                       </td>
 
+                      <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
+                        {truck.vin ?? "—"}
+                      </td>
+
                       <td className="border-b border-slate-200 px-4 py-3">
                         <TruckStatusBadge status={truck.status} />
                       </td>
 
+                      <td className="border-b border-slate-200 px-4 py-3 text-slate-700">
+                        {truck.euroClass}
+                      </td>
+
                       <td className="border-b border-slate-200 px-4 py-3 text-right text-slate-700">
-                        {truck.defaultFuelConsumptionL100Km === null
-                          ? "—"
-                          : `${truck.defaultFuelConsumptionL100Km.toFixed(
-                              2,
-                            )} L/100 km`}
+                        {truck.defaultFuelConsumptionLPer100Km.toFixed(
+                          2,
+                        )}{" "}
+                        L/100 km
                       </td>
 
                       <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
