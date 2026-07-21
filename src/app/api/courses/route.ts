@@ -174,10 +174,18 @@ type CustomerTariffSnapshotSource = {
   name: string;
   type: TariffTypeValue;
   billableKmLogic: CustomerBillableKmLogicValue;
+  minKm?: unknown;
+  maxKm?: unknown;
   fixedPrice: unknown;
   pricePerKm: unknown;
   waitingHourlyRate: unknown;
   portFeeIncluded: boolean;
+};
+
+type CoursePricingSnapshotContext = {
+  customerId: string | null;
+  customerTariffId: string | null;
+  billableKm: number | null;
 };
 
 type RelatedCourseData = {
@@ -319,10 +327,11 @@ export async function POST(request: Request) {
 
       Object.assign(
         courseData,
-        await buildCoursePricingSnapshot(
-          transaction,
-          courseData.customerTariffId ?? null,
-        ),
+        await buildCoursePricingSnapshot(transaction, {
+          customerId: courseData.customerId ?? null,
+          customerTariffId: courseData.customerTariffId ?? null,
+          billableKm: courseData.billableKm ?? null,
+        }),
       );
 
       const createdCourse = await transaction.course.create({
@@ -454,6 +463,7 @@ async function updateCourse(request: Request) {
         select: {
           customerId: true,
           customerTariffId: true,
+          billableKm: true,
           pricingSnapshotCreatedAt: true,
         },
       });
@@ -470,19 +480,24 @@ async function updateCourse(request: Request) {
         customerTariffId: nextCustomerTariffId,
       });
 
+      const nextBillableKm = hasOwn(body, "billableKm")
+        ? courseData.billableKm ?? null
+        : decimalToNullableNumber(existingCourse.billableKm);
+
       const shouldUpdatePricingSnapshot =
-        hasOwn(body, "customerTariffId") &&
-        (nextCustomerTariffId !== existingCourse.customerTariffId ||
-          (nextCustomerTariffId !== null &&
-            existingCourse.pricingSnapshotCreatedAt === null));
+        (hasOwn(body, "customerTariffId") &&
+          nextCustomerTariffId !== existingCourse.customerTariffId) ||
+        (existingCourse.pricingSnapshotCreatedAt === null &&
+          hasCourseFields);
 
       if (shouldUpdatePricingSnapshot) {
         Object.assign(
           courseData,
-          await buildCoursePricingSnapshot(
-            transaction,
-            nextCustomerTariffId,
-          ),
+          await buildCoursePricingSnapshot(transaction, {
+            customerId: nextCustomerId,
+            customerTariffId: nextCustomerTariffId,
+            billableKm: nextBillableKm,
+          }),
         );
       }
 
@@ -637,34 +652,142 @@ async function validateCustomerTariffMatchesCustomer(
 
 async function buildCoursePricingSnapshot(
   transaction: Prisma.TransactionClient,
-  customerTariffId: string | null,
+  {
+    customerId,
+    customerTariffId,
+    billableKm,
+  }: CoursePricingSnapshotContext,
 ): Promise<CoursePricingSnapshotWriteData> {
-  if (!customerTariffId) {
+  if (customerTariffId) {
+    const tariff = await transaction.customerTariff.findUnique({
+      where: {
+        id: customerTariffId,
+      },
+      select: {
+        name: true,
+        type: true,
+        billableKmLogic: true,
+        minKm: true,
+        maxKm: true,
+        fixedPrice: true,
+        pricePerKm: true,
+        waitingHourlyRate: true,
+        portFeeIncluded: true,
+      },
+    });
+
+    if (!tariff) {
+      throw new ApiValidationError(
+        "Избраната тарифа не съществува.",
+      );
+    }
+
+    return createCoursePricingSnapshotFromTariff(tariff);
+  }
+
+  const automaticTableTariff = await findAutomaticTableTariffForSnapshot(
+    transaction,
+    {
+      customerId,
+      billableKm,
+    },
+  );
+
+  if (!automaticTableTariff) {
     return createEmptyCoursePricingSnapshot();
   }
 
-  const tariff = await transaction.customerTariff.findUnique({
+  return createCoursePricingSnapshotFromTariff(automaticTableTariff);
+}
+
+async function findAutomaticTableTariffForSnapshot(
+  transaction: Prisma.TransactionClient,
+  {
+    customerId,
+    billableKm,
+  }: {
+    customerId: string | null;
+    billableKm: number | null;
+  },
+): Promise<CustomerTariffSnapshotSource | null> {
+  if (!customerId) {
+    return null;
+  }
+
+  const tableTariffs = await transaction.customerTariff.findMany({
     where: {
-      id: customerTariffId,
+      customerId,
+      isActive: true,
+      type: {
+        in: [
+          "FIXED_TABLE_UPPER_BOUND",
+          "DISTANCE_TABLE",
+        ],
+      },
     },
     select: {
       name: true,
       type: true,
       billableKmLogic: true,
+      minKm: true,
+      maxKm: true,
       fixedPrice: true,
       pricePerKm: true,
       waitingHourlyRate: true,
       portFeeIncluded: true,
     },
+    orderBy: [
+      {
+        minKm: "asc",
+      },
+      {
+        maxKm: "asc",
+      },
+      {
+        name: "asc",
+      },
+    ],
   });
 
-  if (!tariff) {
-    throw new ApiValidationError(
-      "Избраната тарифа не съществува.",
-    );
+  if (tableTariffs.length === 0) {
+    return null;
   }
 
-  return createCoursePricingSnapshotFromTariff(tariff);
+  if (billableKm === null) {
+    return tableTariffs[0] ?? null;
+  }
+
+  return (
+    tableTariffs.find((tariff) =>
+      isBillableKmInTariffRange(tariff, billableKm),
+    ) ??
+    tableTariffs.find((tariff) => {
+      const maxKm = decimalToNullableNumber(tariff.maxKm);
+
+      return maxKm !== null && billableKm <= maxKm;
+    }) ??
+    tableTariffs[0] ??
+    null
+  );
+}
+
+function isBillableKmInTariffRange(
+  tariff: {
+    minKm?: unknown;
+    maxKm?: unknown;
+  },
+  billableKm: number,
+): boolean {
+  const minKm = decimalToNullableNumber(tariff.minKm);
+  const maxKm = decimalToNullableNumber(tariff.maxKm);
+
+  const isAboveMinimum =
+    minKm === null || billableKm >= minKm;
+
+  const isBelowMaximum =
+    maxKm === null || billableKm <= maxKm;
+
+  return isAboveMinimum && isBelowMaximum;
 }
 
 function createCoursePricingSnapshotFromTariff(

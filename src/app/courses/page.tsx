@@ -260,6 +260,15 @@ function mapCourseToRow(
     truckId: string | null;
     customerId: string;
     customerTariffId: string | null;
+    tariffNameAtBooking: string | null;
+    tariffTypeAtBooking: string | null;
+    pricingMethodAtBooking: string | null;
+    pricePerKmAtBooking: unknown;
+    fixedPriceAtBooking: unknown;
+    waitingHourlyRateAtBooking: unknown;
+    billableKmLogicAtBooking: string | null;
+    portFeeIncludedAtBooking: boolean | null;
+    pricingSnapshotCreatedAt: Date | null;
     courseType: "ROUND_TRIP" | "SHUNT";
     pickupAddressId: string | null;
     deliveryAddressId: string | null;
@@ -363,6 +372,26 @@ function mapCourseToRow(
     truckId: course.truckId ?? "",
     customerId: course.customerId,
     customerTariffId: course.customerTariffId ?? "",
+    tariffNameAtBooking: course.tariffNameAtBooking ?? "",
+    tariffTypeAtBooking: course.tariffTypeAtBooking ?? "",
+    pricingMethodAtBooking: course.pricingMethodAtBooking ?? "",
+    pricePerKmAtBooking: formatNullableNumber(
+      course.pricePerKmAtBooking,
+    ),
+    fixedPriceAtBooking: formatNullableNumber(
+      course.fixedPriceAtBooking,
+    ),
+    waitingHourlyRateAtBooking: formatNullableNumber(
+      course.waitingHourlyRateAtBooking,
+    ),
+    billableKmLogicAtBooking:
+      course.billableKmLogicAtBooking ?? "",
+    portFeeIncludedAtBooking:
+      course.portFeeIncludedAtBooking === null
+        ? ""
+        : String(course.portFeeIncludedAtBooking),
+    pricingSnapshotCreatedAt:
+      course.pricingSnapshotCreatedAt?.toISOString() ?? "",
     courseType: course.courseType,
 
     pickupAddressId:

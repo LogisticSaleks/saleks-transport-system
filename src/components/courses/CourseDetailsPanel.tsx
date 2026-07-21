@@ -27,6 +27,15 @@ type CourseDetailsPanelProps = {
   nonBillableKm: number | null;
 
   baseClientPrice: number | null;
+  pricingSnapshotTariffName: string;
+  pricingSnapshotTariffType: string;
+  pricingSnapshotPricingMethod: string;
+  pricingSnapshotPricePerKm: number | null;
+  pricingSnapshotFixedPrice: number | null;
+  pricingSnapshotWaitingHourlyRate: number | null;
+  pricingSnapshotBillableKmLogic: string;
+  pricingSnapshotPortFeeIncluded: boolean | null;
+  pricingSnapshotCreatedAt: string;
   waitingMinutes: number | null;
   waitingChargedToClient: number | null;
   extraCharges: number | null;
@@ -71,6 +80,15 @@ export default function CourseDetailsPanel({
   billableKm,
   nonBillableKm,
   baseClientPrice,
+  pricingSnapshotTariffName,
+  pricingSnapshotTariffType,
+  pricingSnapshotPricingMethod,
+  pricingSnapshotPricePerKm,
+  pricingSnapshotFixedPrice,
+  pricingSnapshotWaitingHourlyRate,
+  pricingSnapshotBillableKmLogic,
+  pricingSnapshotPortFeeIncluded,
+  pricingSnapshotCreatedAt,
   waitingMinutes,
   waitingChargedToClient,
   extraCharges,
@@ -130,6 +148,17 @@ export default function CourseDetailsPanel({
   if (!isMounted || !isOpen) {
     return null;
   }
+
+  const hasPricingSnapshot =
+    pricingSnapshotTariffName.trim() !== "" ||
+    pricingSnapshotTariffType.trim() !== "" ||
+    pricingSnapshotPricingMethod.trim() !== "" ||
+    pricingSnapshotPricePerKm !== null ||
+    pricingSnapshotFixedPrice !== null ||
+    pricingSnapshotWaitingHourlyRate !== null ||
+    pricingSnapshotBillableKmLogic.trim() !== "" ||
+    pricingSnapshotPortFeeIncluded !== null ||
+    pricingSnapshotCreatedAt.trim() !== "";
 
   return createPortal(
     <div
@@ -266,6 +295,85 @@ export default function CourseDetailsPanel({
                   value={formatKm(nonBillableKm)}
                 />
               </dl>
+            </section>
+
+            <section className="rounded-lg border border-amber-400 bg-amber-50 p-4 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-900">
+                Тарифа при записване
+              </h3>
+
+              {hasPricingSnapshot ? (
+                <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <DetailItem
+                    label="Име на тарифата"
+                    value={displayText(
+                      pricingSnapshotTariffName,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Тип тарифа"
+                    value={formatTariffType(
+                      pricingSnapshotTariffType,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Pricing method"
+                    value={formatPricingMethod(
+                      pricingSnapshotPricingMethod,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Логика за платими км"
+                    value={formatBillableKmLogic(
+                      pricingSnapshotBillableKmLogic,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Цена / км при записване"
+                    value={formatMoneyPerKm(
+                      pricingSnapshotPricePerKm,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Фикс цена при записване"
+                    value={formatMoney(
+                      pricingSnapshotFixedPrice,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Престой / час при записване"
+                    value={formatMoneyPerHour(
+                      pricingSnapshotWaitingHourlyRate,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Порт включен"
+                    value={formatYesNo(
+                      pricingSnapshotPortFeeIncluded,
+                    )}
+                  />
+
+                  <DetailItem
+                    label="Snapshot дата"
+                    value={formatDateTime(
+                      pricingSnapshotCreatedAt,
+                    )}
+                    fullWidth
+                  />
+                </dl>
+              ) : (
+                <p className="mt-3 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm leading-5 text-amber-900">
+                  Този курс няма запазен pricing snapshot. Обнови курса,
+                  за да се запише текущата тарифна информация.
+                </p>
+              )}
             </section>
 
             <section className="rounded-lg border border-emerald-400 bg-emerald-50 p-4 shadow-sm">
@@ -454,6 +562,116 @@ function DetailItem({
 
 function displayText(value: string): string {
   return value.trim() === "" ? "—" : value;
+}
+
+function formatTariffType(value: string): string {
+  switch (value) {
+    case "FIXED_TABLE_UPPER_BOUND":
+      return "Тарифна таблица";
+
+    case "DISTANCE_TABLE":
+      return "Дистанционна таблица";
+
+    case "PRICE_PER_KM":
+      return "Цена / км";
+
+    case "FIXED_PRICE":
+      return "Фиксирана цена";
+
+    case "SHUNT":
+      return "Шунт";
+
+    case "WAITING_TIME":
+      return "Престой";
+
+    case "MANUAL":
+      return "Ръчно";
+
+    default:
+      return displayText(value);
+  }
+}
+
+function formatPricingMethod(value: string): string {
+  switch (value) {
+    case "VEPCO":
+      return "Vepco таблица";
+
+    case "MSI":
+      return "Цена / км";
+
+    case "FIXED_PRICE":
+      return "Фиксирана цена";
+
+    case "MANUAL":
+      return "Ръчна цена";
+
+    default:
+      return displayText(value);
+  }
+}
+
+function formatBillableKmLogic(value: string): string {
+  switch (value) {
+    case "TOTAL_ROUTE":
+      return "Целият маршрут";
+
+    case "ONE_WAY":
+      return "Еднопосочно";
+
+    case "SELECTED_LEGS":
+      return "Избрани отсечки";
+
+    case "FIXED_PRICE":
+      return "Фиксирана цена";
+
+    case "MANUAL":
+      return "Ръчно";
+
+    default:
+      return displayText(value);
+  }
+}
+
+function formatYesNo(value: boolean | null): string {
+  if (value === null) {
+    return "—";
+  }
+
+  return value ? "Да" : "Не";
+}
+
+function formatMoneyPerKm(value: number | null): string {
+  if (value === null) {
+    return "—";
+  }
+
+  return `€${value.toFixed(4)} / км`;
+}
+
+function formatMoneyPerHour(value: number | null): string {
+  if (value === null) {
+    return "—";
+  }
+
+  return `€${value.toFixed(2)} / час`;
+}
+
+function formatDateTime(value: string): string {
+  if (value.trim() === "") {
+    return "—";
+  }
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value;
+  }
+
+  return parsedDate.toLocaleString("bg-BG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function formatMoney(

@@ -44,6 +44,15 @@ export type CourseRowData = {
   truckId: string;
   customerId: string;
   customerTariffId: string;
+  tariffNameAtBooking?: string;
+  tariffTypeAtBooking?: string;
+  pricingMethodAtBooking?: string;
+  pricePerKmAtBooking?: string;
+  fixedPriceAtBooking?: string;
+  waitingHourlyRateAtBooking?: string;
+  billableKmLogicAtBooking?: string;
+  portFeeIncludedAtBooking?: string;
+  pricingSnapshotCreatedAt?: string;
   courseType: string;
   pickupAddressId: string;
   pickupAddressText: string;
@@ -66,9 +75,23 @@ export type CourseRowData = {
   status: string;
 };
 
+type NonEditableCourseField =
+  | "id"
+  | "databaseId"
+  | "filterDate"
+  | "tariffNameAtBooking"
+  | "tariffTypeAtBooking"
+  | "pricingMethodAtBooking"
+  | "pricePerKmAtBooking"
+  | "fixedPriceAtBooking"
+  | "waitingHourlyRateAtBooking"
+  | "billableKmLogicAtBooking"
+  | "portFeeIncludedAtBooking"
+  | "pricingSnapshotCreatedAt";
+
 export type EditableCourseField = Exclude<
   keyof CourseRowData,
-  "id" | "databaseId" | "filterDate"
+  NonEditableCourseField
 >;
 
 type AddressField =
@@ -148,6 +171,15 @@ type CourseApiResponse = {
     id?: string;
     plannedDate?: string | null;
     createdAt?: string;
+    tariffNameAtBooking?: string | null;
+    tariffTypeAtBooking?: string | null;
+    pricingMethodAtBooking?: string | null;
+    pricePerKmAtBooking?: number | string | null;
+    fixedPriceAtBooking?: number | string | null;
+    waitingHourlyRateAtBooking?: number | string | null;
+    billableKmLogicAtBooking?: string | null;
+    portFeeIncludedAtBooking?: boolean | null;
+    pricingSnapshotCreatedAt?: string | null;
   };
   error?: string;
 };
@@ -1103,6 +1135,10 @@ export default function CourseRow({
           responseData?.course,
           draft.filterDate,
         ),
+        ...buildCourseSnapshotFromApiResponse(
+          responseData?.course,
+          calculatedRow,
+        ),
       };
 
       setDraft(savedRow);
@@ -1794,6 +1830,27 @@ export default function CourseRow({
         billableKm={billableKmValue}
         nonBillableKm={nonBillableKmValue}
         baseClientPrice={effectivePrice}
+        pricingSnapshotTariffName={draft.tariffNameAtBooking ?? ""}
+        pricingSnapshotTariffType={draft.tariffTypeAtBooking ?? ""}
+        pricingSnapshotPricingMethod={draft.pricingMethodAtBooking ?? ""}
+        pricingSnapshotPricePerKm={parseNullableNumber(
+          draft.pricePerKmAtBooking ?? "",
+        )}
+        pricingSnapshotFixedPrice={parseNullableNumber(
+          draft.fixedPriceAtBooking ?? "",
+        )}
+        pricingSnapshotWaitingHourlyRate={parseNullableNumber(
+          draft.waitingHourlyRateAtBooking ?? "",
+        )}
+        pricingSnapshotBillableKmLogic={
+          draft.billableKmLogicAtBooking ?? ""
+        }
+        pricingSnapshotPortFeeIncluded={parseNullableBoolean(
+          draft.portFeeIncludedAtBooking ?? "",
+        )}
+        pricingSnapshotCreatedAt={
+          draft.pricingSnapshotCreatedAt ?? ""
+        }
         waitingMinutes={parseNullableNumber(draft.waitingMinutes)}
         waitingChargedToClient={
           calculation?.waiting.waitingCost ?? null
@@ -2384,6 +2441,20 @@ function parseNullableNumber(
   return parsedValue;
 }
 
+function parseNullableBoolean(
+  value: string,
+): boolean | null {
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return null;
+}
+
 function calculateExtraCharges(
   totalRevenue:
     | number
@@ -2735,6 +2806,82 @@ function getAddressName(
   );
 
   return address?.name ?? null;
+}
+
+function buildCourseSnapshotFromApiResponse(
+  course:
+    | CourseApiResponse["course"]
+    | undefined,
+  fallbackRow: CourseRowData,
+): Pick<
+  CourseRowData,
+  | "tariffNameAtBooking"
+  | "tariffTypeAtBooking"
+  | "pricingMethodAtBooking"
+  | "pricePerKmAtBooking"
+  | "fixedPriceAtBooking"
+  | "waitingHourlyRateAtBooking"
+  | "billableKmLogicAtBooking"
+  | "portFeeIncludedAtBooking"
+  | "pricingSnapshotCreatedAt"
+> {
+  return {
+    tariffNameAtBooking:
+      course?.tariffNameAtBooking ??
+      fallbackRow.tariffNameAtBooking ??
+      "",
+    tariffTypeAtBooking:
+      course?.tariffTypeAtBooking ??
+      fallbackRow.tariffTypeAtBooking ??
+      "",
+    pricingMethodAtBooking:
+      course?.pricingMethodAtBooking ??
+      fallbackRow.pricingMethodAtBooking ??
+      "",
+    pricePerKmAtBooking:
+      formatApiSnapshotNumber(
+        course?.pricePerKmAtBooking,
+        fallbackRow.pricePerKmAtBooking,
+      ),
+    fixedPriceAtBooking:
+      formatApiSnapshotNumber(
+        course?.fixedPriceAtBooking,
+        fallbackRow.fixedPriceAtBooking,
+      ),
+    waitingHourlyRateAtBooking:
+      formatApiSnapshotNumber(
+        course?.waitingHourlyRateAtBooking,
+        fallbackRow.waitingHourlyRateAtBooking,
+      ),
+    billableKmLogicAtBooking:
+      course?.billableKmLogicAtBooking ??
+      fallbackRow.billableKmLogicAtBooking ??
+      "",
+    portFeeIncludedAtBooking:
+      course?.portFeeIncludedAtBooking === null ||
+      course?.portFeeIncludedAtBooking === undefined
+        ? fallbackRow.portFeeIncludedAtBooking ?? ""
+        : String(course.portFeeIncludedAtBooking),
+    pricingSnapshotCreatedAt:
+      course?.pricingSnapshotCreatedAt ??
+      fallbackRow.pricingSnapshotCreatedAt ??
+      "",
+  };
+}
+
+function formatApiSnapshotNumber(
+  value: number | string | null | undefined,
+  fallbackValue: string | undefined,
+): string {
+  if (value === null || value === undefined || value === "") {
+    return fallbackValue ?? "";
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue)
+    ? String(parsedValue)
+    : fallbackValue ?? "";
 }
 
 function resolveSavedCourseDate(
