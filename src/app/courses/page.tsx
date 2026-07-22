@@ -52,6 +52,10 @@ export default async function CoursesPage() {
         name: true,
         licensePlate: true,
         defaultFuelConsumptionLPer100Km: true,
+        monthlyLeaseCost: true,
+        monthlyInsuranceCost: true,
+        monthlyRoadTaxCost: true,
+        monthlyOtherFixedCost: true,
       },
       orderBy: [
         {
@@ -195,6 +199,10 @@ export default async function CoursesPage() {
     defaultFuelConsumptionLPer100Km: Number(
       truck.defaultFuelConsumptionLPer100Km,
     ),
+    monthlyLeaseCost: Number(truck.monthlyLeaseCost),
+    monthlyInsuranceCost: Number(truck.monthlyInsuranceCost),
+    monthlyRoadTaxCost: Number(truck.monthlyRoadTaxCost),
+    monthlyOtherFixedCost: Number(truck.monthlyOtherFixedCost),
   }));
 
   const customers = rawCustomers.map((customer) => ({

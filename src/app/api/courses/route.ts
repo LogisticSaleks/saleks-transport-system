@@ -225,6 +225,10 @@ const COURSE_INCLUDE = {
       licensePlate: true,
       status: true,
       defaultFuelConsumptionLPer100Km: true,
+      monthlyLeaseCost: true,
+      monthlyInsuranceCost: true,
+      monthlyRoadTaxCost: true,
+      monthlyOtherFixedCost: true,
     },
   },
   driver: {

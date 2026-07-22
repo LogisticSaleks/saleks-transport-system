@@ -5,6 +5,10 @@ export type TruckOption = {
   name: string;
   licensePlate: string;
   defaultFuelConsumptionLPer100Km: number;
+  monthlyLeaseCost: number;
+  monthlyInsuranceCost: number;
+  monthlyRoadTaxCost: number;
+  monthlyOtherFixedCost: number;
 };
 
 type TruckSelectProps = {

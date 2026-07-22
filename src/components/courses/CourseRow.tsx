@@ -492,6 +492,28 @@ export default function CourseRow({
     [truckOptions, draft.truckId],
   );
 
+  const selectedTruckMonthlyFixedCost = useMemo(() => {
+    if (!selectedTruck) {
+      return 0;
+    }
+
+    return (
+      selectedTruck.monthlyLeaseCost +
+      selectedTruck.monthlyInsuranceCost +
+      selectedTruck.monthlyRoadTaxCost +
+      selectedTruck.monthlyOtherFixedCost
+    );
+  }, [selectedTruck]);
+
+  const selectedTruckDailyFixedCost = useMemo(
+    () =>
+      Math.round(
+        (selectedTruckMonthlyFixedCost / 30 + Number.EPSILON) *
+          100,
+      ) / 100,
+    [selectedTruckMonthlyFixedCost],
+  );
+
   const pricing = useMemo(
     () =>
       resolveCustomerPricing({
@@ -665,6 +687,9 @@ export default function CourseRow({
           parseOptionalNumber(
             draft.portFee,
           ),
+
+        truckFixedCost:
+          selectedTruckDailyFixedCost,
 
         /*
          * Предупрежденията се показват отделно и не
