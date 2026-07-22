@@ -184,7 +184,8 @@ model Address {
   type         AddressType @default(OTHER)
   portCode     String?
   terminalCode String?
-  notes        String
+  isActive     Boolean     @default(true)
+  notes        String      @default("")
 
   customerAddresses CustomerAddress[]
 
@@ -201,6 +202,8 @@ model Address {
 
   @@index([city, country])
   @@index([name])
+  @@index([type])
+  @@index([isActive])
 }
 
 model CustomerAddress {
