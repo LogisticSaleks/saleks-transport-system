@@ -44,6 +44,8 @@ type CourseDetailsPanelProps = {
   fuelCost: number | null;
   tollCost: number | null;
   truckCost: number | null;
+  truckDailyFixedCost: number | null;
+  truckFixedCostAllocationCourseCount: number;
   waitingCost: number | null;
   portCost: number | null;
   otherCosts: number | null;
@@ -61,6 +63,7 @@ type CourseDetailsPanelProps = {
 type DetailItemProps = {
   label: string;
   value: string;
+  description?: string;
   fullWidth?: boolean;
 };
 
@@ -96,6 +99,8 @@ export default function CourseDetailsPanel({
   fuelCost,
   tollCost,
   truckCost,
+  truckDailyFixedCost,
+  truckFixedCostAllocationCourseCount,
   waitingCost,
   portCost,
   otherCosts,
@@ -435,6 +440,10 @@ export default function CourseDetailsPanel({
                 <DetailItem
                   label="Разход за камион"
                   value={formatMoney(truckCost)}
+                  description={formatTruckCostAllocationExplanation({
+                    truckDailyFixedCost,
+                    truckFixedCostAllocationCourseCount,
+                  })}
                 />
 
                 <DetailItem
@@ -532,6 +541,7 @@ export default function CourseDetailsPanel({
 function DetailItem({
   label,
   value,
+  description,
   fullWidth = false,
 }: DetailItemProps) {
   return (
@@ -556,8 +566,43 @@ function DetailItem({
       >
         {value}
       </dd>
+
+      {description && (
+        <p className="mt-1 text-xs leading-5 text-slate-600">
+          {description}
+        </p>
+      )}
     </div>
   );
+}
+
+function formatTruckCostAllocationExplanation({
+  truckDailyFixedCost,
+  truckFixedCostAllocationCourseCount,
+}: {
+  truckDailyFixedCost: number | null;
+  truckFixedCostAllocationCourseCount: number;
+}): string {
+  if (
+    truckDailyFixedCost === null ||
+    !Number.isFinite(truckDailyFixedCost) ||
+    truckDailyFixedCost <= 0
+  ) {
+    return "";
+  }
+
+  const courseCount =
+    Number.isFinite(truckFixedCostAllocationCourseCount) &&
+    truckFixedCostAllocationCourseCount > 0
+      ? Math.round(truckFixedCostAllocationCourseCount)
+      : 1;
+
+  const courseLabel =
+    courseCount === 1
+      ? "1 курс за деня"
+      : `${courseCount} курса за деня`;
+
+  return `${formatMoney(truckDailyFixedCost)} дневен fixed cost / ${courseLabel}`;
 }
 
 function displayText(value: string): string {

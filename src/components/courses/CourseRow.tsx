@@ -1909,6 +1909,10 @@ export default function CourseRow({
           parseNullableNumber(draft.tollFee)
         }
         truckCost={calculation?.costs.truckFixedCost ?? null}
+        truckDailyFixedCost={selectedTruckDailyFixedCost}
+        truckFixedCostAllocationCourseCount={
+          fixedCostAllocationCourseCount
+        }
         waitingCost={calculation?.waiting.waitingCost ?? null}
         portCost={
           calculation?.costs.portCost ??
