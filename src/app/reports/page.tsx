@@ -226,6 +226,9 @@ export default async function ReportsPage({
         truck.id === filters.truckId,
     )?.label ?? "";
 
+  const exportHref =
+    buildReportsExportHref(filters);
+
   const courses: CourseReportRow[] =
     rawCourses.map((course) => {
       const totalKm = toNumber(
@@ -435,6 +438,13 @@ export default async function ReportsPage({
                 className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:self-end"
               >
                 Всички
+              </a>
+
+              <a
+                href={exportHref}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 sm:self-end"
+              >
+                Export Excel
               </a>
             </form>
           </div>
@@ -1460,29 +1470,59 @@ function buildReportsHref({
   customerId: string;
   truckId: string;
 }): string {
+  return buildHrefWithReportFilters(
+    "/reports",
+    {
+      dateFrom,
+      dateTo,
+      customerId,
+      truckId,
+    },
+  );
+}
+
+function buildReportsExportHref(
+  filters: Pick<
+    ReportFilters,
+    "dateFrom" | "dateTo" | "customerId" | "truckId"
+  >,
+): string {
+  return buildHrefWithReportFilters(
+    "/api/reports/export",
+    filters,
+  );
+}
+
+function buildHrefWithReportFilters(
+  pathname: string,
+  filters: Pick<
+    ReportFilters,
+    "dateFrom" | "dateTo" | "customerId" | "truckId"
+  >,
+): string {
   const params = new URLSearchParams();
 
-  if (dateFrom !== "") {
-    params.set("dateFrom", dateFrom);
+  if (filters.dateFrom !== "") {
+    params.set("dateFrom", filters.dateFrom);
   }
 
-  if (dateTo !== "") {
-    params.set("dateTo", dateTo);
+  if (filters.dateTo !== "") {
+    params.set("dateTo", filters.dateTo);
   }
 
-  if (customerId !== "") {
-    params.set("customerId", customerId);
+  if (filters.customerId !== "") {
+    params.set("customerId", filters.customerId);
   }
 
-  if (truckId !== "") {
-    params.set("truckId", truckId);
+  if (filters.truckId !== "") {
+    params.set("truckId", filters.truckId);
   }
 
   const queryString = params.toString();
 
   return queryString === ""
-    ? "/reports"
-    : `/reports?${queryString}`;
+    ? pathname
+    : `${pathname}?${queryString}`;
 }
 
 function readSingleSearchParam(
