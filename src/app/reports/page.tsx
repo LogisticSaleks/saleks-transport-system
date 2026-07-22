@@ -442,6 +442,22 @@ export default async function ReportsPage({
           />
         </section>
 
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Всички курсове в периода
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Детайлен списък на всеки курс с приход, разход, печалба и марж.
+            </p>
+          </div>
+
+          <CourseDrilldownTable
+            courses={courses}
+          />
+        </section>
+
         <section className="rounded-lg border border-red-200 bg-white shadow-sm">
           <div className="border-b border-red-100 px-5 py-4">
             <h2 className="text-lg font-semibold text-slate-900">
@@ -486,6 +502,165 @@ function SummaryCard({
         {value}
       </p>
     </article>
+  );
+}
+
+function CourseDrilldownTable({
+  courses,
+}: {
+  courses: readonly CourseReportRow[];
+}) {
+  if (courses.length === 0) {
+    return (
+      <p className="px-5 py-8 text-sm text-slate-500">
+        Няма записани курсове в избрания период.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1250px] border-collapse text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <ReportHeaderCell>
+              Дата
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Курс
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Клиент
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Камион
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Общо км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Платими км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Неплатими км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Приход
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Разход
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Печалба
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Марж
+            </ReportHeaderCell>
+          </tr>
+        </thead>
+
+        <tbody>
+          {courses.map((course) => (
+            <tr
+              key={course.id}
+              className="border-t border-slate-100 hover:bg-slate-50"
+            >
+              <ReportDataCell>
+                {dateFormatter.format(
+                  course.courseDate,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell>
+                <span className="font-medium text-slate-900">
+                  {course.courseLabel}
+                </span>
+              </ReportDataCell>
+
+              <ReportDataCell>
+                {course.customerName}
+              </ReportDataCell>
+
+              <ReportDataCell>
+                {course.truckLabel}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatNumber(
+                  course.totalKm,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatNumber(
+                  course.billableKm,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatNumber(
+                  course.nonBillableKm,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(
+                  course.revenue,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(
+                  course.cost,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell
+                align="right"
+                tone={
+                  course.profit > 0
+                    ? "positive"
+                    : course.profit < 0
+                      ? "negative"
+                      : "default"
+                }
+              >
+                {formatCurrency(
+                  course.profit,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell
+                align="right"
+                tone={
+                  course.margin !== null &&
+                  course.margin > 0
+                    ? "positive"
+                    : course.margin !== null &&
+                        course.margin < 0
+                      ? "negative"
+                      : "default"
+                }
+              >
+                {formatPercent(
+                  course.margin,
+                )}
+              </ReportDataCell>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
