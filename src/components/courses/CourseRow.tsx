@@ -398,6 +398,7 @@ type CourseRowProps = {
   rowNumber: number;
   initialRow: CourseRowData;
   truckOptions: readonly TruckOption[];
+  fixedCostAllocationCourseCount: number;
   customerOptions: readonly CustomerOption[];
   addressOptions: readonly AddressOption[];
   onChange: (row: CourseRowData) => void;
@@ -409,6 +410,7 @@ export default function CourseRow({
   rowNumber,
   initialRow,
   truckOptions,
+  fixedCostAllocationCourseCount,
   customerOptions,
   addressOptions,
   onChange,
@@ -513,6 +515,24 @@ export default function CourseRow({
       ) / 100,
     [selectedTruckMonthlyFixedCost],
   );
+
+  const allocatedTruckFixedCost = useMemo(() => {
+    const divisor =
+      Number.isFinite(fixedCostAllocationCourseCount) &&
+      fixedCostAllocationCourseCount > 0
+        ? fixedCostAllocationCourseCount
+        : 1;
+
+    return (
+      Math.round(
+        (selectedTruckDailyFixedCost / divisor + Number.EPSILON) *
+          100,
+      ) / 100
+    );
+  }, [
+    fixedCostAllocationCourseCount,
+    selectedTruckDailyFixedCost,
+  ]);
 
   const pricing = useMemo(
     () =>
@@ -689,7 +709,7 @@ export default function CourseRow({
           ),
 
         truckFixedCost:
-          selectedTruckDailyFixedCost,
+          allocatedTruckFixedCost,
 
         /*
          * Предупрежденията се показват отделно и не
@@ -706,6 +726,7 @@ export default function CourseRow({
     draft,
     pricing,
     selectedTruck,
+    allocatedTruckFixedCost,
   ]);
 
   const effectivePrice =

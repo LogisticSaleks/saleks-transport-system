@@ -99,6 +99,11 @@ export default function CourseTable({
   const [exportError, setExportError] =
     useState<string | null>(null);
 
+  const fixedCostAllocationCounts = useMemo(
+    () => buildFixedCostAllocationCounts(rows),
+    [rows],
+  );
+
   const visibleRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -443,6 +448,12 @@ export default function CourseTable({
                   }
                   initialRow={row}
                   truckOptions={trucks}
+                  fixedCostAllocationCourseCount={
+                    getFixedCostAllocationCourseCount(
+                      fixedCostAllocationCounts,
+                      row,
+                    )
+                  }
                   customerOptions={
                     customers
                   }
@@ -470,6 +481,84 @@ export default function CourseTable({
       </p>
     </section>
   );
+}
+
+
+function buildFixedCostAllocationCounts(
+  rows: readonly CourseRowData[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const row of rows) {
+    const key =
+      createFixedCostAllocationKey(row);
+
+    if (
+      !key ||
+      !isFixedCostAllocationRelevantRow(row)
+    ) {
+      continue;
+    }
+
+    counts.set(
+      key,
+      (counts.get(key) ?? 0) + 1,
+    );
+  }
+
+  return counts;
+}
+
+function getFixedCostAllocationCourseCount(
+  counts: ReadonlyMap<string, number>,
+  row: CourseRowData,
+): number {
+  const key =
+    createFixedCostAllocationKey(row);
+
+  if (!key) {
+    return 1;
+  }
+
+  return Math.max(counts.get(key) ?? 1, 1);
+}
+
+function createFixedCostAllocationKey(
+  row: CourseRowData,
+): string | null {
+  const truckId = row.truckId.trim();
+  const date = row.filterDate.trim();
+
+  if (!truckId || !date) {
+    return null;
+  }
+
+  return `${truckId}|${date}`;
+}
+
+function isFixedCostAllocationRelevantRow(
+  row: CourseRowData,
+): boolean {
+  if (row.databaseId !== null) {
+    return true;
+  }
+
+  return [
+    row.customerId,
+    row.customerTariffId,
+    row.courseType,
+    row.pickupAddressId,
+    row.pickupAddressText,
+    row.loadingUnloadingAddressId,
+    row.loadingUnloadingAddressText,
+    row.extraAddressId,
+    row.extraAddressText,
+    row.returnAddressId,
+    row.returnAddressText,
+    row.totalKm,
+    row.billableKm,
+    row.containerNumber,
+  ].some((value) => value.trim() !== "");
 }
 
 function getNextRowId(
