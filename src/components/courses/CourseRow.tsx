@@ -818,6 +818,18 @@ export default function CourseRow({
     ],
   );
 
+  const hasSavedCourseRecalculationNotice =
+    useMemo(
+      () =>
+        draft.databaseId !== null &&
+        !isSaved &&
+        hasCalculatedFinancialDifference(
+          draft,
+          calculatedRow,
+        ),
+      [draft, calculatedRow, isSaved],
+    );
+
   useEffect(() => {
     onChange(calculatedRow);
   }, [calculatedRow, onChange]);
@@ -1790,6 +1802,12 @@ export default function CourseRow({
               </span>
             )}
 
+            {hasSavedCourseRecalculationNotice && (
+              <span className="block rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium leading-4 text-amber-800">
+                Разходите са преизчислени — натисни Обнови, за да се запишат.
+              </span>
+            )}
+
             {saveError && (
               <span className="block text-xs font-medium leading-4 text-red-600">
                 {saveError}
@@ -1928,6 +1946,45 @@ export default function CourseRow({
       />
     </>
   );
+}
+
+function hasCalculatedFinancialDifference(
+  savedRow: CourseRowData,
+  calculatedRow: CourseRowData,
+): boolean {
+  const financialFields: readonly (keyof Pick<
+    CourseRowData,
+    "price" | "fuelCost" | "totalCost" | "profit"
+  >)[] = [
+    "price",
+    "fuelCost",
+    "totalCost",
+    "profit",
+  ];
+
+  return financialFields.some(
+    (field) =>
+      normalizeFinancialComparisonValue(savedRow[field]) !==
+      normalizeFinancialComparisonValue(calculatedRow[field]),
+  );
+}
+
+function normalizeFinancialComparisonValue(
+  value: string,
+): string {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue === "") {
+    return "";
+  }
+
+  const parsedValue = Number(trimmedValue);
+
+  if (!Number.isFinite(parsedValue)) {
+    return trimmedValue;
+  }
+
+  return parsedValue.toFixed(2);
 }
 
 function getCourseRowAccentClass(
