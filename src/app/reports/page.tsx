@@ -10,20 +10,30 @@ type ReportsPageProps = {
   searchParams?: Promise<{
     dateFrom?: string | string[];
     dateTo?: string | string[];
+    customerId?: string | string[];
+    truckId?: string | string[];
   }>;
 };
 
-type ReportDateFilters = {
+type ReportFilters = {
   dateFrom: string;
   dateTo: string;
   dateFromDate: Date | null;
   dateToExclusiveDate: Date | null;
+  customerId: string;
+  truckId: string;
+  hasDateFilter: boolean;
   hasActiveFilter: boolean;
 };
 
 type DatePreset = {
   label: string;
   href: string;
+};
+
+type ReportFilterOption = {
+  id: string;
+  label: string;
 };
 
 type CourseReportRow = {
@@ -103,15 +113,19 @@ export default async function ReportsPage({
   const resolvedSearchParams =
     (await searchParams) ?? {};
 
-  const filters = buildReportDateFilters(
+  const filters = buildReportFilters(
     resolvedSearchParams,
   );
 
-  const presets = buildDatePresets();
+  const presets = buildDatePresets(filters);
 
-  const rawCourses =
-    await prisma.course.findMany({
-      where: buildCourseDateWhere(filters),
+  const [
+    rawCourses,
+    customerOptions,
+    truckOptions,
+  ] = await Promise.all([
+    prisma.course.findMany({
+      where: buildCourseWhere(filters),
 
       select: {
         id: true,
@@ -157,7 +171,60 @@ export default async function ReportsPage({
           createdAt: "desc",
         },
       ],
-    });
+    }),
+
+    prisma.customer.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+
+    prisma.truck.findMany({
+      select: {
+        id: true,
+        name: true,
+        licensePlate: true,
+      },
+      orderBy: [
+        {
+          name: "asc",
+        },
+        {
+          licensePlate: "asc",
+        },
+      ],
+    }),
+  ]);
+
+  const customers = customerOptions.map(
+    (customer): ReportFilterOption => ({
+      id: customer.id,
+      label: customer.name,
+    }),
+  );
+
+  const trucks = truckOptions.map(
+    (truck): ReportFilterOption => ({
+      id: truck.id,
+      label: `${truck.name} — ${truck.licensePlate}`,
+    }),
+  );
+
+  const selectedCustomerLabel =
+    customers.find(
+      (customer) =>
+        customer.id === filters.customerId,
+    )?.label ?? "";
+
+  const selectedTruckLabel =
+    trucks.find(
+      (truck) =>
+        truck.id === filters.truckId,
+    )?.label ?? "";
 
   const courses: CourseReportRow[] =
     rawCourses.map((course) => {
@@ -272,7 +339,11 @@ export default async function ReportsPage({
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                {formatReportPeriodDescription(filters)}
+                {formatReportFilterDescription({
+                  filters,
+                  selectedCustomerLabel,
+                  selectedTruckLabel,
+                })}
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
@@ -284,7 +355,7 @@ export default async function ReportsPage({
 
             <form
               action="/reports"
-              className="grid gap-3 sm:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto_auto]"
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(190px,1.2fr)_minmax(210px,1.4fr)_auto_auto]"
             >
               <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                 От дата
@@ -306,6 +377,50 @@ export default async function ReportsPage({
                   min={filters.dateFrom || undefined}
                   className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
                 />
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                Клиент
+                <select
+                  name="customerId"
+                  defaultValue={filters.customerId}
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value="">
+                    Всички клиенти
+                  </option>
+
+                  {customers.map((customer) => (
+                    <option
+                      key={customer.id}
+                      value={customer.id}
+                    >
+                      {customer.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                Камион
+                <select
+                  name="truckId"
+                  defaultValue={filters.truckId}
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value="">
+                    Всички камиони
+                  </option>
+
+                  {trucks.map((truck) => (
+                    <option
+                      key={truck.id}
+                      value={truck.id}
+                    >
+                      {truck.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <button
@@ -1069,12 +1184,14 @@ function aggregateCourses(
     );
 }
 
-function buildReportDateFilters(
+function buildReportFilters(
   searchParams: {
     dateFrom?: string | string[];
     dateTo?: string | string[];
+    customerId?: string | string[];
+    truckId?: string | string[];
   },
-): ReportDateFilters {
+): ReportFilters {
   const rawDateFrom = normalizeDateParam(
     readSingleSearchParam(searchParams.dateFrom),
   );
@@ -1103,20 +1220,73 @@ function buildReportDateFilters(
       ? null
       : parseDateInputExclusiveEnd(dateTo);
 
+  const customerId = normalizeIdParam(
+    readSingleSearchParam(searchParams.customerId),
+  );
+
+  const truckId = normalizeIdParam(
+    readSingleSearchParam(searchParams.truckId),
+  );
+
+  const hasDateFilter =
+    dateFrom !== "" || dateTo !== "";
+
   return {
     dateFrom,
     dateTo,
     dateFromDate,
     dateToExclusiveDate,
+    customerId,
+    truckId,
+    hasDateFilter,
     hasActiveFilter:
-      dateFrom !== "" || dateTo !== "",
+      hasDateFilter ||
+      customerId !== "" ||
+      truckId !== "",
+  };
+}
+
+function buildCourseWhere(
+  filters: ReportFilters,
+): Prisma.CourseWhereInput | undefined {
+  const conditions: Prisma.CourseWhereInput[] = [];
+
+  const dateWhere =
+    buildCourseDateWhere(filters);
+
+  if (dateWhere) {
+    conditions.push(dateWhere);
+  }
+
+  if (filters.customerId !== "") {
+    conditions.push({
+      customerId: filters.customerId,
+    });
+  }
+
+  if (filters.truckId !== "") {
+    conditions.push({
+      truckId: filters.truckId,
+    });
+  }
+
+  if (conditions.length === 0) {
+    return undefined;
+  }
+
+  if (conditions.length === 1) {
+    return conditions[0];
+  }
+
+  return {
+    AND: conditions,
   };
 }
 
 function buildCourseDateWhere(
-  filters: ReportDateFilters,
+  filters: ReportFilters,
 ): Prisma.CourseWhereInput | undefined {
-  if (!filters.hasActiveFilter) {
+  if (!filters.hasDateFilter) {
     return undefined;
   }
 
@@ -1149,31 +1319,55 @@ function buildCourseDateWhere(
   };
 }
 
-function formatReportPeriodDescription(
-  filters: ReportDateFilters,
-): string {
+function formatReportFilterDescription({
+  filters,
+  selectedCustomerLabel,
+  selectedTruckLabel,
+}: {
+  filters: ReportFilters;
+  selectedCustomerLabel: string;
+  selectedTruckLabel: string;
+}): string {
   if (!filters.hasActiveFilter) {
     return "Financial overview based on all saved courses.";
   }
 
+  const parts: string[] = [];
+
   if (filters.dateFrom !== "" && filters.dateTo !== "") {
-    return `Financial overview for courses from ${formatDateInputForDisplay(
-      filters.dateFrom,
-    )} to ${formatDateInputForDisplay(filters.dateTo)}.`;
+    parts.push(
+      `период ${formatDateInputForDisplay(
+        filters.dateFrom,
+      )} - ${formatDateInputForDisplay(filters.dateTo)}`,
+    );
+  } else if (filters.dateFrom !== "") {
+    parts.push(
+      `от ${formatDateInputForDisplay(filters.dateFrom)} нататък`,
+    );
+  } else if (filters.dateTo !== "") {
+    parts.push(
+      `до ${formatDateInputForDisplay(filters.dateTo)}`,
+    );
   }
 
-  if (filters.dateFrom !== "") {
-    return `Financial overview for courses from ${formatDateInputForDisplay(
-      filters.dateFrom,
-    )} onward.`;
+  if (filters.customerId !== "") {
+    parts.push(
+      `клиент ${selectedCustomerLabel || filters.customerId}`,
+    );
   }
 
-  return `Financial overview for courses until ${formatDateInputForDisplay(
-    filters.dateTo,
-  )}.`;
+  if (filters.truckId !== "") {
+    parts.push(
+      `камион ${selectedTruckLabel || filters.truckId}`,
+    );
+  }
+
+  return `Financial overview for ${parts.join(", ")}.`;
 }
 
-function buildDatePresets(): DatePreset[] {
+function buildDatePresets(
+  filters: Pick<ReportFilters, "customerId" | "truckId">,
+): DatePreset[] {
   const today = startOfDay(new Date());
 
   const currentWeekStart =
@@ -1213,6 +1407,8 @@ function buildDatePresets(): DatePreset[] {
           currentWeekStart,
         ),
         dateTo: formatDateInput(today),
+        customerId: filters.customerId,
+        truckId: filters.truckId,
       }),
     },
     {
@@ -1222,6 +1418,8 @@ function buildDatePresets(): DatePreset[] {
           currentMonthStart,
         ),
         dateTo: formatDateInput(today),
+        customerId: filters.customerId,
+        truckId: filters.truckId,
       }),
     },
     {
@@ -1233,6 +1431,8 @@ function buildDatePresets(): DatePreset[] {
         dateTo: formatDateInput(
           previousMonthEnd,
         ),
+        customerId: filters.customerId,
+        truckId: filters.truckId,
       }),
     },
     {
@@ -1242,6 +1442,8 @@ function buildDatePresets(): DatePreset[] {
           last30DaysStart,
         ),
         dateTo: formatDateInput(today),
+        customerId: filters.customerId,
+        truckId: filters.truckId,
       }),
     },
   ];
@@ -1250,9 +1452,13 @@ function buildDatePresets(): DatePreset[] {
 function buildReportsHref({
   dateFrom,
   dateTo,
+  customerId,
+  truckId,
 }: {
   dateFrom: string;
   dateTo: string;
+  customerId: string;
+  truckId: string;
 }): string {
   const params = new URLSearchParams();
 
@@ -1262,6 +1468,14 @@ function buildReportsHref({
 
   if (dateTo !== "") {
     params.set("dateTo", dateTo);
+  }
+
+  if (customerId !== "") {
+    params.set("customerId", customerId);
+  }
+
+  if (truckId !== "") {
+    params.set("truckId", truckId);
   }
 
   const queryString = params.toString();
@@ -1287,6 +1501,10 @@ function normalizeDateParam(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)
     ? trimmedValue
     : "";
+}
+
+function normalizeIdParam(value: string): string {
+  return value.trim();
 }
 
 function parseDateInputStart(
