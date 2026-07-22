@@ -1,9 +1,30 @@
 import type { ReactNode } from "react";
+import type { Prisma } from "@/generated/prisma/client";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+type ReportsPageProps = {
+  searchParams?: Promise<{
+    dateFrom?: string | string[];
+    dateTo?: string | string[];
+  }>;
+};
+
+type ReportDateFilters = {
+  dateFrom: string;
+  dateTo: string;
+  dateFromDate: Date | null;
+  dateToExclusiveDate: Date | null;
+  hasActiveFilter: boolean;
+};
+
+type DatePreset = {
+  label: string;
+  href: string;
+};
 
 type CourseReportRow = {
   id: string;
@@ -76,9 +97,22 @@ const dateFormatter = new Intl.DateTimeFormat(
   },
 );
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: ReportsPageProps) {
+  const resolvedSearchParams =
+    (await searchParams) ?? {};
+
+  const filters = buildReportDateFilters(
+    resolvedSearchParams,
+  );
+
+  const presets = buildDatePresets();
+
   const rawCourses =
     await prisma.course.findMany({
+      where: buildCourseDateWhere(filters),
+
       select: {
         id: true,
         courseNumber: true,
@@ -230,9 +264,78 @@ export default async function ReportsPage() {
   return (
     <AppShell title="Reports">
       <div className="space-y-6">
-        <p className="text-sm text-slate-500">
-          Financial overview based on all saved courses.
-        </p>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Financial overview
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {formatReportPeriodDescription(filters)}
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Отчетът използва записаните course cost records. Ако курс е
+                преизчислен в /courses, натисни Обнови на курса, за да влезе
+                новата стойност и в reports.
+              </p>
+            </div>
+
+            <form
+              action="/reports"
+              className="grid gap-3 sm:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto_auto]"
+            >
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                От дата
+                <input
+                  type="date"
+                  name="dateFrom"
+                  defaultValue={filters.dateFrom}
+                  max={filters.dateTo || undefined}
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                До дата
+                <input
+                  type="date"
+                  name="dateTo"
+                  defaultValue={filters.dateTo}
+                  min={filters.dateFrom || undefined}
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                />
+              </label>
+
+              <button
+                type="submit"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 sm:self-end"
+              >
+                Зареди
+              </button>
+
+              <a
+                href="/reports"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:self-end"
+              >
+                Всички
+              </a>
+            </form>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {presets.map((preset) => (
+              <a
+                key={preset.label}
+                href={preset.href}
+                className="inline-flex h-8 items-center rounded-full border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                {preset.label}
+              </a>
+            ))}
+          </div>
+        </section>
 
         <section
           aria-label="Reports summary"
@@ -318,7 +421,7 @@ export default async function ReportsPage() {
 
           <ReportAggregateTable
             rows={profitByCustomer}
-            emptyMessage="Няма записани курсове за отчет по клиент."
+            emptyMessage="Няма записани курсове за отчет по клиент в избрания период."
           />
         </section>
 
@@ -335,7 +438,7 @@ export default async function ReportsPage() {
 
           <ReportAggregateTable
             rows={profitByTruck}
-            emptyMessage="Няма записани курсове за отчет по камион."
+            emptyMessage="Няма записани курсове за отчет по камион в избрания период."
           />
         </section>
 
@@ -536,7 +639,7 @@ function LossCoursesTable({
     return (
       <div className="px-5 py-8">
         <p className="text-sm font-medium text-emerald-700">
-          Няма записани курсове на загуба.
+          Няма записани курсове на загуба в избрания период.
         </p>
       </div>
     );
@@ -789,6 +892,281 @@ function aggregateCourses(
         secondRow.profit -
         firstRow.profit,
     );
+}
+
+function buildReportDateFilters(
+  searchParams: {
+    dateFrom?: string | string[];
+    dateTo?: string | string[];
+  },
+): ReportDateFilters {
+  const rawDateFrom = normalizeDateParam(
+    readSingleSearchParam(searchParams.dateFrom),
+  );
+
+  const rawDateTo = normalizeDateParam(
+    readSingleSearchParam(searchParams.dateTo),
+  );
+
+  const dateFrom =
+    rawDateFrom && rawDateTo && rawDateFrom > rawDateTo
+      ? rawDateTo
+      : rawDateFrom;
+
+  const dateTo =
+    rawDateFrom && rawDateTo && rawDateFrom > rawDateTo
+      ? rawDateFrom
+      : rawDateTo;
+
+  const dateFromDate =
+    dateFrom === ""
+      ? null
+      : parseDateInputStart(dateFrom);
+
+  const dateToExclusiveDate =
+    dateTo === ""
+      ? null
+      : parseDateInputExclusiveEnd(dateTo);
+
+  return {
+    dateFrom,
+    dateTo,
+    dateFromDate,
+    dateToExclusiveDate,
+    hasActiveFilter:
+      dateFrom !== "" || dateTo !== "",
+  };
+}
+
+function buildCourseDateWhere(
+  filters: ReportDateFilters,
+): Prisma.CourseWhereInput | undefined {
+  if (!filters.hasActiveFilter) {
+    return undefined;
+  }
+
+  const plannedDateFilter: Prisma.DateTimeNullableFilter = {
+    not: null,
+  };
+
+  const createdAtFilter: Prisma.DateTimeFilter = {};
+
+  if (filters.dateFromDate) {
+    plannedDateFilter.gte = filters.dateFromDate;
+    createdAtFilter.gte = filters.dateFromDate;
+  }
+
+  if (filters.dateToExclusiveDate) {
+    plannedDateFilter.lt = filters.dateToExclusiveDate;
+    createdAtFilter.lt = filters.dateToExclusiveDate;
+  }
+
+  return {
+    OR: [
+      {
+        plannedDate: plannedDateFilter,
+      },
+      {
+        plannedDate: null,
+        createdAt: createdAtFilter,
+      },
+    ],
+  };
+}
+
+function formatReportPeriodDescription(
+  filters: ReportDateFilters,
+): string {
+  if (!filters.hasActiveFilter) {
+    return "Financial overview based on all saved courses.";
+  }
+
+  if (filters.dateFrom !== "" && filters.dateTo !== "") {
+    return `Financial overview for courses from ${formatDateInputForDisplay(
+      filters.dateFrom,
+    )} to ${formatDateInputForDisplay(filters.dateTo)}.`;
+  }
+
+  if (filters.dateFrom !== "") {
+    return `Financial overview for courses from ${formatDateInputForDisplay(
+      filters.dateFrom,
+    )} onward.`;
+  }
+
+  return `Financial overview for courses until ${formatDateInputForDisplay(
+    filters.dateTo,
+  )}.`;
+}
+
+function buildDatePresets(): DatePreset[] {
+  const today = startOfDay(new Date());
+
+  const currentWeekStart =
+    startOfIsoWeek(today);
+
+  const currentMonthStart =
+    new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      1,
+    );
+
+  const previousMonthStart =
+    new Date(
+      today.getFullYear(),
+      today.getMonth() - 1,
+      1,
+    );
+
+  const previousMonthEnd =
+    new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      0,
+    );
+
+  const last30DaysStart = new Date(today);
+  last30DaysStart.setDate(
+    today.getDate() - 29,
+  );
+
+  return [
+    {
+      label: "Тази седмица",
+      href: buildReportsHref({
+        dateFrom: formatDateInput(
+          currentWeekStart,
+        ),
+        dateTo: formatDateInput(today),
+      }),
+    },
+    {
+      label: "Този месец",
+      href: buildReportsHref({
+        dateFrom: formatDateInput(
+          currentMonthStart,
+        ),
+        dateTo: formatDateInput(today),
+      }),
+    },
+    {
+      label: "Минал месец",
+      href: buildReportsHref({
+        dateFrom: formatDateInput(
+          previousMonthStart,
+        ),
+        dateTo: formatDateInput(
+          previousMonthEnd,
+        ),
+      }),
+    },
+    {
+      label: "Последни 30 дни",
+      href: buildReportsHref({
+        dateFrom: formatDateInput(
+          last30DaysStart,
+        ),
+        dateTo: formatDateInput(today),
+      }),
+    },
+  ];
+}
+
+function buildReportsHref({
+  dateFrom,
+  dateTo,
+}: {
+  dateFrom: string;
+  dateTo: string;
+}): string {
+  const params = new URLSearchParams();
+
+  if (dateFrom !== "") {
+    params.set("dateFrom", dateFrom);
+  }
+
+  if (dateTo !== "") {
+    params.set("dateTo", dateTo);
+  }
+
+  const queryString = params.toString();
+
+  return queryString === ""
+    ? "/reports"
+    : `/reports?${queryString}`;
+}
+
+function readSingleSearchParam(
+  value: string | string[] | undefined,
+): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
+
+function normalizeDateParam(value: string): string {
+  const trimmedValue = value.trim();
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)
+    ? trimmedValue
+    : "";
+}
+
+function parseDateInputStart(
+  value: string,
+): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function parseDateInputExclusiveEnd(
+  value: string,
+): Date {
+  const date = parseDateInputStart(value);
+
+  date.setUTCDate(date.getUTCDate() + 1);
+
+  return date;
+}
+
+function formatDateInputForDisplay(
+  value: string,
+): string {
+  return dateFormatter.format(
+    parseDateInputStart(value),
+  );
+}
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+
+  copy.setHours(0, 0, 0, 0);
+
+  return copy;
+}
+
+function startOfIsoWeek(date: Date): Date {
+  const copy = startOfDay(date);
+
+  const dayOffset =
+    (copy.getDay() + 6) % 7;
+
+  copy.setDate(copy.getDate() - dayOffset);
+
+  return copy;
+}
+
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+  const day = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function toNullableNumber(
