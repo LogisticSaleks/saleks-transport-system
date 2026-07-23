@@ -72,6 +72,11 @@ type CourseSettlementApiResponse = {
   error?: string;
 };
 
+type SettlementStatusFilterValue =
+  | "ALL"
+  | "PROBLEM"
+  | WeeklyTruckRevenueReportCourseRow["settlementStatus"];
+
 type SaveSettlementInput = {
   reportId: string;
   course: WeeklyTruckRevenueReportCourseRow;
@@ -84,6 +89,54 @@ type DashboardWeeklyReportsProps = {
   trucks: readonly DashboardTruckOption[];
   initialReports: readonly WeeklyTruckRevenueReportRow[];
 };
+
+const SETTLEMENT_FILTER_OPTIONS: readonly {
+  value: SettlementStatusFilterValue;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "ALL",
+    label: "All",
+    description: "Показва всички курсове.",
+  },
+  {
+    value: "PROBLEM",
+    label: "Problems only",
+    description:
+      "Показва Not checked, Underpaid и Disputed.",
+  },
+  {
+    value: "NOT_CHECKED",
+    label: "Not checked",
+    description:
+      "Показва курсове без въведена призната сума.",
+  },
+  {
+    value: "UNDERPAID",
+    label: "Underpaid",
+    description:
+      "Показва курсове с призната сума под очакваната.",
+  },
+  {
+    value: "OVERPAID",
+    label: "Overpaid",
+    description:
+      "Показва курсове с призната сума над очакваната.",
+  },
+  {
+    value: "DISPUTED",
+    label: "Disputed",
+    description:
+      "Показва курсове, отбелязани като спорни.",
+  },
+  {
+    value: "OK",
+    label: "OK",
+    description:
+      "Показва проверени курсове без разлика.",
+  },
+];
 
 export default function DashboardWeeklyReports({
   initialYear,
@@ -114,6 +167,8 @@ export default function DashboardWeeklyReports({
     useState<string | null>(null);
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null);
+  const [settlementFilter, setSettlementFilter] =
+    useState<SettlementStatusFilterValue>("ALL");
 
   const parsedYear = parsePositiveInteger(year);
   const parsedWeekNumber = parsePositiveInteger(weekNumber);
@@ -135,42 +190,59 @@ export default function DashboardWeeklyReports({
     [reports],
   );
 
+  const filteredReports = useMemo(
+    () =>
+      sortedReports
+        .map((report) =>
+          applySettlementFilterToReport(
+            report,
+            settlementFilter,
+          ),
+        )
+        .filter(
+          (report) =>
+            settlementFilter === "ALL" ||
+            report.courses.length > 0,
+        ),
+    [sortedReports, settlementFilter],
+  );
+
   const dashboardTotals = useMemo(
     () => ({
-      reportsCount: sortedReports.length,
-      courseCount: sortedReports.reduce(
+      reportsCount: filteredReports.length,
+      courseCount: filteredReports.reduce(
         (sum, report) => sum + report.courseCount,
         0,
       ),
-      expectedRevenue: sortedReports.reduce(
+      expectedRevenue: filteredReports.reduce(
         (sum, report) => sum + report.expectedRevenue,
         0,
       ),
-      settlementAmount: sortedReports.reduce(
+      settlementAmount: filteredReports.reduce(
         (sum, report) => sum + report.settlementAmount,
         0,
       ),
-      settlementDifference: sortedReports.reduce(
+      settlementDifference: filteredReports.reduce(
         (sum, report) => sum + report.settlementDifference,
         0,
       ),
-      totalRevenue: sortedReports.reduce(
+      totalRevenue: filteredReports.reduce(
         (sum, report) => sum + report.totalRevenue,
         0,
       ),
-      underpaidCount: sortedReports.reduce(
+      underpaidCount: filteredReports.reduce(
         (sum, report) => sum + report.underpaidCount,
         0,
       ),
-      notCheckedCount: sortedReports.reduce(
+      notCheckedCount: filteredReports.reduce(
         (sum, report) => sum + report.notCheckedCount,
         0,
       ),
-      lockedCount: sortedReports.filter(
+      lockedCount: filteredReports.filter(
         (report) => report.isLocked,
       ).length,
     }),
-    [sortedReports],
+    [filteredReports],
   );
 
   async function handleLoadReports(): Promise<void> {
@@ -557,6 +629,80 @@ export default function DashboardWeeklyReports({
         )}
       </section>
 
+      <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-950">
+              Settlement filter
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              {getSettlementFilterDescription(settlementFilter)}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+              Status
+              <select
+                value={settlementFilter}
+                onChange={(event) =>
+                  setSettlementFilter(
+                    event.target
+                      .value as SettlementStatusFilterValue,
+                  )
+                }
+                className="h-10 min-w-48 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              >
+                {SETTLEMENT_FILTER_OPTIONS.map((option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {settlementFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSettlementFilter("ALL")
+                }
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-400 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+          <span>
+            Показани камиони:{" "}
+            <strong className="text-slate-900">
+              {filteredReports.length}
+            </strong>
+          </span>
+
+          <span>
+            Показани курсове:{" "}
+            <strong className="text-slate-900">
+              {dashboardTotals.courseCount}
+            </strong>
+          </span>
+
+          {settlementFilter !== "ALL" && (
+            <span className="font-semibold text-sky-700">
+              Активен settlement filter:{" "}
+              {getSettlementFilterLabel(settlementFilter)}
+            </span>
+          )}
+        </div>
+      </section>
+
       <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label="Отчети"
@@ -628,15 +774,18 @@ export default function DashboardWeeklyReports({
           </div>
         </div>
 
-        {sortedReports.length === 0 ? (
+        {filteredReports.length === 0 ? (
           <div className="px-4 py-10 text-center">
             <p className="text-sm font-medium text-slate-700">
-              Няма запазени отчети за тази седмица.
+              {reports.length === 0
+                ? "Няма запазени отчети за тази седмица."
+                : "Няма курсове по избрания settlement filter."}
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Натисни “Генерирай”, за да създадеш отчети за
-              активните камиони.
+              {reports.length === 0
+                ? "Натисни “Генерирай”, за да създадеш отчети за активните камиони."
+                : "Промени филтъра или избери All, за да видиш всички курсове."}
             </p>
           </div>
         ) : (
@@ -669,7 +818,7 @@ export default function DashboardWeeklyReports({
               </thead>
 
               <tbody>
-                {sortedReports.map((report) => (
+                {filteredReports.map((report) => (
                   <ReportRows
                     key={report.id}
                     report={report}
@@ -697,6 +846,65 @@ export default function DashboardWeeklyReports({
         )}
       </section>
     </div>
+  );
+}
+
+function applySettlementFilterToReport(
+  report: WeeklyTruckRevenueReportRow,
+  filter: SettlementStatusFilterValue,
+): WeeklyTruckRevenueReportRow {
+  if (filter === "ALL") {
+    return report;
+  }
+
+  const courses = report.courses.filter(
+    (course) =>
+      matchesSettlementFilter(course, filter),
+  );
+
+  return recalculateReportTotals({
+    ...report,
+    courses,
+  });
+}
+
+function matchesSettlementFilter(
+  course: WeeklyTruckRevenueReportCourseRow,
+  filter: SettlementStatusFilterValue,
+): boolean {
+  if (filter === "ALL") {
+    return true;
+  }
+
+  if (filter === "PROBLEM") {
+    return (
+      course.settlementStatus === "NOT_CHECKED" ||
+      course.settlementStatus === "UNDERPAID" ||
+      course.settlementStatus === "DISPUTED"
+    );
+  }
+
+  return course.settlementStatus === filter;
+}
+
+function getSettlementFilterLabel(
+  filter: SettlementStatusFilterValue,
+): string {
+  return (
+    SETTLEMENT_FILTER_OPTIONS.find(
+      (option) => option.value === filter,
+    )?.label ?? filter
+  );
+}
+
+function getSettlementFilterDescription(
+  filter: SettlementStatusFilterValue,
+): string {
+  return (
+    SETTLEMENT_FILTER_OPTIONS.find(
+      (option) => option.value === filter,
+    )?.description ??
+    "Показва курсове според settlement статуса."
   );
 }
 
