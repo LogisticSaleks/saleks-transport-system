@@ -66,6 +66,16 @@ type AddressApiResponse = {
   error?: string;
 };
 
+type AddressGeocodeApiResponse =
+  AddressApiResponse & {
+    geocoding?: {
+      searchText?: string;
+      formattedAddress?: string | null;
+      latitude?: number;
+      longitude?: number;
+    };
+  };
+
 type AddressManagementProps = {
   initialAddresses: readonly AddressManagementRow[];
 };
@@ -132,6 +142,11 @@ export default function AddressManagement({
 
   const [isSaving, setIsSaving] =
     useState(false);
+
+  const [
+    geocodingAddressId,
+    setGeocodingAddressId,
+  ] = useState<string | null>(null);
 
   const [saveError, setSaveError] =
     useState("");
@@ -321,6 +336,73 @@ export default function AddressManagement({
           ? error.message
           : "Address status could not be updated.",
       );
+    }
+  }
+
+  async function handleFindCoordinates(
+    address: AddressManagementRow,
+  ): Promise<void> {
+    setSaveError("");
+    setSuccessMessage("");
+    setGeocodingAddressId(address.id);
+
+    try {
+      const response = await fetch(
+        "/api/addresses/geocode",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            id: address.id,
+          }),
+        },
+      );
+
+      const data =
+        (await response.json()) as AddressGeocodeApiResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Coordinates could not be found.",
+        );
+      }
+
+      if (!data.address) {
+        throw new Error(
+          "Address response is missing.",
+        );
+      }
+
+      setAddresses((currentAddresses) =>
+        upsertAddress(
+          currentAddresses,
+          data.address!,
+        ),
+      );
+
+      if (editingId === address.id) {
+        setForm(
+          addressToForm(data.address),
+        );
+      }
+
+      setSuccessMessage(
+        data.geocoding?.formattedAddress
+          ? `Координатите са добавени: ${data.geocoding.formattedAddress}`
+          : "Координатите са добавени.",
+      );
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Coordinates could not be found.",
+      );
+    } finally {
+      setGeocodingAddressId(null);
     }
   }
 
@@ -739,9 +821,15 @@ export default function AddressManagement({
 
         <AddressTable
           addresses={visibleAddresses}
+          geocodingAddressId={
+            geocodingAddressId
+          }
           onEdit={handleEdit}
           onToggleActive={
             handleToggleActive
+          }
+          onFindCoordinates={
+            handleFindCoordinates
           }
         />
       </section>
@@ -788,14 +876,20 @@ function SummaryCard({
 
 function AddressTable({
   addresses,
+  geocodingAddressId,
   onEdit,
   onToggleActive,
+  onFindCoordinates,
 }: {
   addresses: readonly AddressManagementRow[];
+  geocodingAddressId: string | null;
   onEdit: (
     address: AddressManagementRow,
   ) => void;
   onToggleActive: (
+    address: AddressManagementRow,
+  ) => void;
+  onFindCoordinates: (
     address: AddressManagementRow,
   ) => void;
 }) {
@@ -809,7 +903,7 @@ function AddressTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1250px] border-collapse text-sm">
+      <table className="w-full min-w-[1360px] border-collapse text-sm">
         <thead className="bg-slate-50">
           <tr>
             <HeaderCell>Име</HeaderCell>
@@ -944,6 +1038,24 @@ function AddressTable({
                   >
                     Edit
                   </button>
+
+                  {!hasCoordinates(address) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onFindCoordinates(address)
+                      }
+                      disabled={
+                        geocodingAddressId !== null
+                      }
+                      className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {geocodingAddressId ===
+                      address.id
+                        ? "Finding..."
+                        : "Find coordinates"}
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -1321,8 +1433,20 @@ function isAutoCreatedAddress(
     "notes"
   >,
 ): boolean {
-  return address.notes.includes(
-    "SOURCE:COURSE_AUTO_ADDRESS",
+  const notes = address.notes;
+  const normalizedNotes =
+    notes.toLocaleLowerCase("bg-BG");
+
+  return (
+    notes.includes(
+      "SOURCE:COURSE_AUTO_ADDRESS",
+    ) ||
+    normalizedNotes.includes(
+      "създаден автоматично от курс",
+    ) ||
+    normalizedNotes.includes(
+      "auto-created from course",
+    )
   );
 }
 
