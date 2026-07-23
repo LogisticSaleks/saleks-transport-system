@@ -16,6 +16,10 @@ type CourseForWeeklyReport = {
   containerNumber: string | null;
   agreedPrice: unknown;
   waitingAmount: unknown;
+  settlementAmount: unknown;
+  settlementStatus: SettlementStatusValue;
+  settlementReference: string | null;
+  settlementNotes: string | null;
   customer: {
     name: string;
   };
@@ -40,6 +44,13 @@ type AddressForRouteLabel = {
   country: string;
 };
 
+type SettlementStatusValue =
+  | "NOT_CHECKED"
+  | "OK"
+  | "UNDERPAID"
+  | "OVERPAID"
+  | "DISPUTED";
+
 type WeeklyReportCourseSnapshot = {
   courseId: string;
   courseDate: Date;
@@ -51,6 +62,42 @@ type WeeklyReportCourseSnapshot = {
   agreedPrice: number;
   waitingAmount: number;
   totalRevenue: number;
+};
+
+type WeeklyReportCourseForResponse = {
+  id: string;
+  courseId: string | null;
+  courseDate: Date;
+  customerNameAtReport: string;
+  courseTypeAtReport: "ROUND_TRIP" | "SHUNT";
+  containerNumber: string | null;
+  routeLabel: string;
+  tariffNameAtBooking: string | null;
+  agreedPrice: unknown;
+  waitingAmount: unknown;
+  totalRevenue: unknown;
+  course: {
+    settlementAmount: unknown;
+    settlementStatus: SettlementStatusValue;
+    settlementReference: string | null;
+    settlementNotes: string | null;
+  } | null;
+};
+
+type WeeklyReportForResponse = {
+  id: string;
+  year: number;
+  weekNumber: number;
+  weekStartDate: Date;
+  weekEndDate: Date;
+  truckId: string | null;
+  truckNameAtReport: string;
+  truckLicensePlateAtReport: string;
+  courseCount: number;
+  totalRevenue: unknown;
+  generatedAt: Date;
+  isLocked: boolean;
+  courses: WeeklyReportCourseForResponse[];
 };
 
 /**
@@ -78,7 +125,11 @@ export async function GET(request: Request) {
       }
 
       return NextResponse.json({
-        report: serializeForJson(report),
+        report: serializeForJson(
+          buildWeeklyReportResponse(
+            report as WeeklyReportForResponse,
+          ),
+        ),
       });
     }
 
@@ -118,7 +169,13 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      reports: serializeForJson(reports),
+      reports: serializeForJson(
+        reports.map((report) =>
+          buildWeeklyReportResponse(
+            report as WeeklyReportForResponse,
+          ),
+        ),
+      ),
     });
   } catch (error) {
     return handleApiError(error);
@@ -165,7 +222,11 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      report: serializeForJson(report),
+      report: serializeForJson(
+        buildWeeklyReportResponse(
+          report as WeeklyReportForResponse,
+        ),
+      ),
     });
   } catch (error) {
     return handleApiError(error);
@@ -211,7 +272,11 @@ export async function PATCH(request: Request) {
       });
 
     return NextResponse.json({
-      report: serializeForJson(report),
+      report: serializeForJson(
+        buildWeeklyReportResponse(
+          report as WeeklyReportForResponse,
+        ),
+      ),
     });
   } catch (error) {
     return handleApiError(error);
@@ -401,6 +466,10 @@ async function findCoursesForTruckWeek(
       containerNumber: true,
       agreedPrice: true,
       waitingAmount: true,
+      settlementAmount: true,
+      settlementStatus: true,
+      settlementReference: true,
+      settlementNotes: true,
       customer: {
         select: {
           name: true,
@@ -491,6 +560,11 @@ function buildWeeklyReportCourseSnapshot(
 ): WeeklyReportCourseSnapshot {
   const agreedPrice = toNumber(course.agreedPrice);
   const waitingAmount = toNumber(course.waitingAmount);
+  const expectedRevenue = roundMoney(
+    agreedPrice + waitingAmount,
+  );
+  const settlementAmount =
+    toNullableNumber(course.settlementAmount);
 
   return {
     courseId: course.id,
@@ -506,8 +580,187 @@ function buildWeeklyReportCourseSnapshot(
       normalizeOptionalString(course.customerTariff?.name),
     agreedPrice: roundMoney(agreedPrice),
     waitingAmount: roundMoney(waitingAmount),
-    totalRevenue: roundMoney(agreedPrice + waitingAmount),
+    totalRevenue: settlementAmount ?? expectedRevenue,
   };
+}
+
+function buildWeeklyReportResponse(
+  report: WeeklyReportForResponse,
+) {
+  const courses = report.courses.map(
+    buildWeeklyReportCourseResponse,
+  );
+
+  const expectedRevenue = roundMoney(
+    courses.reduce(
+      (sum, course) => sum + course.expectedRevenue,
+      0,
+    ),
+  );
+
+  const totalRevenue = roundMoney(
+    courses.reduce(
+      (sum, course) => sum + course.totalRevenue,
+      0,
+    ),
+  );
+
+  const settlementAmount = roundMoney(
+    courses.reduce(
+      (sum, course) =>
+        sum + (course.settlementAmount ?? 0),
+      0,
+    ),
+  );
+
+  const settlementDifference = roundMoney(
+    totalRevenue - expectedRevenue,
+  );
+
+  const settlementCheckedCount =
+    courses.filter(
+      (course) =>
+        course.settlementAmount !== null,
+    ).length;
+
+  const notCheckedCount =
+    courses.length - settlementCheckedCount;
+
+  const underpaidCount = courses.filter(
+    (course) =>
+      course.settlementStatus === "UNDERPAID",
+  ).length;
+
+  return {
+    id: report.id,
+    year: report.year,
+    weekNumber: report.weekNumber,
+    weekStartDate: report.weekStartDate,
+    weekEndDate: report.weekEndDate,
+    truckId: report.truckId,
+    truckNameAtReport: report.truckNameAtReport,
+    truckLicensePlateAtReport:
+      report.truckLicensePlateAtReport,
+    courseCount: report.courseCount,
+    expectedRevenue,
+    settlementAmount,
+    settlementDifference,
+    settlementCheckedCount,
+    notCheckedCount,
+    underpaidCount,
+    totalRevenue,
+    generatedAt: report.generatedAt,
+    isLocked: report.isLocked,
+    courses,
+  };
+}
+
+function buildWeeklyReportCourseResponse(
+  course: WeeklyReportCourseForResponse,
+) {
+  const agreedPrice = roundMoney(
+    toNumber(course.agreedPrice),
+  );
+
+  const waitingAmount = roundMoney(
+    toNumber(course.waitingAmount),
+  );
+
+  const expectedRevenue = roundMoney(
+    agreedPrice + waitingAmount,
+  );
+
+  const settlementAmount =
+    toNullableNumber(
+      course.course?.settlementAmount,
+    );
+
+  const settlementDifference =
+    settlementAmount === null
+      ? null
+      : roundMoney(
+          settlementAmount - expectedRevenue,
+        );
+
+  const totalRevenue =
+    settlementAmount ?? expectedRevenue;
+
+  const settlementStatus =
+    normalizeSettlementStatus({
+      settlementStatus:
+        course.course?.settlementStatus ??
+        "NOT_CHECKED",
+      settlementAmount,
+      settlementDifference,
+    });
+
+  return {
+    id: course.id,
+    courseId: course.courseId,
+    courseDate: course.courseDate,
+    customerNameAtReport:
+      course.customerNameAtReport,
+    courseTypeAtReport:
+      course.courseTypeAtReport,
+    containerNumber:
+      course.containerNumber,
+    routeLabel: course.routeLabel,
+    tariffNameAtBooking:
+      course.tariffNameAtBooking,
+    agreedPrice,
+    waitingAmount,
+    expectedRevenue,
+    settlementAmount,
+    settlementDifference,
+    settlementStatus,
+    settlementReference:
+      course.course?.settlementReference ??
+      null,
+    settlementNotes:
+      course.course?.settlementNotes ?? null,
+    totalRevenue,
+  };
+}
+
+function normalizeSettlementStatus({
+  settlementStatus,
+  settlementAmount,
+  settlementDifference,
+}: {
+  settlementStatus: SettlementStatusValue;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+}): SettlementStatusValue {
+  if (settlementStatus === "DISPUTED") {
+    return "DISPUTED";
+  }
+
+  if (settlementAmount === null) {
+    return "NOT_CHECKED";
+  }
+
+  if (
+    settlementDifference !== null &&
+    Math.abs(settlementDifference) < 0.01
+  ) {
+    return "OK";
+  }
+
+  if (
+    settlementDifference !== null &&
+    settlementDifference < 0
+  ) {
+    return "UNDERPAID";
+  }
+
+  if (
+    settlementDifference !== null &&
+    settlementDifference > 0
+  ) {
+    return "OVERPAID";
+  }
+
+  return settlementStatus;
 }
 
 function buildRouteLabel(course: CourseForWeeklyReport): string {
@@ -569,6 +822,16 @@ function formatAddressForRouteLabel(
 function buildWeeklyReportInclude() {
   return {
     courses: {
+      include: {
+        course: {
+          select: {
+            settlementAmount: true,
+            settlementStatus: true,
+            settlementReference: true,
+            settlementNotes: true,
+          },
+        },
+      },
       orderBy: [
         {
           courseDate: "asc" as const,
@@ -818,6 +1081,21 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsedValue)
     ? parsedValue
     : 0;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  const parsedValue = toNumber(value);
+
+  return Number.isFinite(parsedValue)
+    ? parsedValue
+    : null;
 }
 
 function roundMoney(value: number): number {

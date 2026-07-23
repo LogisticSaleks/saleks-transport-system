@@ -20,6 +20,17 @@ export type WeeklyTruckRevenueReportCourseRow = {
   tariffNameAtBooking: string | null;
   agreedPrice: number;
   waitingAmount: number;
+  expectedRevenue: number;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+  settlementStatus:
+    | "NOT_CHECKED"
+    | "OK"
+    | "UNDERPAID"
+    | "OVERPAID"
+    | "DISPUTED";
+  settlementReference: string | null;
+  settlementNotes: string | null;
   totalRevenue: number;
 };
 
@@ -33,6 +44,12 @@ export type WeeklyTruckRevenueReportRow = {
   truckNameAtReport: string;
   truckLicensePlateAtReport: string;
   courseCount: number;
+  expectedRevenue: number;
+  settlementAmount: number;
+  settlementDifference: number;
+  settlementCheckedCount: number;
+  notCheckedCount: number;
+  underpaidCount: number;
   totalRevenue: number;
   generatedAt: string;
   isLocked: boolean;
@@ -105,8 +122,28 @@ export default function DashboardWeeklyReports({
         (sum, report) => sum + report.courseCount,
         0,
       ),
+      expectedRevenue: sortedReports.reduce(
+        (sum, report) => sum + report.expectedRevenue,
+        0,
+      ),
+      settlementAmount: sortedReports.reduce(
+        (sum, report) => sum + report.settlementAmount,
+        0,
+      ),
+      settlementDifference: sortedReports.reduce(
+        (sum, report) => sum + report.settlementDifference,
+        0,
+      ),
       totalRevenue: sortedReports.reduce(
         (sum, report) => sum + report.totalRevenue,
+        0,
+      ),
+      underpaidCount: sortedReports.reduce(
+        (sum, report) => sum + report.underpaidCount,
+        0,
+      ),
+      notCheckedCount: sortedReports.reduce(
+        (sum, report) => sum + report.notCheckedCount,
         0,
       ),
       lockedCount: sortedReports.filter(
@@ -302,8 +339,9 @@ export default function DashboardWeeklyReports({
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
               Избери година и седмица, генерирай отчетите за
               активните камиони и ги отвори по всяко време.
-              Тук се показват само приходи: цена на курса плюс
-              начислен престой. Разходите остават в Courses.
+              Тук се показват приходи по камион. Ако има призната
+              сума от клиента, тя коригира реалния приход спрямо
+              очакваната цена на курса.
             </p>
           </div>
 
@@ -388,7 +426,7 @@ export default function DashboardWeeklyReports({
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label="Отчети"
           value={String(dashboardTotals.reportsCount)}
@@ -400,13 +438,33 @@ export default function DashboardWeeklyReports({
         />
 
         <MetricCard
-          label="Общ приход"
+          label="Очакван приход"
+          value={formatMoney(dashboardTotals.expectedRevenue)}
+        />
+
+        <MetricCard
+          label="Реален приход"
           value={formatMoney(dashboardTotals.totalRevenue)}
         />
 
         <MetricCard
-          label="Заключени"
-          value={`${dashboardTotals.lockedCount}/${dashboardTotals.reportsCount}`}
+          label="Разлика"
+          value={formatMoneyWithSign(
+            dashboardTotals.settlementDifference,
+          )}
+          tone={getMoneyTone(
+            dashboardTotals.settlementDifference,
+          )}
+        />
+
+        <MetricCard
+          label="Underpaid / Not checked"
+          value={`${dashboardTotals.underpaidCount}/${dashboardTotals.notCheckedCount}`}
+          tone={
+            dashboardTotals.underpaidCount > 0
+              ? "negative"
+              : "default"
+          }
         />
       </section>
 
@@ -546,8 +604,27 @@ function ReportRows({
           {report.courseCount}
         </td>
 
-        <td className="border-b border-slate-200 px-4 py-3 text-right font-bold text-emerald-700">
-          {formatMoney(report.totalRevenue)}
+        <td className="border-b border-slate-200 px-4 py-3 text-right">
+          <div className="font-bold text-emerald-700">
+            {formatMoney(report.totalRevenue)}
+          </div>
+
+          <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+            <div>
+              Очакван: {formatMoney(report.expectedRevenue)}
+            </div>
+            <div>
+              Признат: {formatMoney(report.settlementAmount)}
+            </div>
+            <div
+              className={getMoneyTextClass(
+                report.settlementDifference,
+              )}
+            >
+              Разлика:{" "}
+              {formatMoneyWithSign(report.settlementDifference)}
+            </div>
+          </div>
         </td>
 
         <td className="border-b border-slate-200 px-4 py-3">
@@ -561,6 +638,22 @@ function ReportRows({
           >
             {report.isLocked ? "Заключен" : "Отворен"}
           </span>
+
+          <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+            <div>
+              Checked: {report.settlementCheckedCount}/{report.courseCount}
+            </div>
+            {report.underpaidCount > 0 && (
+              <div className="font-semibold text-red-700">
+                Underpaid: {report.underpaidCount}
+              </div>
+            )}
+            {report.notCheckedCount > 0 && (
+              <div className="font-semibold text-amber-700">
+                Not checked: {report.notCheckedCount}
+              </div>
+            )}
+          </div>
         </td>
 
         <td className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600">
@@ -622,7 +715,7 @@ function ReportCoursesTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
-      <table className="w-full min-w-[900px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[1150px] border-collapse text-left text-xs">
         <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
           <tr>
             <th className="border-b border-slate-300 px-3 py-2">
@@ -645,6 +738,18 @@ function ReportCoursesTable({
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
               Престой
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Очакван
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Призната
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              Разлика
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
+              Settlement
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
               Приход
@@ -686,6 +791,39 @@ function ReportCoursesTable({
                 {formatMoney(course.waitingAmount)}
               </td>
 
+              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
+                {formatMoney(course.expectedRevenue)}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
+                {formatNullableMoney(course.settlementAmount)}
+              </td>
+
+              <td
+                className={[
+                  "border-b border-slate-200 px-3 py-2 text-right font-semibold",
+                  getMoneyTextClass(
+                    course.settlementDifference,
+                  ),
+                ].join(" ")}
+              >
+                {formatNullableMoneyWithSign(
+                  course.settlementDifference,
+                )}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2">
+                <SettlementStatusBadge
+                  status={course.settlementStatus}
+                />
+
+                {course.settlementReference && (
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    {course.settlementReference}
+                  </div>
+                )}
+              </td>
+
               <td className="border-b border-slate-200 px-3 py-2 text-right font-semibold text-emerald-700">
                 {formatMoney(course.totalRevenue)}
               </td>
@@ -697,12 +835,75 @@ function ReportCoursesTable({
   );
 }
 
+function SettlementStatusBadge({
+  status,
+}: {
+  status: WeeklyTruckRevenueReportCourseRow["settlementStatus"];
+}) {
+  return (
+    <span
+      className={[
+        "inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold",
+        getSettlementStatusClassName(status),
+      ].join(" ")}
+    >
+      {formatSettlementStatus(status)}
+    </span>
+  );
+}
+
+function formatSettlementStatus(
+  status: WeeklyTruckRevenueReportCourseRow["settlementStatus"],
+): string {
+  switch (status) {
+    case "OK":
+      return "OK";
+
+    case "UNDERPAID":
+      return "Underpaid";
+
+    case "OVERPAID":
+      return "Overpaid";
+
+    case "DISPUTED":
+      return "Disputed";
+
+    case "NOT_CHECKED":
+    default:
+      return "Not checked";
+  }
+}
+
+function getSettlementStatusClassName(
+  status: WeeklyTruckRevenueReportCourseRow["settlementStatus"],
+): string {
+  switch (status) {
+    case "OK":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+    case "UNDERPAID":
+      return "border-red-200 bg-red-50 text-red-700";
+
+    case "OVERPAID":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+
+    case "DISPUTED":
+      return "border-purple-200 bg-purple-50 text-purple-700";
+
+    case "NOT_CHECKED":
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
 function MetricCard({
   label,
   value,
+  tone = "default",
 }: {
   label: string;
   value: string;
+  tone?: "default" | "positive" | "negative";
 }) {
   return (
     <div className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
@@ -710,7 +911,16 @@ function MetricCard({
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-bold text-slate-950">
+      <p
+        className={[
+          "mt-2 text-2xl font-bold",
+          tone === "positive"
+            ? "text-emerald-700"
+            : tone === "negative"
+              ? "text-red-700"
+              : "text-slate-950",
+        ].join(" ")}
+      >
         {value}
       </p>
     </div>
@@ -729,6 +939,56 @@ function parsePositiveInteger(value: string): number | null {
 
 function formatMoney(value: number): string {
   return `€${value.toFixed(2)}`;
+}
+
+function formatMoneyWithSign(value: number): string {
+  if (value > 0) {
+    return `+${formatMoney(value)}`;
+  }
+
+  if (value < 0) {
+    return `-${formatMoney(Math.abs(value))}`;
+  }
+
+  return formatMoney(0);
+}
+
+function formatNullableMoney(value: number | null): string {
+  return value === null ? "—" : formatMoney(value);
+}
+
+function formatNullableMoneyWithSign(
+  value: number | null,
+): string {
+  return value === null
+    ? "—"
+    : formatMoneyWithSign(value);
+}
+
+function getMoneyTone(
+  value: number,
+): "default" | "positive" | "negative" {
+  if (value > 0.005) {
+    return "positive";
+  }
+
+  if (value < -0.005) {
+    return "negative";
+  }
+
+  return "default";
+}
+
+function getMoneyTextClass(
+  value: number | null,
+): string {
+  if (value === null || Math.abs(value) < 0.005) {
+    return "text-slate-700";
+  }
+
+  return value > 0
+    ? "text-emerald-700"
+    : "text-red-700";
 }
 
 function formatDate(value: string): string {

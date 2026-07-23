@@ -18,7 +18,20 @@ type WeeklyReportCourseForDashboard = {
   agreedPrice: unknown;
   waitingAmount: unknown;
   totalRevenue: unknown;
+  course: {
+    settlementAmount: unknown;
+    settlementStatus: SettlementStatusValue;
+    settlementReference: string | null;
+    settlementNotes: string | null;
+  } | null;
 };
+
+type SettlementStatusValue =
+  | "NOT_CHECKED"
+  | "OK"
+  | "UNDERPAID"
+  | "OVERPAID"
+  | "DISPUTED";
 
 type WeeklyReportForDashboard = {
   id: string;
@@ -67,6 +80,16 @@ export default async function DashboardPage() {
       },
       include: {
         courses: {
+          include: {
+            course: {
+              select: {
+                settlementAmount: true,
+                settlementStatus: true,
+                settlementReference: true,
+                settlementNotes: true,
+              },
+            },
+          },
           orderBy: [
             {
               courseDate: "asc",
@@ -119,6 +142,38 @@ function mapTruckForDashboard(
 function mapWeeklyReportForDashboard(
   report: WeeklyReportForDashboard,
 ): WeeklyTruckRevenueReportRow {
+  const courses = report.courses.map(
+    mapWeeklyReportCourseForDashboard,
+  );
+
+  const expectedRevenue = roundMoney(
+    courses.reduce(
+      (sum, course) => sum + course.expectedRevenue,
+      0,
+    ),
+  );
+
+  const totalRevenue = roundMoney(
+    courses.reduce(
+      (sum, course) => sum + course.totalRevenue,
+      0,
+    ),
+  );
+
+  const settlementAmount = roundMoney(
+    courses.reduce(
+      (sum, course) =>
+        sum + (course.settlementAmount ?? 0),
+      0,
+    ),
+  );
+
+  const settlementCheckedCount =
+    courses.filter(
+      (course) =>
+        course.settlementAmount !== null,
+    ).length;
+
   return {
     id: report.id,
     year: report.year,
@@ -127,24 +182,118 @@ function mapWeeklyReportForDashboard(
     weekEndDate: report.weekEndDate.toISOString(),
     truckId: report.truckId,
     truckNameAtReport: report.truckNameAtReport,
-    truckLicensePlateAtReport: report.truckLicensePlateAtReport,
+    truckLicensePlateAtReport:
+      report.truckLicensePlateAtReport,
     courseCount: report.courseCount,
-    totalRevenue: toNumber(report.totalRevenue),
+    expectedRevenue,
+    settlementAmount,
+    settlementDifference:
+      roundMoney(totalRevenue - expectedRevenue),
+    settlementCheckedCount,
+    notCheckedCount:
+      courses.length - settlementCheckedCount,
+    underpaidCount: courses.filter(
+      (course) =>
+        course.settlementStatus === "UNDERPAID",
+    ).length,
+    totalRevenue,
     generatedAt: report.generatedAt.toISOString(),
     isLocked: report.isLocked,
-    courses: report.courses.map((course) => ({
-      id: course.id,
-      courseDate: course.courseDate.toISOString(),
-      customerNameAtReport: course.customerNameAtReport,
-      courseTypeAtReport: course.courseTypeAtReport,
-      containerNumber: course.containerNumber,
-      routeLabel: course.routeLabel,
-      tariffNameAtBooking: course.tariffNameAtBooking,
-      agreedPrice: toNumber(course.agreedPrice),
-      waitingAmount: toNumber(course.waitingAmount),
-      totalRevenue: toNumber(course.totalRevenue),
-    })),
+    courses,
   };
+}
+
+function mapWeeklyReportCourseForDashboard(
+  course: WeeklyReportCourseForDashboard,
+) {
+  const agreedPrice = toNumber(course.agreedPrice);
+  const waitingAmount = toNumber(course.waitingAmount);
+  const expectedRevenue = roundMoney(
+    agreedPrice + waitingAmount,
+  );
+  const settlementAmount = toNullableNumber(
+    course.course?.settlementAmount,
+  );
+  const settlementDifference =
+    settlementAmount === null
+      ? null
+      : roundMoney(
+          settlementAmount - expectedRevenue,
+        );
+  const settlementStatus =
+    normalizeSettlementStatus({
+      settlementStatus:
+        course.course?.settlementStatus ??
+        "NOT_CHECKED",
+      settlementAmount,
+      settlementDifference,
+    });
+
+  return {
+    id: course.id,
+    courseDate: course.courseDate.toISOString(),
+    customerNameAtReport:
+      course.customerNameAtReport,
+    courseTypeAtReport:
+      course.courseTypeAtReport,
+    containerNumber: course.containerNumber,
+    routeLabel: course.routeLabel,
+    tariffNameAtBooking:
+      course.tariffNameAtBooking,
+    agreedPrice,
+    waitingAmount,
+    expectedRevenue,
+    settlementAmount,
+    settlementDifference,
+    settlementStatus,
+    settlementReference:
+      course.course?.settlementReference ?? null,
+    settlementNotes:
+      course.course?.settlementNotes ?? null,
+    totalRevenue:
+      settlementAmount ?? expectedRevenue,
+  };
+}
+
+function normalizeSettlementStatus({
+  settlementStatus,
+  settlementAmount,
+  settlementDifference,
+}: {
+  settlementStatus: SettlementStatusValue;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+}): SettlementStatusValue {
+  if (settlementStatus === "DISPUTED") {
+    return "DISPUTED";
+  }
+
+  if (settlementAmount === null) {
+    return "NOT_CHECKED";
+  }
+
+  if (
+    settlementDifference !== null &&
+    Math.abs(settlementDifference) < 0.01
+  ) {
+    return "OK";
+  }
+
+  if (
+    settlementDifference !== null &&
+    settlementDifference < 0
+  ) {
+    return "UNDERPAID";
+  }
+
+  if (
+    settlementDifference !== null &&
+    settlementDifference > 0
+  ) {
+    return "OVERPAID";
+  }
+
+  return settlementStatus;
 }
 
 function getIsoWeek(date: Date): {
@@ -179,6 +328,24 @@ function getIsoWeek(date: Date): {
     year: targetDate.getUTCFullYear(),
     weekNumber,
   };
+}
+
+function toNullableNumber(
+  value: unknown,
+): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsedValue = toNumber(value);
+
+  return Number.isFinite(parsedValue)
+    ? parsedValue
+    : null;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function toNumber(value: unknown): number {
