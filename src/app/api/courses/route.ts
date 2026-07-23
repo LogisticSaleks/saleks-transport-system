@@ -15,6 +15,14 @@ const COURSE_STATUSES = [
   "INVOICED",
 ] as const;
 
+const SETTLEMENT_STATUSES = [
+  "NOT_CHECKED",
+  "OK",
+  "UNDERPAID",
+  "OVERPAID",
+  "DISPUTED",
+] as const;
+
 const COURSE_TYPES = ["ROUND_TRIP", "SHUNT"] as const;
 
 const TARIFF_TYPES = [
@@ -67,6 +75,8 @@ const SUPPORTED_ADDRESS_COUNTRY_CODES = [
 ] as const;
 
 type CourseStatusValue = (typeof COURSE_STATUSES)[number];
+type SettlementStatusValue =
+  (typeof SETTLEMENT_STATUSES)[number];
 type CourseTypeValue = (typeof COURSE_TYPES)[number];
 type TariffTypeValue = (typeof TARIFF_TYPES)[number];
 type CustomerBillableKmLogicValue =
@@ -111,6 +121,12 @@ type CourseWriteData = {
   waitingHours?: number | null;
   waitingAmount?: number | null;
   portFeeAmount?: number | null;
+
+  settlementAmount?: number | null;
+  settlementStatus?: SettlementStatusValue;
+  settlementCheckedAt?: Date | null;
+  settlementReference?: string | null;
+  settlementNotes?: string | null;
 
   tariffNameAtBooking?: string | null;
   tariffTypeAtBooking?: TariffTypeValue | null;
@@ -349,6 +365,8 @@ export async function POST(request: Request) {
         }),
       );
 
+      applySettlementDataForCreate(courseData, body);
+
       const createdCourse = await transaction.course.create({
         data: courseData as Prisma.CourseUncheckedCreateInput,
       });
@@ -479,6 +497,10 @@ async function updateCourse(request: Request) {
           customerId: true,
           customerTariffId: true,
           billableKm: true,
+          agreedPrice: true,
+          waitingAmount: true,
+          settlementAmount: true,
+          settlementStatus: true,
           pricingSnapshotCreatedAt: true,
         },
       });
@@ -515,6 +537,27 @@ async function updateCourse(request: Request) {
           }),
         );
       }
+
+      applySettlementDataForUpdate(
+        courseData,
+        body,
+        {
+          agreedPrice:
+            decimalToNullableNumber(
+              existingCourse.agreedPrice,
+            ),
+          waitingAmount:
+            decimalToNullableNumber(
+              existingCourse.waitingAmount,
+            ),
+          settlementAmount:
+            decimalToNullableNumber(
+              existingCourse.settlementAmount,
+            ),
+          settlementStatus:
+            existingCourse.settlementStatus,
+        },
+      );
 
       if (hasCourseFields) {
         await transaction.course.update({
@@ -1790,9 +1833,185 @@ function buildCourseWriteData({
   setNullableNumberField(data, body, "waitingAmount");
   setNullableNumberField(data, body, "portFeeAmount");
 
+  setNullableNumberField(data, body, "settlementAmount");
+  setSettlementStatusField(data, body);
+  setNullableDateField(data, body, "settlementCheckedAt");
+  setNullableStringField(data, body, "settlementReference");
+  setNullableStringField(data, body, "settlementNotes");
+
   setNullableStringField(data, body, "notes");
 
   return data;
+}
+
+function applySettlementDataForCreate(
+  data: CourseWriteData,
+  body: JsonObject,
+): void {
+  const hasSettlementAmount =
+    hasOwn(body, "settlementAmount");
+
+  const hasSettlementStatus =
+    hasOwn(body, "settlementStatus");
+
+  if (
+    !hasSettlementAmount &&
+    !hasSettlementStatus
+  ) {
+    return;
+  }
+
+  const settlementAmount =
+    data.settlementAmount ?? null;
+
+  if (settlementAmount === null) {
+    data.settlementStatus = "NOT_CHECKED";
+    data.settlementCheckedAt = null;
+
+    return;
+  }
+
+  if (data.settlementStatus === "DISPUTED") {
+    data.settlementCheckedAt =
+      data.settlementCheckedAt ?? new Date();
+
+    return;
+  }
+
+  data.settlementStatus =
+    calculateSettlementStatus({
+      settlementAmount,
+      agreedPrice: data.agreedPrice ?? null,
+      waitingAmount: data.waitingAmount ?? null,
+    });
+
+  data.settlementCheckedAt =
+    data.settlementCheckedAt ?? new Date();
+}
+
+function applySettlementDataForUpdate(
+  data: CourseWriteData,
+  body: JsonObject,
+  existingCourse: {
+    agreedPrice: number | null;
+    waitingAmount: number | null;
+    settlementAmount: number | null;
+    settlementStatus: SettlementStatusValue;
+  },
+): void {
+  const shouldRecalculateSettlement =
+    hasOwn(body, "settlementAmount") ||
+    hasOwn(body, "settlementStatus") ||
+    hasOwn(body, "agreedPrice") ||
+    hasOwn(body, "waitingAmount");
+
+  if (!shouldRecalculateSettlement) {
+    return;
+  }
+
+  const nextSettlementAmount =
+    hasOwn(body, "settlementAmount")
+      ? data.settlementAmount ?? null
+      : existingCourse.settlementAmount;
+
+  if (nextSettlementAmount === null) {
+    data.settlementStatus = "NOT_CHECKED";
+    data.settlementCheckedAt = null;
+
+    return;
+  }
+
+  const explicitSettlementStatus =
+    hasOwn(body, "settlementStatus")
+      ? data.settlementStatus ?? null
+      : null;
+
+  if (
+    explicitSettlementStatus === "DISPUTED"
+  ) {
+    data.settlementStatus = "DISPUTED";
+    data.settlementCheckedAt =
+      data.settlementCheckedAt ?? new Date();
+
+    return;
+  }
+
+  const nextAgreedPrice =
+    hasOwn(body, "agreedPrice")
+      ? data.agreedPrice ?? null
+      : existingCourse.agreedPrice;
+
+  const nextWaitingAmount =
+    hasOwn(body, "waitingAmount")
+      ? data.waitingAmount ?? null
+      : existingCourse.waitingAmount;
+
+  data.settlementStatus =
+    calculateSettlementStatus({
+      settlementAmount:
+        nextSettlementAmount,
+      agreedPrice: nextAgreedPrice,
+      waitingAmount:
+        nextWaitingAmount,
+    });
+
+  if (
+    hasOwn(body, "settlementAmount") ||
+    hasOwn(body, "settlementStatus")
+  ) {
+    data.settlementCheckedAt =
+      data.settlementCheckedAt ?? new Date();
+  }
+}
+
+function calculateSettlementStatus({
+  settlementAmount,
+  agreedPrice,
+  waitingAmount,
+}: {
+  settlementAmount: number | null;
+  agreedPrice: number | null;
+  waitingAmount: number | null;
+}): SettlementStatusValue {
+  if (settlementAmount === null) {
+    return "NOT_CHECKED";
+  }
+
+  const expectedRevenue =
+    calculateExpectedRevenue({
+      agreedPrice,
+      waitingAmount,
+    });
+
+  const difference =
+    roundMoney(
+      settlementAmount - expectedRevenue,
+    );
+
+  if (Math.abs(difference) < 0.01) {
+    return "OK";
+  }
+
+  return difference < 0
+    ? "UNDERPAID"
+    : "OVERPAID";
+}
+
+function calculateExpectedRevenue({
+  agreedPrice,
+  waitingAmount,
+}: {
+  agreedPrice: number | null;
+  waitingAmount: number | null;
+}): number {
+  return roundMoney(
+    (agreedPrice ?? 0) +
+      (waitingAmount ?? 0),
+  );
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 async function readJsonObject(request: Request): Promise<JsonObject> {
@@ -2035,7 +2254,11 @@ function setNullableNumberField(
 function setNullableDateField(
   data: CourseWriteData,
   body: JsonObject,
-  fieldName: "plannedDate" | "startedAt" | "completedAt",
+  fieldName:
+    | "plannedDate"
+    | "startedAt"
+    | "completedAt"
+    | "settlementCheckedAt",
 ): void {
   if (!hasOwn(body, fieldName)) {
     return;
@@ -2092,6 +2315,28 @@ function setBooleanField(
   }
 
   data[fieldName] = value;
+}
+
+function setSettlementStatusField(
+  data: CourseWriteData,
+  body: JsonObject,
+): void {
+  if (!hasOwn(body, "settlementStatus")) {
+    return;
+  }
+
+  const value = body.settlementStatus;
+
+  if (
+    typeof value !== "string" ||
+    !isSettlementStatus(value)
+  ) {
+    throw new ApiValidationError(
+      `settlementStatus трябва да бъде една от стойностите: ${SETTLEMENT_STATUSES.join(", ")}.`,
+    );
+  }
+
+  data.settlementStatus = value;
 }
 
 function setStatusField(
@@ -2168,6 +2413,14 @@ function readCostType(
   }
 
   return value;
+}
+
+function isSettlementStatus(
+  value: string,
+): value is SettlementStatusValue {
+  return (
+    SETTLEMENT_STATUSES as readonly string[]
+  ).includes(value);
 }
 
 function isCourseStatus(value: string): value is CourseStatusValue {
