@@ -3,6 +3,7 @@
 import {
   type FormEvent,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -120,6 +121,9 @@ export default function AddressManagement({
     useState<AddressFormState>(
       EMPTY_FORM,
     );
+
+  const formSectionRef =
+    useRef<HTMLElement | null>(null);
 
   const [editingId, setEditingId] =
     useState<string | null>(null);
@@ -413,6 +417,13 @@ export default function AddressManagement({
     setSaveError("");
     setSuccessMessage("");
     setForm(addressToForm(address));
+
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }
 
   function handleCancelEdit(): void {
@@ -489,7 +500,15 @@ export default function AddressManagement({
         />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section
+        ref={formSectionRef}
+        className={[
+          "rounded-xl border bg-white p-5 shadow-sm transition",
+          isEditing
+            ? "border-sky-300 ring-2 ring-sky-100"
+            : "border-slate-200",
+        ].join(" ")}
+      >
         <div className="mb-4 flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-slate-900">
             {isEditing
