@@ -77,6 +77,12 @@ type SettlementStatusFilterValue =
   | "PROBLEM"
   | WeeklyTruckRevenueReportCourseRow["settlementStatus"];
 
+type CustomerFilterOption = {
+  value: string;
+  label: string;
+  courseCount: number;
+};
+
 type SaveSettlementInput = {
   reportId: string;
   course: WeeklyTruckRevenueReportCourseRow;
@@ -169,6 +175,8 @@ export default function DashboardWeeklyReports({
     useState<string | null>(null);
   const [settlementFilter, setSettlementFilter] =
     useState<SettlementStatusFilterValue>("ALL");
+  const [customerFilter, setCustomerFilter] =
+    useState("ALL");
 
   const parsedYear = parsePositiveInteger(year);
   const parsedWeekNumber = parsePositiveInteger(weekNumber);
@@ -190,21 +198,34 @@ export default function DashboardWeeklyReports({
     [reports],
   );
 
+  const customerFilterOptions = useMemo(
+    () =>
+      buildCustomerFilterOptions(sortedReports),
+    [sortedReports],
+  );
+
   const filteredReports = useMemo(
     () =>
       sortedReports
         .map((report) =>
-          applySettlementFilterToReport(
+          applyDashboardFiltersToReport({
             report,
             settlementFilter,
-          ),
+            customerFilter,
+          }),
         )
         .filter(
           (report) =>
-            settlementFilter === "ALL" ||
-            report.courses.length > 0,
+            settlementFilter === "ALL" &&
+            customerFilter === "ALL"
+              ? true
+              : report.courses.length > 0,
         ),
-    [sortedReports, settlementFilter],
+    [
+      sortedReports,
+      settlementFilter,
+      customerFilter,
+    ],
   );
 
   const dashboardTotals = useMemo(
@@ -643,7 +664,33 @@ export default function DashboardWeeklyReports({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
-              Status
+              Клиент
+              <select
+                value={customerFilter}
+                onChange={(event) =>
+                  setCustomerFilter(
+                    event.target.value,
+                  )
+                }
+                className="h-10 min-w-52 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              >
+                <option value="ALL">
+                  Всички клиенти
+                </option>
+
+                {customerFilterOptions.map((option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label} ({option.courseCount})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
+              Settlement status
               <select
                 value={settlementFilter}
                 onChange={(event) =>
@@ -665,15 +712,17 @@ export default function DashboardWeeklyReports({
               </select>
             </label>
 
-            {settlementFilter !== "ALL" && (
+            {(settlementFilter !== "ALL" ||
+              customerFilter !== "ALL") && (
               <button
                 type="button"
-                onClick={() =>
-                  setSettlementFilter("ALL")
-                }
+                onClick={() => {
+                  setSettlementFilter("ALL");
+                  setCustomerFilter("ALL");
+                }}
                 className="inline-flex h-10 items-center justify-center rounded-md border border-slate-400 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                Clear filter
+                Clear filters
               </button>
             )}
           </div>
@@ -693,6 +742,13 @@ export default function DashboardWeeklyReports({
               {dashboardTotals.courseCount}
             </strong>
           </span>
+
+          {customerFilter !== "ALL" && (
+            <span className="font-semibold text-sky-700">
+              Активен клиент:{" "}
+              {customerFilter}
+            </span>
+          )}
 
           {settlementFilter !== "ALL" && (
             <span className="font-semibold text-sky-700">
@@ -849,23 +905,48 @@ export default function DashboardWeeklyReports({
   );
 }
 
-function applySettlementFilterToReport(
-  report: WeeklyTruckRevenueReportRow,
-  filter: SettlementStatusFilterValue,
-): WeeklyTruckRevenueReportRow {
-  if (filter === "ALL") {
+function applyDashboardFiltersToReport({
+  report,
+  settlementFilter,
+  customerFilter,
+}: {
+  report: WeeklyTruckRevenueReportRow;
+  settlementFilter: SettlementStatusFilterValue;
+  customerFilter: string;
+}): WeeklyTruckRevenueReportRow {
+  if (
+    settlementFilter === "ALL" &&
+    customerFilter === "ALL"
+  ) {
     return report;
   }
 
   const courses = report.courses.filter(
     (course) =>
-      matchesSettlementFilter(course, filter),
+      matchesCustomerFilter(
+        course,
+        customerFilter,
+      ) &&
+      matchesSettlementFilter(
+        course,
+        settlementFilter,
+      ),
   );
 
   return recalculateReportTotals({
     ...report,
     courses,
   });
+}
+
+function matchesCustomerFilter(
+  course: WeeklyTruckRevenueReportCourseRow,
+  customerFilter: string,
+): boolean {
+  return (
+    customerFilter === "ALL" ||
+    course.customerNameAtReport === customerFilter
+  );
 }
 
 function matchesSettlementFilter(
@@ -885,6 +966,41 @@ function matchesSettlementFilter(
   }
 
   return course.settlementStatus === filter;
+}
+
+function buildCustomerFilterOptions(
+  reports: readonly WeeklyTruckRevenueReportRow[],
+): CustomerFilterOption[] {
+  const counts = new Map<string, number>();
+
+  for (const report of reports) {
+    for (const course of report.courses) {
+      const customerName =
+        course.customerNameAtReport.trim();
+
+      if (!customerName) {
+        continue;
+      }
+
+      counts.set(
+        customerName,
+        (counts.get(customerName) ?? 0) + 1,
+      );
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([customerName, courseCount]) => ({
+      value: customerName,
+      label: customerName,
+      courseCount,
+    }))
+    .sort((first, second) =>
+      first.label.localeCompare(
+        second.label,
+        "bg-BG",
+      ),
+    );
 }
 
 function getSettlementFilterLabel(
