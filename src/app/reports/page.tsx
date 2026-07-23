@@ -47,6 +47,10 @@ type CourseReportRow = {
   totalKm: number;
   billableKm: number;
   nonBillableKm: number;
+  expectedRevenue: number;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+  settlementStatus: string;
   revenue: number;
   cost: number;
   profit: number;
@@ -60,6 +64,10 @@ type AggregateReportRow = {
   totalKm: number;
   billableKm: number;
   nonBillableKm: number;
+  expectedRevenue: number;
+  settlementAmount: number;
+  settlementDifference: number;
+  settlementCheckedCount: number;
   revenue: number;
   cost: number;
   profit: number;
@@ -140,6 +148,8 @@ export default async function ReportsPage({
 
         agreedPrice: true,
         waitingAmount: true,
+        settlementAmount: true,
+        settlementStatus: true,
 
         customer: {
           select: {
@@ -251,9 +261,22 @@ export default async function ReportsPage({
           0,
         );
 
-      const revenue =
+      const expectedRevenue =
         toNumber(course.agreedPrice) +
         toNumber(course.waitingAmount);
+
+      const settlementAmount =
+        toNullableNumber(
+          course.settlementAmount,
+        );
+
+      const settlementDifference =
+        settlementAmount === null
+          ? null
+          : settlementAmount - expectedRevenue;
+
+      const revenue =
+        settlementAmount ?? expectedRevenue;
 
       const cost = course.costs.reduce(
         (sum, costRecord) =>
@@ -293,6 +316,11 @@ export default async function ReportsPage({
         totalKm,
         billableKm,
         nonBillableKm,
+        expectedRevenue,
+        settlementAmount,
+        settlementDifference,
+        settlementStatus:
+          course.settlementStatus ?? "NOT_CHECKED",
         revenue,
         cost,
         profit,
@@ -350,15 +378,15 @@ export default async function ReportsPage({
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Отчетът използва записаните course cost records. Ако курс е
-                преизчислен в /courses, натисни Обнови на курса, за да влезе
-                новата стойност и в reports.
+                Reports вече използва settlement логиката: ако има призната сума,
+                приходът и печалбата се изчисляват по нея. Ако няма призната сума,
+                се използва очакваният приход.
               </p>
             </div>
 
             <form
               action="/reports"
-              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(190px,1.2fr)_minmax(210px,1.4fr)_auto_auto]"
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(190px,1.2fr)_minmax(210px,1.4fr)_auto_auto_auto]"
             >
               <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                 От дата
@@ -464,7 +492,7 @@ export default async function ReportsPage({
 
         <section
           aria-label="Reports summary"
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8"
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-10"
         >
           <SummaryCard
             label="Курсове"
@@ -493,17 +521,41 @@ export default async function ReportsPage({
           />
 
           <SummaryCard
-            label="Общ приход"
+            label="Очакван приход"
             value={formatCurrency(
-              totals.revenue,
+              totals.expectedRevenue,
             )}
           />
 
           <SummaryCard
-            label="Общ разход"
+            label="Призната сума"
             value={formatCurrency(
-              totals.cost,
+              totals.settlementAmount,
             )}
+          />
+
+          <SummaryCard
+            label="Разлика"
+            value={formatCurrency(
+              totals.settlementDifference,
+            )}
+            tone={
+              totals.settlementDifference > 0
+                ? "positive"
+                : totals.settlementDifference < 0
+                  ? "negative"
+                  : "default"
+            }
+          />
+
+          <SummaryCard
+            label="Реален приход"
+            value={formatCurrency(totals.revenue)}
+          />
+
+          <SummaryCard
+            label="Общ разход"
+            value={formatCurrency(totals.cost)}
           />
 
           <SummaryCard
@@ -519,18 +571,6 @@ export default async function ReportsPage({
                   : "default"
             }
           />
-
-          <SummaryCard
-            label="Курсове на загуба"
-            value={String(
-              lossCourses.length,
-            )}
-            tone={
-              lossCourses.length > 0
-                ? "negative"
-                : "default"
-            }
-          />
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -540,7 +580,7 @@ export default async function ReportsPage({
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Приход, разход и печалба за всеки клиент.
+              Очакван приход, призната сума, реален приход, разход и печалба за всеки клиент.
             </p>
           </div>
 
@@ -574,7 +614,7 @@ export default async function ReportsPage({
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Детайлен списък на всеки курс с приход, разход, печалба и марж.
+              Детайлен списък на всеки курс с очакван приход, призната сума, реален приход, разход, печалба и марж.
             </p>
           </div>
 
@@ -590,7 +630,7 @@ export default async function ReportsPage({
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Курсове, при които общият разход е по-висок от прихода.
+              Курсове, при които общият разход е по-висок от реалния приход.
             </p>
           </div>
 
@@ -645,7 +685,7 @@ function CourseDrilldownTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1250px] border-collapse text-sm">
+      <table className="w-full min-w-[1650px] border-collapse text-sm">
         <thead className="bg-slate-50">
           <tr>
             <ReportHeaderCell>
@@ -674,6 +714,22 @@ function CourseDrilldownTable({
 
             <ReportHeaderCell align="right">
               Неплатими км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Очакван
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Призната
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Разлика
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Settlement
             </ReportHeaderCell>
 
             <ReportHeaderCell align="right">
@@ -721,9 +777,7 @@ function CourseDrilldownTable({
               </ReportDataCell>
 
               <ReportDataCell align="right">
-                {formatNumber(
-                  course.totalKm,
-                )}
+                {formatNumber(course.totalKm)}
               </ReportDataCell>
 
               <ReportDataCell align="right">
@@ -740,14 +794,45 @@ function CourseDrilldownTable({
 
               <ReportDataCell align="right">
                 {formatCurrency(
-                  course.revenue,
+                  course.expectedRevenue,
                 )}
               </ReportDataCell>
 
               <ReportDataCell align="right">
-                {formatCurrency(
-                  course.cost,
+                {formatNullableCurrency(
+                  course.settlementAmount,
                 )}
+              </ReportDataCell>
+
+              <ReportDataCell
+                align="right"
+                tone={
+                  course.settlementDifference !== null &&
+                  course.settlementDifference > 0
+                    ? "positive"
+                    : course.settlementDifference !== null &&
+                        course.settlementDifference < 0
+                      ? "negative"
+                      : "default"
+                }
+              >
+                {formatNullableCurrency(
+                  course.settlementDifference,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell>
+                {formatSettlementStatus(
+                  course.settlementStatus,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(course.revenue)}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(course.cost)}
               </ReportDataCell>
 
               <ReportDataCell
@@ -806,7 +891,7 @@ function ReportAggregateTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-collapse text-sm">
+      <table className="w-full min-w-[1450px] border-collapse text-sm">
         <thead className="bg-slate-50">
           <tr>
             <ReportHeaderCell>
@@ -827,6 +912,18 @@ function ReportAggregateTable({
 
             <ReportHeaderCell align="right">
               Неплатими км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Очакван
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Призната
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Разлика
             </ReportHeaderCell>
 
             <ReportHeaderCell align="right">
@@ -881,14 +978,37 @@ function ReportAggregateTable({
 
               <ReportDataCell align="right">
                 {formatCurrency(
-                  row.revenue,
+                  row.expectedRevenue,
                 )}
               </ReportDataCell>
 
               <ReportDataCell align="right">
                 {formatCurrency(
-                  row.cost,
+                  row.settlementAmount,
                 )}
+              </ReportDataCell>
+
+              <ReportDataCell
+                align="right"
+                tone={
+                  row.settlementDifference > 0
+                    ? "positive"
+                    : row.settlementDifference < 0
+                      ? "negative"
+                      : "default"
+                }
+              >
+                {formatCurrency(
+                  row.settlementDifference,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(row.revenue)}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(row.cost)}
               </ReportDataCell>
 
               <ReportDataCell
@@ -947,7 +1067,7 @@ function LossCoursesTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1000px] border-collapse text-sm">
+      <table className="w-full min-w-[1200px] border-collapse text-sm">
         <thead className="bg-red-50">
           <tr>
             <ReportHeaderCell>
@@ -968,6 +1088,14 @@ function LossCoursesTable({
 
             <ReportHeaderCell align="right">
               Общо км
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Очакван
+            </ReportHeaderCell>
+
+            <ReportHeaderCell align="right">
+              Призната
             </ReportHeaderCell>
 
             <ReportHeaderCell align="right">
@@ -1013,6 +1141,18 @@ function LossCoursesTable({
               <ReportDataCell align="right">
                 {formatNumber(
                   course.totalKm,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatCurrency(
+                  course.expectedRevenue,
+                )}
+              </ReportDataCell>
+
+              <ReportDataCell align="right">
+                {formatNullableCurrency(
+                  course.settlementAmount,
                 )}
               </ReportDataCell>
 
@@ -1103,6 +1243,10 @@ function calculateAggregateTotals(
     totalKm: 0,
     billableKm: 0,
     nonBillableKm: 0,
+    expectedRevenue: 0,
+    settlementAmount: 0,
+    settlementDifference: 0,
+    settlementCheckedCount: 0,
     revenue: 0,
     cost: 0,
     profit: 0,
@@ -1116,6 +1260,17 @@ function calculateAggregateTotals(
       course.billableKm;
     totals.nonBillableKm +=
       course.nonBillableKm;
+    totals.expectedRevenue +=
+      course.expectedRevenue;
+
+    if (course.settlementAmount !== null) {
+      totals.settlementAmount +=
+        course.settlementAmount;
+      totals.settlementCheckedCount += 1;
+    }
+
+    totals.settlementDifference +=
+      course.settlementDifference ?? 0;
     totals.revenue += course.revenue;
     totals.cost += course.cost;
     totals.profit += course.profit;
@@ -1156,6 +1311,10 @@ function aggregateCourses(
         totalKm: 0,
         billableKm: 0,
         nonBillableKm: 0,
+        expectedRevenue: 0,
+        settlementAmount: 0,
+        settlementDifference: 0,
+        settlementCheckedCount: 0,
         revenue: 0,
         cost: 0,
         profit: 0,
@@ -1169,6 +1328,17 @@ function aggregateCourses(
       course.billableKm;
     existingRow.nonBillableKm +=
       course.nonBillableKm;
+    existingRow.expectedRevenue +=
+      course.expectedRevenue;
+
+    if (course.settlementAmount !== null) {
+      existingRow.settlementAmount +=
+        course.settlementAmount;
+      existingRow.settlementCheckedCount += 1;
+    }
+
+    existingRow.settlementDifference +=
+      course.settlementDifference ?? 0;
     existingRow.revenue +=
       course.revenue;
     existingRow.cost += course.cost;
@@ -1631,6 +1801,14 @@ function formatCurrency(
   );
 }
 
+function formatNullableCurrency(
+  value: number | null,
+): string {
+  return value === null
+    ? "—"
+    : formatCurrency(value);
+}
+
 function formatNumber(
   value: number,
 ): string {
@@ -1649,6 +1827,25 @@ function formatPercent(
   return `${percentFormatter.format(
     roundValue(value),
   )}%`;
+}
+
+function formatSettlementStatus(
+  value: string,
+): string {
+  switch (value) {
+    case "OK":
+      return "OK";
+    case "UNDERPAID":
+      return "Underpaid";
+    case "OVERPAID":
+      return "Overpaid";
+    case "DISPUTED":
+      return "Disputed";
+    case "NOT_CHECKED":
+      return "Not checked";
+    default:
+      return value || "Not checked";
+  }
 }
 
 function roundValue(value: number): number {

@@ -35,6 +35,10 @@ type CourseReportRow = {
   totalKm: number;
   billableKm: number;
   nonBillableKm: number;
+  expectedRevenue: number;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+  settlementStatus: string;
   revenue: number;
   cost: number;
   profit: number;
@@ -48,6 +52,10 @@ type AggregateReportRow = {
   totalKm: number;
   billableKm: number;
   nonBillableKm: number;
+  expectedRevenue: number;
+  settlementAmount: number;
+  settlementDifference: number;
+  settlementCheckedCount: number;
   revenue: number;
   cost: number;
   profit: number;
@@ -95,6 +103,8 @@ export async function GET(
 
           agreedPrice: true,
           waitingAmount: true,
+          settlementAmount: true,
+          settlementStatus: true,
 
           customer: {
             select: {
@@ -174,9 +184,22 @@ export async function GET(
             0,
           );
 
-        const revenue =
+        const expectedRevenue =
           toNumber(course.agreedPrice) +
           toNumber(course.waitingAmount);
+
+        const settlementAmount =
+          toNullableNumber(
+            course.settlementAmount,
+          );
+
+        const settlementDifference =
+          settlementAmount === null
+            ? null
+            : settlementAmount - expectedRevenue;
+
+        const revenue =
+          settlementAmount ?? expectedRevenue;
 
         const cost =
           course.costs.reduce(
@@ -225,6 +248,11 @@ export async function GET(
           totalKm,
           billableKm,
           nonBillableKm,
+          expectedRevenue,
+          settlementAmount,
+          settlementDifference,
+          settlementStatus:
+            course.settlementStatus ?? "NOT_CHECKED",
           revenue,
           cost,
           profit,
@@ -411,7 +439,7 @@ function addSummarySheet(
     {
       header: "Показател",
       key: "label",
-      width: 28,
+      width: 32,
     },
     {
       header: "Стойност",
@@ -447,18 +475,34 @@ function addSummarySheet(
     },
     {
       label: "Общо км",
-      value: totals.totalKm,
+      value: roundValue(totals.totalKm),
     },
     {
       label: "Платими км",
-      value: totals.billableKm,
+      value: roundValue(totals.billableKm),
     },
     {
       label: "Неплатими км",
-      value: totals.nonBillableKm,
+      value: roundValue(totals.nonBillableKm),
     },
     {
-      label: "Общ приход",
+      label: "Очакван приход",
+      value: roundValue(totals.expectedRevenue),
+    },
+    {
+      label: "Призната сума",
+      value: roundValue(totals.settlementAmount),
+    },
+    {
+      label: "Settlement checked",
+      value: totals.settlementCheckedCount,
+    },
+    {
+      label: "Settlement разлика",
+      value: roundValue(totals.settlementDifference),
+    },
+    {
+      label: "Реален приход",
       value: roundValue(totals.revenue),
     },
     {
@@ -488,9 +532,16 @@ function addSummarySheet(
     '#,##0.00 [$€-1]';
   worksheet.getCell("B10").numFmt =
     '#,##0.00 [$€-1]';
-  worksheet.getCell("B11").numFmt =
-    '#,##0.00 [$€-1]';
+  worksheet.getCell("B11").numFmt = "#,##0";
   worksheet.getCell("B12").numFmt =
+    '#,##0.00 [$€-1]';
+  worksheet.getCell("B13").numFmt =
+    '#,##0.00 [$€-1]';
+  worksheet.getCell("B14").numFmt =
+    '#,##0.00 [$€-1]';
+  worksheet.getCell("B15").numFmt =
+    '#,##0.00 [$€-1]';
+  worksheet.getCell("B16").numFmt =
     "0.00%";
 
   worksheet.getColumn("label").font = {
@@ -502,7 +553,7 @@ function addSummarySheet(
     horizontal: "left",
   };
 
-  styleProfitCell(worksheet.getCell("B11"));
+  styleProfitCell(worksheet.getCell("B15"));
 }
 
 function addAggregateSheet(
@@ -553,9 +604,29 @@ function addAggregateSheet(
       width: 14,
     },
     {
-      header: "Приход",
-      key: "revenue",
+      header: "Очакван приход",
+      key: "expectedRevenue",
+      width: 17,
+    },
+    {
+      header: "Призната сума",
+      key: "settlementAmount",
+      width: 17,
+    },
+    {
+      header: "Settlement checked",
+      key: "settlementCheckedCount",
+      width: 17,
+    },
+    {
+      header: "Разлика",
+      key: "settlementDifference",
       width: 15,
+    },
+    {
+      header: "Реален приход",
+      key: "revenue",
+      width: 17,
     },
     {
       header: "Разход",
@@ -580,6 +651,9 @@ function addAggregateSheet(
       totalKm: roundValue(row.totalKm),
       billableKm: roundValue(row.billableKm),
       nonBillableKm: roundValue(row.nonBillableKm),
+      expectedRevenue: roundValue(row.expectedRevenue),
+      settlementAmount: roundValue(row.settlementAmount),
+      settlementDifference: roundValue(row.settlementDifference),
       revenue: roundValue(row.revenue),
       cost: roundValue(row.cost),
       profit: roundValue(row.profit),
@@ -590,7 +664,7 @@ function addAggregateSheet(
     })),
   );
 
-  applyStandardSheetSetup(worksheet, "I1");
+  applyStandardSheetSetup(worksheet, "M1");
   styleFinancialRows(worksheet);
 }
 
@@ -657,9 +731,29 @@ function addCourseSheet(
       width: 14,
     },
     {
-      header: "Приход",
-      key: "revenue",
+      header: "Очакван приход",
+      key: "expectedRevenue",
+      width: 17,
+    },
+    {
+      header: "Призната сума",
+      key: "settlementAmount",
+      width: 17,
+    },
+    {
+      header: "Разлика",
+      key: "settlementDifference",
       width: 15,
+    },
+    {
+      header: "Settlement status",
+      key: "settlementStatus",
+      width: 18,
+    },
+    {
+      header: "Реален приход",
+      key: "revenue",
+      width: 17,
     },
     {
       header: "Разход",
@@ -697,6 +791,10 @@ function addCourseSheet(
       totalKm: roundValue(row.totalKm),
       billableKm: roundValue(row.billableKm),
       nonBillableKm: roundValue(row.nonBillableKm),
+      expectedRevenue: roundValue(row.expectedRevenue),
+      settlementAmount: roundNullableValue(row.settlementAmount),
+      settlementDifference: roundNullableValue(row.settlementDifference),
+      settlementStatus: formatSettlementStatus(row.settlementStatus),
       revenue: roundValue(row.revenue),
       cost: roundValue(row.cost),
       profit: roundValue(row.profit),
@@ -707,7 +805,7 @@ function addCourseSheet(
     })),
   );
 
-  applyStandardSheetSetup(worksheet, "M1");
+  applyStandardSheetSetup(worksheet, "Q1");
   worksheet.getColumn("date").numFmt =
     "dd.mm.yyyy";
   styleFinancialRows(worksheet);
@@ -745,6 +843,9 @@ function applyStandardSheetSetup(
   }
 
   for (const columnKey of [
+    "expectedRevenue",
+    "settlementAmount",
+    "settlementDifference",
     "revenue",
     "cost",
     "profit",
@@ -900,6 +1001,10 @@ function calculateAggregateTotals(
     totalKm: 0,
     billableKm: 0,
     nonBillableKm: 0,
+    expectedRevenue: 0,
+    settlementAmount: 0,
+    settlementDifference: 0,
+    settlementCheckedCount: 0,
     revenue: 0,
     cost: 0,
     profit: 0,
@@ -913,6 +1018,17 @@ function calculateAggregateTotals(
       course.billableKm;
     totals.nonBillableKm +=
       course.nonBillableKm;
+    totals.expectedRevenue +=
+      course.expectedRevenue;
+
+    if (course.settlementAmount !== null) {
+      totals.settlementAmount +=
+        course.settlementAmount;
+      totals.settlementCheckedCount += 1;
+    }
+
+    totals.settlementDifference +=
+      course.settlementDifference ?? 0;
     totals.revenue += course.revenue;
     totals.cost += course.cost;
     totals.profit += course.profit;
@@ -953,6 +1069,10 @@ function aggregateCourses(
         totalKm: 0,
         billableKm: 0,
         nonBillableKm: 0,
+        expectedRevenue: 0,
+        settlementAmount: 0,
+        settlementDifference: 0,
+        settlementCheckedCount: 0,
         revenue: 0,
         cost: 0,
         profit: 0,
@@ -966,6 +1086,17 @@ function aggregateCourses(
       course.billableKm;
     existingRow.nonBillableKm +=
       course.nonBillableKm;
+    existingRow.expectedRevenue +=
+      course.expectedRevenue;
+
+    if (course.settlementAmount !== null) {
+      existingRow.settlementAmount +=
+        course.settlementAmount;
+      existingRow.settlementCheckedCount += 1;
+    }
+
+    existingRow.settlementDifference +=
+      course.settlementDifference ?? 0;
     existingRow.revenue +=
       course.revenue;
     existingRow.cost += course.cost;
@@ -1201,6 +1332,37 @@ function toNumber(value: unknown): number {
   return toNullableNumber(value) ?? 0;
 }
 
+function roundValue(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function roundNullableValue(
+  value: number | null,
+): number | null {
+  return value === null
+    ? null
+    : roundValue(value);
+}
+
+function formatSettlementStatus(
+  value: string,
+): string {
+  switch (value) {
+    case "OK":
+      return "OK";
+    case "UNDERPAID":
+      return "Underpaid";
+    case "OVERPAID":
+      return "Overpaid";
+    case "DISPUTED":
+      return "Disputed";
+    case "NOT_CHECKED":
+      return "Not checked";
+    default:
+      return value || "Not checked";
+  }
+}
+
 function createExportFileName(
   filters: ReportFilters,
 ): string {
@@ -1239,8 +1401,4 @@ function formatDateForFile(
   ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function roundValue(value: number): number {
-  return Math.round(value * 100) / 100;
 }
