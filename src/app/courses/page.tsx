@@ -113,6 +113,9 @@ export default async function CoursesPage() {
     }),
 
     prisma.address.findMany({
+      where: {
+        isActive: true,
+      },
       select: {
         id: true,
         name: true,
