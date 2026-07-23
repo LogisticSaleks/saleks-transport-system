@@ -47,6 +47,14 @@ enum CourseStatus {
   INVOICED
 }
 
+enum SettlementStatus {
+  NOT_CHECKED
+  OK
+  UNDERPAID
+  OVERPAID
+  DISPUTED
+}
+
 enum CourseType {
   ROUND_TRIP
   SHUNT
@@ -334,6 +342,12 @@ model Course {
   waitingAmount Decimal? @db.Decimal(12, 2)
   portFeeAmount Decimal? @db.Decimal(12, 2)
 
+  settlementAmount    Decimal?         @db.Decimal(12, 2)
+  settlementStatus    SettlementStatus @default(NOT_CHECKED)
+  settlementCheckedAt DateTime?
+  settlementReference String?
+  settlementNotes     String?
+
   tariffNameAtBooking        String?
   tariffTypeAtBooking        TariffType?
   pricingMethodAtBooking     String?
@@ -371,6 +385,8 @@ model Course {
   @@index([plannedDate])
   @@index([status])
   @@index([courseType])
+  @@index([settlementStatus])
+  @@index([settlementCheckedAt])
 }
 
 model CourseStop {
