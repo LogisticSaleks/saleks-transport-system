@@ -22,6 +22,12 @@ type ActiveFilter =
   | "inactive"
   | "all";
 
+type SourceFilter =
+  | "all"
+  | "manual"
+  | "auto"
+  | "needs-review";
+
 export type AddressManagementRow = {
   id: string;
   name: string;
@@ -119,6 +125,11 @@ export default function AddressManagement({
     setActiveFilter,
   ] = useState<ActiveFilter>("active");
 
+  const [
+    sourceFilter,
+    setSourceFilter,
+  ] = useState<SourceFilter>("all");
+
   const [isSaving, setIsSaving] =
     useState(false);
 
@@ -135,6 +146,7 @@ export default function AddressManagement({
           searchQuery,
           typeFilter,
           activeFilter,
+          sourceFilter,
         }),
       ),
     [
@@ -142,6 +154,7 @@ export default function AddressManagement({
       searchQuery,
       typeFilter,
       activeFilter,
+      sourceFilter,
     ],
   );
 
@@ -151,6 +164,16 @@ export default function AddressManagement({
 
   const inactiveCount =
     addresses.length - activeCount;
+
+  const autoCreatedCount =
+    addresses.filter(
+      isAutoCreatedAddress,
+    ).length;
+
+  const needsReviewCount =
+    addresses.filter(
+      isAddressNeedsReview,
+    ).length;
 
   const missingCoordinatesCount =
     addresses.filter(
@@ -329,7 +352,7 @@ export default function AddressManagement({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <SummaryCard
           label="Всички адреси"
           value={String(addresses.length)}
@@ -348,6 +371,26 @@ export default function AddressManagement({
             inactiveCount > 0
               ? "muted"
               : "default"
+          }
+        />
+
+        <SummaryCard
+          label="Auto-created"
+          value={String(autoCreatedCount)}
+          tone={
+            autoCreatedCount > 0
+              ? "warning"
+              : "default"
+          }
+        />
+
+        <SummaryCard
+          label="Needs review"
+          value={String(needsReviewCount)}
+          tone={
+            needsReviewCount > 0
+              ? "warning"
+              : "positive"
           }
         />
 
@@ -606,7 +649,7 @@ export default function AddressManagement({
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <TextField
                 label="Search"
                 value={searchQuery}
@@ -659,6 +702,34 @@ export default function AddressManagement({
                   {
                     value: "all",
                     label: "All",
+                  },
+                ]}
+              />
+
+              <SelectField
+                label="Source"
+                value={sourceFilter}
+                onChange={(value) =>
+                  setSourceFilter(
+                    value as SourceFilter,
+                  )
+                }
+                options={[
+                  {
+                    value: "all",
+                    label: "All sources",
+                  },
+                  {
+                    value: "auto",
+                    label: "Auto-created",
+                  },
+                  {
+                    value: "needs-review",
+                    label: "Needs review",
+                  },
+                  {
+                    value: "manual",
+                    label: "Manual",
                   },
                 ]}
               />
@@ -766,6 +837,10 @@ function AddressTable({
                   <p className="font-semibold text-slate-900">
                     {address.name}
                   </p>
+
+                  <AddressSourceBadges
+                    address={address}
+                  />
 
                   {address.notes && (
                     <p className="mt-1 max-w-[280px] truncate text-xs text-slate-500">
@@ -892,6 +967,41 @@ function AddressTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function AddressSourceBadges({
+  address,
+}: {
+  address: AddressManagementRow;
+}) {
+  const isAutoCreated =
+    isAutoCreatedAddress(address);
+
+  const needsReview =
+    isAddressNeedsReview(address);
+
+  if (
+    !isAutoCreated &&
+    !needsReview
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {isAutoCreated && (
+        <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+          Auto-created
+        </span>
+      )}
+
+      {needsReview && (
+        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+          Needs review
+        </span>
+      )}
     </div>
   );
 }
@@ -1130,10 +1240,12 @@ function doesAddressMatchFilters(
     searchQuery,
     typeFilter,
     activeFilter,
+    sourceFilter,
   }: {
     searchQuery: string;
     typeFilter: "" | AddressTypeValue;
     activeFilter: ActiveFilter;
+    sourceFilter: SourceFilter;
   },
 ): boolean {
   if (
@@ -1153,6 +1265,27 @@ function doesAddressMatchFilters(
   if (
     typeFilter !== "" &&
     address.type !== typeFilter
+  ) {
+    return false;
+  }
+
+  if (
+    sourceFilter === "auto" &&
+    !isAutoCreatedAddress(address)
+  ) {
+    return false;
+  }
+
+  if (
+    sourceFilter === "manual" &&
+    isAutoCreatedAddress(address)
+  ) {
+    return false;
+  }
+
+  if (
+    sourceFilter === "needs-review" &&
+    !isAddressNeedsReview(address)
   ) {
     return false;
   }
@@ -1180,6 +1313,27 @@ function doesAddressMatchFilters(
         String(value),
       ).includes(normalizedQuery),
     );
+}
+
+function isAutoCreatedAddress(
+  address: Pick<
+    AddressManagementRow,
+    "notes"
+  >,
+): boolean {
+  return address.notes.includes(
+    "SOURCE:COURSE_AUTO_ADDRESS",
+  );
+}
+
+function isAddressNeedsReview(
+  address: AddressManagementRow,
+): boolean {
+  return (
+    isAutoCreatedAddress(address) &&
+    (address.type === "OTHER" ||
+      !hasCoordinates(address))
+  );
 }
 
 function formatAddressLine(
