@@ -875,6 +875,20 @@ export default function CourseRow({
       expectedRevenue,
     });
 
+  const settlementAdjustedRevenue =
+    applySettlementDifference({
+      baseValue:
+        calculation?.revenue ??
+        effectivePrice,
+      settlementDifference,
+    });
+
+  const settlementAdjustedProfit =
+    applySettlementDifference({
+      baseValue: calculation?.profit ?? null,
+      settlementDifference,
+    });
+
   const calculatedSettlementStatus =
     calculateSettlementStatus({
       currentStatus: draft.settlementStatus,
@@ -907,9 +921,10 @@ export default function CourseRow({
           : "",
 
       profit:
-        calculation?.profit !== null &&
-        calculation?.profit !== undefined
-          ? formatMoney(calculation.profit)
+        settlementAdjustedProfit !== null
+          ? formatMoney(
+              settlementAdjustedProfit,
+            )
           : "",
 
       settlementStatus:
@@ -923,6 +938,7 @@ export default function CourseRow({
       calculation,
       displayStatus,
       calculatedSettlementStatus,
+      settlementAdjustedProfit,
     ],
   );
 
@@ -1882,17 +1898,15 @@ export default function CourseRow({
             <SummaryLine
               label="Печалба"
               value={
-                calculation?.profit !== null &&
-                calculation?.profit !== undefined
+                settlementAdjustedProfit !== null
                   ? `${formatMoney(
-                      calculation.profit,
+                      settlementAdjustedProfit,
                     )} €`
                   : "—"
               }
               tone={
-                calculation?.profit !== null &&
-                calculation?.profit !== undefined
-                  ? calculation.profit >= 0
+                settlementAdjustedProfit !== null
+                  ? settlementAdjustedProfit >= 0
                     ? "positive"
                     : "negative"
                   : "default"
@@ -2132,7 +2146,7 @@ export default function CourseRow({
           calculation?.waiting.waitingCost ?? null
         }
         extraCharges={extraChargesValue}
-        totalRevenue={calculation?.revenue ?? null}
+        totalRevenue={settlementAdjustedRevenue}
         fuelCost={calculation?.costs.fuelCost ?? null}
         tollCost={
           calculation?.costs.tollCost ??
@@ -2150,7 +2164,7 @@ export default function CourseRow({
         }
         otherCosts={calculation?.costs.otherCosts ?? null}
         totalCost={calculation?.costs.totalCost ?? null}
-        profit={calculation?.profit ?? null}
+        profit={settlementAdjustedProfit}
         profitMargin={calculation?.profitMargin ?? null}
         status={displayStatus}
         warnings={displayWarnings}
@@ -2929,6 +2943,26 @@ function calculateSettlementDifference({
 
   return roundMoney(
     settlementAmount - expectedRevenue,
+  );
+}
+
+function applySettlementDifference({
+  baseValue,
+  settlementDifference,
+}: {
+  baseValue: number | null;
+  settlementDifference: number | null;
+}): number | null {
+  if (baseValue === null) {
+    return null;
+  }
+
+  if (settlementDifference === null) {
+    return baseValue;
+  }
+
+  return roundMoney(
+    baseValue + settlementDifference,
   );
 }
 

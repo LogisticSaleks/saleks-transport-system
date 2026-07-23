@@ -383,8 +383,20 @@ function mapCourseToRow(
     (agreedPrice ?? 0) +
     waitingAmount;
 
+  const settlementAmount =
+    toNullableNumber(
+      course.settlementAmount,
+    );
+
+  const settlementDifference =
+    settlementAmount === null
+      ? 0
+      : settlementAmount - storedRevenue;
+
   const storedProfit =
-    storedRevenue - totalCost;
+    storedRevenue -
+    totalCost +
+    settlementDifference;
 
   const waitingHours = toNullableNumber(
     course.waitingHours,
@@ -492,9 +504,10 @@ function mapCourseToRow(
         ? portFeeAmount.toFixed(2)
         : "",
 
-    settlementAmount: formatNullableMoney(
-      course.settlementAmount,
-    ),
+    settlementAmount:
+      settlementAmount === null
+        ? ""
+        : settlementAmount.toFixed(2),
     settlementStatus:
       course.settlementStatus ?? "NOT_CHECKED",
     settlementCheckedAt:
