@@ -299,6 +299,9 @@ function mapCourseToRow(
     deliveryAddressId: string | null;
     totalKm: unknown;
     billableKm: unknown;
+    kmSource: string | null;
+    manualKmOverride: boolean;
+    kmOverrideNotes: string | null;
     containerNumber: string | null;
     waitingHours: unknown;
     waitingAmount: unknown;
@@ -453,6 +456,10 @@ function mapCourseToRow(
     billableKm: formatNullableNumber(
       course.billableKm,
     ),
+
+    kmSource: course.kmSource ?? "MANUAL",
+    manualKmOverride: String(course.manualKmOverride),
+    kmOverrideNotes: course.kmOverrideNotes ?? "",
 
     containerNumber:
       course.containerNumber ?? "",

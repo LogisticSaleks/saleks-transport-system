@@ -53,6 +53,10 @@ function createEmptyCourseRow(
     totalKm: "",
     billableKm: "",
 
+    kmSource: "MANUAL",
+    manualKmOverride: "true",
+    kmOverrideNotes: "",
+
     containerNumber: "",
     waitingMinutes: "",
 

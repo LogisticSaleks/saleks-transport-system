@@ -64,6 +64,9 @@ export type CourseRowData = {
   returnAddressText: string;
   totalKm: string;
   billableKm: string;
+  kmSource: string;
+  manualKmOverride: string;
+  kmOverrideNotes: string;
   containerNumber: string;
   waitingMinutes: string;
   price: string;
@@ -232,6 +235,9 @@ const MANUAL_KM_FIELDS: readonly ManualKmField[] = [
   "totalKm",
   "billableKm",
 ];
+
+const ROUTE_CALCULATION_KM_SOURCE = "PTV";
+const MANUAL_KM_SOURCE = "MANUAL";
 
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
@@ -846,10 +852,25 @@ export default function CourseRow({
     field: EditableCourseField,
     value: string,
   ): void {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [field]: value,
-    }));
+    setDraft((currentDraft) => {
+      const nextDraft = {
+        ...currentDraft,
+        [field]: value,
+      };
+
+      if (
+        field === "totalKm" ||
+        field === "billableKm" ||
+        field === "tollFee"
+      ) {
+        return markRouteValuesAsManual(
+          nextDraft,
+          field,
+        );
+      }
+
+      return nextDraft;
+    });
 
     markDraftAsChanged();
   }
@@ -1016,21 +1037,31 @@ export default function CourseRow({
       const formattedToll =
         formatMoney(tollCost);
 
-      setDraft((currentDraft) => ({
-        ...currentDraft,
-        totalKm: formattedDistance,
-        billableKm:
-          currentDraft.billableKm.trim() === "" &&
-          shouldAutoFillBillableKm(
-            pricing.method,
-          )
-            ? formattedDistance
-            : currentDraft.billableKm,
-        tollFee: formattedToll,
-      }));
+      setDraft((currentDraft) =>
+        markRouteValuesAsPtv({
+          ...currentDraft,
+          totalKm: formattedDistance,
+          billableKm:
+            currentDraft.billableKm.trim() === "" &&
+            shouldAutoFillBillableKm(
+              pricing.method,
+            )
+              ? formattedDistance
+              : currentDraft.billableKm,
+          tollFee: formattedToll,
+        }, {
+          distanceKm,
+          tollCost,
+          cacheHit: route.cache?.hit === true,
+          notes: route.notes ?? null,
+          warnings: route.warnings ?? [],
+        }),
+      );
 
       setRouteCalculationInfo(
-        `${formattedDistance} км / ${formattedToll} € тол`,
+        `${formattedDistance} км / ${formattedToll} € тол${
+          route.cache?.hit === true ? " / cache" : ""
+        }`,
       );
     } catch (error) {
       setRouteCalculationError(
@@ -1132,8 +1163,15 @@ export default function CourseRow({
       billableKm,
       nonBillableKm,
 
-      kmSource: "MANUAL",
-      manualKmOverride: true,
+      kmSource:
+        draft.kmSource.trim() ||
+        MANUAL_KM_SOURCE,
+      manualKmOverride:
+        parseNullableBoolean(
+          draft.manualKmOverride,
+        ) ?? true,
+      kmOverrideNotes:
+        draft.kmOverrideNotes.trim() || null,
 
       agreedPrice: effectivePrice,
 
@@ -1652,6 +1690,10 @@ export default function CourseRow({
                   : "—"
               }
             />
+            <SummaryLine
+              label="Източник"
+              value={getKmSourceLabel(draft)}
+            />
           </div>
         </td>
 
@@ -2140,6 +2182,105 @@ function EditField({
       {children}
     </label>
   );
+}
+
+function markRouteValuesAsPtv(
+  row: CourseRowData,
+  routeResult: {
+    distanceKm: number;
+    tollCost: number;
+    cacheHit: boolean;
+    notes: string | null;
+    warnings: readonly string[];
+  },
+): CourseRowData {
+  return {
+    ...row,
+    kmSource: ROUTE_CALCULATION_KM_SOURCE,
+    manualKmOverride: "false",
+    kmOverrideNotes:
+      buildPtvKmOverrideNotes(routeResult),
+  };
+}
+
+function markRouteValuesAsManual(
+  row: CourseRowData,
+  changedField: EditableCourseField,
+): CourseRowData {
+  return {
+    ...row,
+    kmSource: MANUAL_KM_SOURCE,
+    manualKmOverride: "true",
+    kmOverrideNotes:
+      buildManualKmOverrideNotes(
+        changedField,
+      ),
+  };
+}
+
+function buildPtvKmOverrideNotes({
+  distanceKm,
+  tollCost,
+  cacheHit,
+  notes,
+  warnings,
+}: {
+  distanceKm: number;
+  tollCost: number;
+  cacheHit: boolean;
+  notes: string | null;
+  warnings: readonly string[];
+}): string {
+  return [
+    `Route calculated by PTV at ${new Date().toISOString()}.`,
+    `Distance: ${formatDistanceKm(distanceKm)} km.`,
+    `Toll: ${formatMoney(tollCost)} EUR.`,
+    `Cache hit: ${cacheHit ? "yes" : "no"}.`,
+    notes ? `PTV notes: ${notes}` : null,
+    warnings.length > 0
+      ? `PTV warnings: ${warnings.join(" | ")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildManualKmOverrideNotes(
+  changedField: EditableCourseField,
+): string {
+  return [
+    `Route values changed manually at ${new Date().toISOString()}.`,
+    `Changed field: ${changedField}.`,
+  ].join("\n");
+}
+
+function getKmSourceLabel(
+  row: CourseRowData,
+): string {
+  const kmSource =
+    row.kmSource.trim() ||
+    MANUAL_KM_SOURCE;
+
+  const isManualOverride =
+    parseNullableBoolean(
+      row.manualKmOverride,
+    ) ?? true;
+
+  if (
+    kmSource === ROUTE_CALCULATION_KM_SOURCE &&
+    !isManualOverride
+  ) {
+    return "PTV";
+  }
+
+  if (
+    kmSource === ROUTE_CALCULATION_KM_SOURCE &&
+    isManualOverride
+  ) {
+    return "PTV + ръчна промяна";
+  }
+
+  return "Ръчно";
 }
 
 function buildRouteCalculationStops(
