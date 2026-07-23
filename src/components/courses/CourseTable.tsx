@@ -64,6 +64,12 @@ function createEmptyCourseRow(
     tollFee: "",
     portFee: "",
 
+    settlementAmount: "",
+    settlementStatus: "NOT_CHECKED",
+    settlementCheckedAt: "",
+    settlementReference: "",
+    settlementNotes: "",
+
     fuelCost: "",
     totalCost: "",
     profit: "",
@@ -152,6 +158,14 @@ export default function CourseTable({
 
   const visibleSavedCoursesCount =
     visibleSavedRows.length;
+
+  const settlementSummary = useMemo(
+    () =>
+      calculateSettlementSummary(
+        visibleSavedRows,
+      ),
+    [visibleSavedRows],
+  );
 
   const summary = useMemo(
     () =>
@@ -395,6 +409,20 @@ export default function CourseTable({
           </strong>
         </span>
 
+        <span>
+          Settlement checked:{" "}
+          <strong className="text-slate-900">
+            {settlementSummary.checked}
+          </strong>
+        </span>
+
+        <span>
+          Underpaid:{" "}
+          <strong className="text-red-700">
+            {settlementSummary.underpaid}
+          </strong>
+        </span>
+
         {(dateFrom !== "" ||
           dateTo !== "") && (
           <span className="font-medium text-sky-700">
@@ -594,6 +622,35 @@ function getTodayDate(): string {
 }
 
 
+function calculateSettlementSummary(
+  rows: readonly CourseRowData[],
+): {
+  checked: number;
+  underpaid: number;
+} {
+  let checked = 0;
+  let underpaid = 0;
+
+  for (const row of rows) {
+    if (
+      row.settlementStatus !== "NOT_CHECKED"
+    ) {
+      checked += 1;
+    }
+
+    if (
+      row.settlementStatus === "UNDERPAID"
+    ) {
+      underpaid += 1;
+    }
+  }
+
+  return {
+    checked,
+    underpaid,
+  };
+}
+
 function calculateCourseSummary(
   rows: readonly CourseRowData[],
 ): CourseSummaryValues {
@@ -714,6 +771,11 @@ type CourseExcelExportRow = {
   waitingMinutes: number;
   basePrice: number;
   revenue: number;
+  settlementAmount: number;
+  settlementDifference: number;
+  settlementStatus: string;
+  settlementReference: string;
+  settlementNotes: string;
   fuelCost: number;
   tollFee: number;
   portFee: number;
@@ -825,6 +887,25 @@ function buildCourseExcelExportRow({
     basePrice: fallbackBasePrice,
     revenue,
 
+    settlementAmount:
+      parseSummaryNumber(
+        row.settlementAmount,
+      ),
+    settlementDifference:
+      calculateExportSettlementDifference({
+        settlementAmount:
+          parseNullableSummaryNumber(
+            row.settlementAmount,
+          ),
+        revenue,
+      }),
+    settlementStatus:
+      row.settlementStatus,
+    settlementReference:
+      row.settlementReference.trim(),
+    settlementNotes:
+      row.settlementNotes.trim(),
+
     fuelCost:
       parseSummaryNumber(
         row.fuelCost,
@@ -845,6 +926,22 @@ function buildCourseExcelExportRow({
     margin,
     status: row.status,
   };
+}
+
+function calculateExportSettlementDifference({
+  settlementAmount,
+  revenue,
+}: {
+  settlementAmount: number | null;
+  revenue: number;
+}): number {
+  if (settlementAmount === null) {
+    return 0;
+  }
+
+  return roundSummaryValue(
+    settlementAmount - revenue,
+  );
 }
 
 function getCourseTypeExportLabel(

@@ -72,6 +72,11 @@ export type CourseRowData = {
   price: string;
   tollFee: string;
   portFee: string;
+  settlementAmount: string;
+  settlementStatus: string;
+  settlementCheckedAt: string;
+  settlementReference: string;
+  settlementNotes: string;
   fuelCost: string;
   totalCost: string;
   profit: string;
@@ -112,6 +117,13 @@ type AddressTextField =
 type ManualKmField =
   | "totalKm"
   | "billableKm";
+
+type SettlementStatusValue =
+  | "NOT_CHECKED"
+  | "OK"
+  | "UNDERPAID"
+  | "OVERPAID"
+  | "DISPUTED";
 
 export type CourseColumn = {
   key: EditableCourseField;
@@ -183,6 +195,11 @@ type CourseApiResponse = {
     billableKmLogicAtBooking?: string | null;
     portFeeIncludedAtBooking?: boolean | null;
     pricingSnapshotCreatedAt?: string | null;
+    settlementAmount?: number | string | null;
+    settlementStatus?: string | null;
+    settlementCheckedAt?: string | null;
+    settlementReference?: string | null;
+    settlementNotes?: string | null;
   };
   error?: string;
 };
@@ -238,6 +255,32 @@ const MANUAL_KM_FIELDS: readonly ManualKmField[] = [
 
 const ROUTE_CALCULATION_KM_SOURCE = "PTV";
 const MANUAL_KM_SOURCE = "MANUAL";
+
+const SETTLEMENT_STATUSES: readonly {
+  value: SettlementStatusValue;
+  label: string;
+}[] = [
+  {
+    value: "NOT_CHECKED",
+    label: "Not checked",
+  },
+  {
+    value: "OK",
+    label: "OK",
+  },
+  {
+    value: "UNDERPAID",
+    label: "Underpaid",
+  },
+  {
+    value: "OVERPAID",
+    label: "Overpaid",
+  },
+  {
+    value: "DISPUTED",
+    label: "Disputed",
+  },
+];
 
 export const COURSE_COLUMNS: readonly CourseColumn[] = [
   {
@@ -371,6 +414,32 @@ const EDIT_COLUMNS: readonly CourseColumn[] = [
     min: 0,
     step: 0.01,
     width: 140,
+  },
+  {
+    key: "settlementAmount",
+    label: "Призната сума (€)",
+    inputType: "number",
+    placeholder: "0.00",
+    min: 0,
+    step: 0.01,
+    width: 150,
+  },
+  {
+    key: "settlementReference",
+    label: "Settlement ref",
+    placeholder: "Week / statement",
+    width: 170,
+  },
+  {
+    key: "settlementStatus",
+    label: "Settlement status",
+    width: 160,
+  },
+  {
+    key: "settlementNotes",
+    label: "Settlement notes",
+    placeholder: "Причина за разлика",
+    width: 240,
   },
   {
     key: "fuelCost",
@@ -790,6 +859,30 @@ export default function CourseRow({
       calculation?.waiting.waitingCost,
     );
 
+  const expectedRevenue =
+    calculation?.revenue ??
+    effectivePrice;
+
+  const settlementAmountValue =
+    parseNullableNumber(
+      draft.settlementAmount,
+    );
+
+  const settlementDifference =
+    calculateSettlementDifference({
+      settlementAmount:
+        settlementAmountValue,
+      expectedRevenue,
+    });
+
+  const calculatedSettlementStatus =
+    calculateSettlementStatus({
+      currentStatus: draft.settlementStatus,
+      settlementAmount:
+        settlementAmountValue,
+      settlementDifference,
+    });
+
   const calculatedRow = useMemo<CourseRowData>(
     () => ({
       ...draft,
@@ -819,6 +912,9 @@ export default function CourseRow({
           ? formatMoney(calculation.profit)
           : "",
 
+      settlementStatus:
+        calculatedSettlementStatus,
+
       status: displayStatus ?? "",
     }),
     [
@@ -826,6 +922,7 @@ export default function CourseRow({
       effectivePrice,
       calculation,
       displayStatus,
+      calculatedSettlementStatus,
     ],
   );
 
@@ -1113,6 +1210,18 @@ export default function CourseRow({
       return;
     }
 
+    if (
+      draft.settlementAmount.trim() !== "" &&
+      parseNullableNonNegativeNumber(
+        draft.settlementAmount,
+      ) === null
+    ) {
+      setSaveError(
+        "Признатата сума трябва да бъде валидно неотрицателно число.",
+      );
+      return;
+    }
+
     const nonBillableKm = Math.max(
       totalKm - billableKm,
       0,
@@ -1185,6 +1294,18 @@ export default function CourseRow({
 
       portFeeAmount:
         parseNullableNumber(draft.portFee),
+
+      settlementAmount:
+        parseNullableNumber(
+          draft.settlementAmount,
+        ),
+      settlementStatus:
+        calculatedSettlementStatus,
+      settlementReference:
+        draft.settlementReference.trim() ||
+        null,
+      settlementNotes:
+        draft.settlementNotes.trim() || null,
 
       stops,
       costs,
@@ -1522,6 +1643,21 @@ export default function CourseRow({
       );
     }
 
+    if (column.key === "settlementStatus") {
+      return (
+        <SettlementStatusSelect
+          value={draft.settlementStatus}
+          rowNumber={rowNumber}
+          onChange={(value) =>
+            handleCellChange(
+              "settlementStatus",
+              value,
+            )
+          }
+        />
+      );
+    }
+
     if (column.key === "status") {
       return (
         <div className="flex h-10 w-full items-center justify-start px-1">
@@ -1710,6 +1846,29 @@ export default function CourseRow({
               }
             />
             <SummaryLine
+              label="Призната"
+              value={
+                settlementAmountValue !== null
+                  ? `${formatMoney(
+                      settlementAmountValue,
+                    )} €`
+                  : "—"
+              }
+            />
+            <SummaryLine
+              label="Разлика"
+              value={
+                settlementDifference !== null
+                  ? `${formatMoney(
+                      settlementDifference,
+                    )} €`
+                  : "—"
+              }
+              tone={getSettlementDifferenceTone(
+                settlementDifference,
+              )}
+            />
+            <SummaryLine
               label="Разход"
               value={
                 calculation?.costs.totalCost !==
@@ -1744,6 +1903,12 @@ export default function CourseRow({
 
         <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
           <div className="space-y-2">
+            <SettlementStatusBadge
+              status={
+                calculatedSettlementStatus
+              }
+            />
+
             <StatusBadge status={displayStatus} />
 
             {tableWarnings.length > 0 && (
@@ -2112,6 +2277,63 @@ function NumberInputWithMarker({
   );
 }
 
+
+function SettlementStatusSelect({
+  value,
+  rowNumber,
+  onChange,
+}: {
+  value: string;
+  rowNumber: number;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <select
+      value={
+        isSettlementStatus(value)
+          ? value
+          : "NOT_CHECKED"
+      }
+      aria-label={`Settlement status, ред ${rowNumber}`}
+      onChange={(event) =>
+        onChange(event.target.value)
+      }
+      className="h-10 w-full rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200"
+    >
+      {SETTLEMENT_STATUSES.map((status) => (
+        <option
+          key={status.value}
+          value={status.value}
+        >
+          {status.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function SettlementStatusBadge({
+  status,
+}: {
+  status: SettlementStatusValue;
+}) {
+  const label =
+    getSettlementStatusLabel(status);
+
+  const className =
+    getSettlementStatusClassName(status);
+
+  return (
+    <span
+      className={[
+        "inline-flex rounded-full border px-2 py-1 text-xs font-semibold",
+        className,
+      ].join(" ")}
+    >
+      {label}
+    </span>
+  );
+}
 
 type SummaryTone = "default" | "positive" | "negative";
 
@@ -2691,6 +2913,127 @@ function buildTariffSelectionWarning({
   return null;
 }
 
+function calculateSettlementDifference({
+  settlementAmount,
+  expectedRevenue,
+}: {
+  settlementAmount: number | null;
+  expectedRevenue: number | null;
+}): number | null {
+  if (
+    settlementAmount === null ||
+    expectedRevenue === null
+  ) {
+    return null;
+  }
+
+  return roundMoney(
+    settlementAmount - expectedRevenue,
+  );
+}
+
+function calculateSettlementStatus({
+  currentStatus,
+  settlementAmount,
+  settlementDifference,
+}: {
+  currentStatus: string;
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+}): SettlementStatusValue {
+  if (currentStatus === "DISPUTED") {
+    return "DISPUTED";
+  }
+
+  if (settlementAmount === null) {
+    return "NOT_CHECKED";
+  }
+
+  if (settlementDifference === null) {
+    return "NOT_CHECKED";
+  }
+
+  if (Math.abs(settlementDifference) < 0.01) {
+    return "OK";
+  }
+
+  return settlementDifference < 0
+    ? "UNDERPAID"
+    : "OVERPAID";
+}
+
+function getSettlementDifferenceTone(
+  difference: number | null,
+): SummaryTone {
+  if (difference === null) {
+    return "default";
+  }
+
+  if (difference < -0.005) {
+    return "negative";
+  }
+
+  if (difference > 0.005) {
+    return "positive";
+  }
+
+  return "default";
+}
+
+function getSettlementStatusLabel(
+  status: SettlementStatusValue,
+): string {
+  switch (status) {
+    case "NOT_CHECKED":
+      return "Not checked";
+
+    case "OK":
+      return "OK";
+
+    case "UNDERPAID":
+      return "Underpaid";
+
+    case "OVERPAID":
+      return "Overpaid";
+
+    case "DISPUTED":
+      return "Disputed";
+
+    default:
+      return status;
+  }
+}
+
+function getSettlementStatusClassName(
+  status: SettlementStatusValue,
+): string {
+  switch (status) {
+    case "OK":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+    case "UNDERPAID":
+      return "border-red-200 bg-red-50 text-red-700";
+
+    case "OVERPAID":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+
+    case "DISPUTED":
+      return "border-purple-200 bg-purple-50 text-purple-700";
+
+    case "NOT_CHECKED":
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
+function isSettlementStatus(
+  value: string,
+): value is SettlementStatusValue {
+  return SETTLEMENT_STATUSES.some(
+    (status) => status.value === value,
+  );
+}
+
 function parseRequiredNumber(
   value: string,
 ): number | null {
@@ -2739,6 +3082,25 @@ function parseNullableNumber(
   const parsedValue = Number(value);
 
   if (!Number.isFinite(parsedValue)) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
+function parseNullableNonNegativeNumber(
+  value: string,
+): number | null {
+  if (value.trim() === "") {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  if (
+    !Number.isFinite(parsedValue) ||
+    parsedValue < 0
+  ) {
     return null;
   }
 
@@ -3128,6 +3490,11 @@ function buildCourseSnapshotFromApiResponse(
   | "billableKmLogicAtBooking"
   | "portFeeIncludedAtBooking"
   | "pricingSnapshotCreatedAt"
+  | "settlementAmount"
+  | "settlementStatus"
+  | "settlementCheckedAt"
+  | "settlementReference"
+  | "settlementNotes"
 > {
   return {
     tariffNameAtBooking:
@@ -3170,7 +3537,44 @@ function buildCourseSnapshotFromApiResponse(
       course?.pricingSnapshotCreatedAt ??
       fallbackRow.pricingSnapshotCreatedAt ??
       "",
+
+    settlementAmount:
+      formatApiMoney(
+        course?.settlementAmount,
+        fallbackRow.settlementAmount,
+      ),
+    settlementStatus:
+      course?.settlementStatus ??
+      fallbackRow.settlementStatus ??
+      "NOT_CHECKED",
+    settlementCheckedAt:
+      course?.settlementCheckedAt ??
+      fallbackRow.settlementCheckedAt ??
+      "",
+    settlementReference:
+      course?.settlementReference ??
+      fallbackRow.settlementReference ??
+      "",
+    settlementNotes:
+      course?.settlementNotes ??
+      fallbackRow.settlementNotes ??
+      "",
   };
+}
+
+function formatApiMoney(
+  value: number | string | null | undefined,
+  fallbackValue: string | undefined,
+): string {
+  if (value === null || value === undefined || value === "") {
+    return fallbackValue ?? "";
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue)
+    ? formatMoney(parsedValue)
+    : fallbackValue ?? "";
 }
 
 function formatApiSnapshotNumber(

@@ -307,6 +307,11 @@ function mapCourseToRow(
     waitingAmount: unknown;
     agreedPrice: unknown;
     portFeeAmount: unknown;
+    settlementAmount: unknown;
+    settlementStatus: string;
+    settlementCheckedAt: Date | null;
+    settlementReference: string | null;
+    settlementNotes: string | null;
     plannedDate: Date | null;
     createdAt: Date;
     pickupAddress: AddressForDisplay | null;
@@ -487,6 +492,18 @@ function mapCourseToRow(
         ? portFeeAmount.toFixed(2)
         : "",
 
+    settlementAmount: formatNullableMoney(
+      course.settlementAmount,
+    ),
+    settlementStatus:
+      course.settlementStatus ?? "NOT_CHECKED",
+    settlementCheckedAt:
+      course.settlementCheckedAt?.toISOString() ?? "",
+    settlementReference:
+      course.settlementReference ?? "",
+    settlementNotes:
+      course.settlementNotes ?? "",
+
     fuelCost:
       fuelCost > 0
         ? fuelCost.toFixed(2)
@@ -550,6 +567,16 @@ function toNullableNumber(
 
 function toNumber(value: unknown): number {
   return toNullableNumber(value) ?? 0;
+}
+
+function formatNullableMoney(
+  value: unknown,
+): string {
+  const parsed = toNullableNumber(value);
+
+  return parsed === null
+    ? ""
+    : parsed.toFixed(2);
 }
 
 function formatNullableNumber(
