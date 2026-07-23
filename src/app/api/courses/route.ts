@@ -54,6 +54,17 @@ const COST_TYPES = [
 ] as const;
 
 const COURSE_ROW_COST_MARKER = "SOURCE:COURSE_ROW";
+const COURSE_AUTO_ADDRESS_MARKER =
+  "SOURCE:COURSE_AUTO_ADDRESS";
+const DEFAULT_AUTO_ADDRESS_COUNTRY = "NL";
+const SUPPORTED_ADDRESS_COUNTRY_CODES = [
+  "NL",
+  "BE",
+  "DE",
+  "FR",
+  "BG",
+  "PL",
+] as const;
 
 type CourseStatusValue = (typeof COURSE_STATUSES)[number];
 type CourseTypeValue = (typeof COURSE_TYPES)[number];
@@ -878,6 +889,7 @@ async function resolveCourseStops(
         addressId = await findOrCreateAddressFromText(
           transaction,
           addressText,
+          stop.type,
         );
 
         createdAddressIds.set(normalizedKey, addressId);
@@ -899,117 +911,528 @@ async function resolveCourseStops(
 async function findOrCreateAddressFromText(
   transaction: Prisma.TransactionClient,
   addressText: string,
+  stopType: CourseStopTypeValue,
 ): Promise<string> {
-  const parsedAddress = parseAddressText(addressText);
+  const parsedAddress =
+    parseAddressText(addressText);
 
-  const existingAddress = await transaction.address.findFirst({
-    where: {
-      name: parsedAddress.name,
-      street: parsedAddress.street,
-      city: parsedAddress.city,
-      postalCode: parsedAddress.postalCode,
-      country: parsedAddress.country,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const exactExistingAddress =
+    await transaction.address.findFirst({
+      where: buildAddressDuplicateWhere(
+        parsedAddress,
+      ),
+      select: {
+        id: true,
+      },
+    });
 
-  if (existingAddress) {
-    return existingAddress.id;
+  if (exactExistingAddress) {
+    return exactExistingAddress.id;
   }
 
-  const createdAddress = await transaction.address.create({
-    data: {
-      name: parsedAddress.name,
-      street: parsedAddress.street,
-      city: parsedAddress.city,
-      postalCode: parsedAddress.postalCode,
-      country: parsedAddress.country,
-      type: "OTHER",
-      notes: `Създаден автоматично от курс: ${addressText}`,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const candidateAddresses =
+    await transaction.address.findMany({
+      where: buildAddressCandidateWhere(
+        parsedAddress,
+      ),
+      select: {
+        id: true,
+        name: true,
+        street: true,
+        city: true,
+        postalCode: true,
+        country: true,
+      },
+      take: 25,
+    });
+
+  const parsedAddressKey =
+    createParsedAddressComparisonKey(
+      parsedAddress,
+    );
+
+  const matchingCandidate =
+    candidateAddresses.find(
+      (address) =>
+        createExistingAddressComparisonKey(
+          address,
+        ) === parsedAddressKey,
+    );
+
+  if (matchingCandidate) {
+    return matchingCandidate.id;
+  }
+
+  const createdAddress =
+    await transaction.address.create({
+      data: {
+        name: parsedAddress.name,
+        street: parsedAddress.street,
+        city: parsedAddress.city,
+        postalCode:
+          parsedAddress.postalCode,
+        country: parsedAddress.country,
+        type: "OTHER",
+        isActive: true,
+        notes:
+          createAutoCreatedAddressNotes(
+            addressText,
+            stopType,
+          ),
+      },
+      select: {
+        id: true,
+      },
+    });
 
   return createdAddress.id;
 }
 
-function parseAddressText(addressText: string): ParsedAddressData {
-  const normalizedText = addressText
-    .trim()
-    .replace(/\s+/g, " ");
+function parseAddressText(
+  addressText: string,
+): ParsedAddressData {
+  const normalizedText =
+    normalizeAddressDisplayText(
+      addressText,
+    );
 
-  const separatorMatch = normalizedText.match(/\s[—–-]\s/);
+  const { name, details, hasExplicitName } =
+    splitAddressNameAndDetails(
+      normalizedText,
+    );
 
-  let name = normalizedText;
-  let details = "";
+  const {
+    detailsWithoutCountry,
+    country,
+  } = extractCountryCode(details);
 
-  if (separatorMatch?.index !== undefined) {
-    name = normalizedText.slice(0, separatorMatch.index).trim();
-    details = normalizedText
-      .slice(separatorMatch.index + separatorMatch[0].length)
-      .trim();
-  }
+  const parsedDetails =
+    parseAddressDetails(
+      detailsWithoutCountry || details,
+      country,
+    );
 
-  let country = "UNSPECIFIED";
+  const finalCountry =
+    parsedDetails.country ?? country;
 
-  const countryMatch = details.match(
-    /(?:,\s*|\s+)(NL|BE|DE|FR|BG)$/i,
-  );
-
-  if (countryMatch) {
-    country = countryMatch[1].toUpperCase();
-    details = details.slice(0, countryMatch.index).trim();
-  }
-
-  let postalCode: string | null = null;
-  let city: string | null = null;
-  let street: string | null = details || null;
-
-  const dutchPostalCodeMatch = details.match(
-    /\b(\d{4})\s?([A-Za-z]{2})\b/,
-  );
-
-  if (
-    dutchPostalCodeMatch &&
-    dutchPostalCodeMatch.index !== undefined
-  ) {
-    postalCode = `${dutchPostalCodeMatch[1]} ${dutchPostalCodeMatch[2].toUpperCase()}`;
-    country = country === "UNSPECIFIED" ? "NL" : country;
-
-    const beforePostalCode = details
-      .slice(0, dutchPostalCodeMatch.index)
-      .replace(/[,;]+$/, "")
-      .trim();
-
-    const afterPostalCode = details
-      .slice(
-        dutchPostalCodeMatch.index +
-          dutchPostalCodeMatch[0].length,
-      )
-      .replace(/^[,;]+/, "")
-      .trim();
-
-    street = beforePostalCode || null;
-    city = afterPostalCode || null;
-  }
+  const finalName = hasExplicitName
+    ? name
+    : createAutoAddressName({
+        street: parsedDetails.street,
+        city: parsedDetails.city,
+        postalCode:
+          parsedDetails.postalCode,
+        country: finalCountry,
+        fallback: normalizedText,
+      });
 
   return {
-    name: name || normalizedText,
-    street,
-    city,
-    postalCode,
-    country,
+    name: finalName,
+    street: parsedDetails.street,
+    city: parsedDetails.city,
+    postalCode:
+      parsedDetails.postalCode,
+    country: finalCountry,
   };
 }
 
-function normalizeAddressText(value: string): string {
+function splitAddressNameAndDetails(
+  normalizedText: string,
+): {
+  name: string;
+  details: string;
+  hasExplicitName: boolean;
+} {
+  const separatorMatch =
+    normalizedText.match(/\s[—–-]\s/);
+
+  if (separatorMatch?.index !== undefined) {
+    const name = normalizedText
+      .slice(0, separatorMatch.index)
+      .trim();
+
+    const details = normalizedText
+      .slice(
+        separatorMatch.index +
+          separatorMatch[0].length,
+      )
+      .trim();
+
+    return {
+      name: name || normalizedText,
+      details,
+      hasExplicitName: true,
+    };
+  }
+
+  return {
+    name: normalizedText,
+    details: normalizedText,
+    hasExplicitName: false,
+  };
+}
+
+function extractCountryCode(
+  details: string,
+): {
+  detailsWithoutCountry: string;
+  country: string;
+} {
+  const countryMatch = details.match(
+    /(?:,\s*|\s+)(NL|BE|DE|FR|BG|PL)$/i,
+  );
+
+  if (!countryMatch) {
+    return {
+      detailsWithoutCountry: details,
+      country:
+        DEFAULT_AUTO_ADDRESS_COUNTRY,
+    };
+  }
+
+  return {
+    detailsWithoutCountry: details
+      .slice(0, countryMatch.index)
+      .replace(/[,;]+$/, "")
+      .trim(),
+    country:
+      countryMatch[1].toUpperCase(),
+  };
+}
+
+function parseAddressDetails(
+  details: string,
+  countryFromText: string,
+): {
+  street: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;
+} {
+  const normalizedDetails =
+    normalizeAddressDisplayText(details);
+
+  if (normalizedDetails === "") {
+    return {
+      street: null,
+      city: null,
+      postalCode: null,
+      country: countryFromText,
+    };
+  }
+
+  const parts = normalizedDetails
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const street =
+    parts[0] ?? normalizedDetails;
+
+  const cityPostalText = parts
+    .slice(1)
+    .join(", ");
+
+  const textForPostalSearch =
+    cityPostalText || normalizedDetails;
+
+  const postalMatch =
+    findPostalCodeMatch(
+      textForPostalSearch,
+    );
+
+  if (
+    postalMatch &&
+    postalMatch.index !== undefined
+  ) {
+    const postalCode =
+      normalizePostalCode(
+        postalMatch[0],
+      );
+
+    const detectedCountry =
+      detectCountryFromPostalCode(
+        postalCode,
+      );
+
+    const city = textForPostalSearch
+      .slice(
+        postalMatch.index +
+          postalMatch[0].length,
+      )
+      .replace(/^[,;\s]+/, "")
+      .trim();
+
+    const streetBeforePostal =
+      textForPostalSearch
+        .slice(0, postalMatch.index)
+        .replace(/[,;]+$/, "")
+        .trim();
+
+    return {
+      street:
+        cityPostalText === ""
+          ? streetBeforePostal || street
+          : street,
+      city: city || null,
+      postalCode,
+      country:
+        countryFromText ||
+        detectedCountry,
+    };
+  }
+
+  return {
+    street,
+    city: cityPostalText || null,
+    postalCode: null,
+    country: countryFromText,
+  };
+}
+
+function findPostalCodeMatch(
+  value: string,
+): RegExpMatchArray | null {
+  return (
+    value.match(/\b\d{4}\s?[A-Za-z]{2}\b/) ??
+    value.match(/\b\d{2}-\d{3}\b/) ??
+    value.match(/\b\d{4,5}\b/)
+  );
+}
+
+function normalizePostalCode(
+  value: string,
+): string {
+  const trimmedValue = value
+    .trim()
+    .toUpperCase();
+
+  const dutchMatch = trimmedValue.match(
+    /^(\d{4})\s?([A-Z]{2})$/,
+  );
+
+  if (dutchMatch) {
+    return `${dutchMatch[1]} ${dutchMatch[2]}`;
+  }
+
+  return trimmedValue;
+}
+
+function detectCountryFromPostalCode(
+  postalCode: string,
+): string {
+  if (/^\d{4}\s[A-Z]{2}$/.test(postalCode)) {
+    return "NL";
+  }
+
+  if (/^\d{2}-\d{3}$/.test(postalCode)) {
+    return "PL";
+  }
+
+  return DEFAULT_AUTO_ADDRESS_COUNTRY;
+}
+
+function createAutoAddressName({
+  street,
+  city,
+  postalCode,
+  country,
+  fallback,
+}: {
+  street: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string;
+  fallback: string;
+}): string {
+  if (city && postalCode) {
+    return `${city} ${postalCode}`;
+  }
+
+  if (city) {
+    return city;
+  }
+
+  if (street) {
+    return street;
+  }
+
+  return `${fallback.slice(0, 80)}${
+    fallback.length > 80 ? "..." : ""
+  } ${country}`.trim();
+}
+
+function buildAddressDuplicateWhere(
+  parsedAddress: ParsedAddressData,
+): Prisma.AddressWhereInput {
+  return {
+    AND: [
+      {
+        name: {
+          equals: parsedAddress.name,
+          mode: "insensitive",
+        },
+      },
+      createNullableStringFilter(
+        "street",
+        parsedAddress.street,
+      ),
+      createNullableStringFilter(
+        "city",
+        parsedAddress.city,
+      ),
+      createNullableStringFilter(
+        "postalCode",
+        parsedAddress.postalCode,
+      ),
+      {
+        country: {
+          equals: parsedAddress.country,
+          mode: "insensitive",
+        },
+      },
+    ],
+  };
+}
+
+function buildAddressCandidateWhere(
+  parsedAddress: ParsedAddressData,
+): Prisma.AddressWhereInput {
+  const searchParts = [
+    parsedAddress.name,
+    parsedAddress.street,
+    parsedAddress.city,
+    parsedAddress.postalCode,
+  ].filter(
+    (value): value is string =>
+      Boolean(value && value.length >= 3),
+  );
+
+  if (searchParts.length === 0) {
+    return {
+      country: {
+        equals: parsedAddress.country,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  return {
+    country: {
+      equals: parsedAddress.country,
+      mode: "insensitive",
+    },
+    OR: searchParts.flatMap((part) => [
+      {
+        name: {
+          contains: part,
+          mode: "insensitive",
+        },
+      },
+      {
+        street: {
+          contains: part,
+          mode: "insensitive",
+        },
+      },
+      {
+        city: {
+          contains: part,
+          mode: "insensitive",
+        },
+      },
+      {
+        postalCode: {
+          contains: part,
+          mode: "insensitive",
+        },
+      },
+    ]),
+  };
+}
+
+function createNullableStringFilter(
+  field:
+    | "street"
+    | "city"
+    | "postalCode",
+  value: string | null,
+): Prisma.AddressWhereInput {
+  if (value === null) {
+    return {
+      [field]: null,
+    };
+  }
+
+  return {
+    [field]: {
+      equals: value,
+      mode: "insensitive",
+    },
+  };
+}
+
+function createParsedAddressComparisonKey(
+  address: ParsedAddressData,
+): string {
+  return [
+    address.name,
+    address.street,
+    address.city,
+    address.postalCode,
+    address.country,
+  ]
+    .map((value) =>
+      normalizeAddressText(value ?? ""),
+    )
+    .join("|");
+}
+
+function createExistingAddressComparisonKey(address: {
+  name: string;
+  street: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string;
+}): string {
+  return [
+    address.name,
+    address.street,
+    address.city,
+    address.postalCode,
+    address.country,
+  ]
+    .map((value) =>
+      normalizeAddressText(value ?? ""),
+    )
+    .join("|");
+}
+
+function createAutoCreatedAddressNotes(
+  addressText: string,
+  stopType: CourseStopTypeValue,
+): string {
+  return [
+    "Auto-created from course.",
+    `Stop type: ${stopType}.`,
+    `Original text: ${addressText}`,
+    COURSE_AUTO_ADDRESS_MARKER,
+  ].join("\n");
+}
+
+function normalizeAddressDisplayText(
+  value: string,
+): string {
   return value
     .trim()
     .replace(/\s+/g, " ")
+    .replace(/\s+,/g, ",")
+    .replace(/,\s+/g, ", ");
+}
+
+function normalizeAddressText(value: string): string {
+  return normalizeAddressDisplayText(value)
+    .normalize("NFKC")
     .toLocaleLowerCase("bg-BG");
 }
 
