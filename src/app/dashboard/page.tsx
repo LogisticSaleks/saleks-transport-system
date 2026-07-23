@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 type WeeklyReportCourseForDashboard = {
   id: string;
+  courseId: string | null;
   courseDate: Date;
   customerNameAtReport: string;
   courseTypeAtReport: "ROUND_TRIP" | "SHUNT";
@@ -231,6 +232,7 @@ function mapWeeklyReportCourseForDashboard(
 
   return {
     id: course.id,
+    courseId: course.courseId,
     courseDate: course.courseDate.toISOString(),
     customerNameAtReport:
       course.customerNameAtReport,

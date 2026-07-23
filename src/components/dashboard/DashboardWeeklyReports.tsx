@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 export type DashboardTruckOption = {
@@ -12,6 +12,7 @@ export type DashboardTruckOption = {
 
 export type WeeklyTruckRevenueReportCourseRow = {
   id: string;
+  courseId: string | null;
   courseDate: string;
   customerNameAtReport: string;
   courseTypeAtReport: "ROUND_TRIP" | "SHUNT";
@@ -62,6 +63,21 @@ type WeeklyReportsApiResponse = {
   error?: string;
 };
 
+type CourseSettlementApiResponse = {
+  course?: {
+    id?: string;
+    settlementAmount?: number | string | null;
+    settlementStatus?: string | null;
+  };
+  error?: string;
+};
+
+type SaveSettlementInput = {
+  reportId: string;
+  course: WeeklyTruckRevenueReportCourseRow;
+  value: string;
+};
+
 type DashboardWeeklyReportsProps = {
   initialYear: number;
   initialWeekNumber: number;
@@ -90,6 +106,10 @@ export default function DashboardWeeklyReports({
     useState(false);
   const [isUpdatingLock, setIsUpdatingLock] =
     useState<string | null>(null);
+  const [
+    savingSettlementCourseId,
+    setSavingSettlementCourseId,
+  ] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
   const [successMessage, setSuccessMessage] =
@@ -327,6 +347,117 @@ export default function DashboardWeeklyReports({
     }
   }
 
+  async function handleSaveSettlementAmount({
+    reportId,
+    course,
+    value,
+  }: SaveSettlementInput): Promise<void> {
+    if (!course.courseId) {
+      setErrorMessage(
+        "Този ред няма връзка към оригиналния курс.",
+      );
+      return;
+    }
+
+    const parsedSettlementAmount =
+      parseSettlementAmountInput(value);
+
+    if (parsedSettlementAmount === "INVALID") {
+      setErrorMessage(
+        "Признатата сума трябва да бъде валидно неотрицателно число.",
+      );
+      return;
+    }
+
+    setSavingSettlementCourseId(course.courseId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/courses", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: course.courseId,
+          settlementAmount:
+            parsedSettlementAmount,
+        }),
+      });
+
+      const responseData =
+        (await response.json().catch(() => null)) as
+          | CourseSettlementApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Признатата сума не можа да бъде записана.",
+        );
+      }
+
+      const apiSettlementAmount =
+        hasOwn(
+          responseData?.course ?? {},
+          "settlementAmount",
+        )
+          ? parseApiNullableNumber(
+              responseData?.course?.settlementAmount,
+            )
+          : parsedSettlementAmount;
+
+      const fallbackDifference =
+        apiSettlementAmount === null
+          ? null
+          : roundMoney(
+              apiSettlementAmount -
+                course.expectedRevenue,
+            );
+
+      const apiSettlementStatus =
+        normalizeSettlementStatusFromUnknown(
+          responseData?.course?.settlementStatus,
+        );
+
+      const nextSettlementStatus =
+        apiSettlementStatus ??
+        calculateSettlementStatus({
+          settlementAmount:
+            apiSettlementAmount,
+          settlementDifference:
+            fallbackDifference,
+        });
+
+      setReports((currentReports) =>
+        updateReportsWithSettlementAmount(
+          currentReports,
+          {
+            reportId,
+            courseRowId: course.id,
+            settlementAmount:
+              apiSettlementAmount,
+            settlementStatus:
+              nextSettlementStatus,
+          },
+        ),
+      );
+
+      setSuccessMessage(
+        "Признатата сума е записана.",
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Признатата сума не можа да бъде записана.",
+      );
+    } finally {
+      setSavingSettlementCourseId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
@@ -544,6 +675,12 @@ export default function DashboardWeeklyReports({
                     report={report}
                     isExpanded={expandedReportId === report.id}
                     isUpdatingLock={isUpdatingLock === report.id}
+                    savingSettlementCourseId={
+                      savingSettlementCourseId
+                    }
+                    onSaveSettlementAmount={
+                      handleSaveSettlementAmount
+                    }
                     onToggleDetails={() =>
                       setExpandedReportId((currentReportId) =>
                         currentReportId === report.id
@@ -567,12 +704,18 @@ function ReportRows({
   report,
   isExpanded,
   isUpdatingLock,
+  savingSettlementCourseId,
+  onSaveSettlementAmount,
   onToggleDetails,
   onToggleLock,
 }: {
   report: WeeklyTruckRevenueReportRow;
   isExpanded: boolean;
   isUpdatingLock: boolean;
+  savingSettlementCourseId: string | null;
+  onSaveSettlementAmount: (
+    input: SaveSettlementInput,
+  ) => Promise<void>;
   onToggleDetails: () => void;
   onToggleLock: () => void;
 }) {
@@ -692,7 +835,15 @@ function ReportRows({
             colSpan={7}
             className="border-b border-slate-300 bg-slate-50 px-4 py-4"
           >
-            <ReportCoursesTable report={report} />
+            <ReportCoursesTable
+              report={report}
+              savingSettlementCourseId={
+                savingSettlementCourseId
+              }
+              onSaveSettlementAmount={
+                onSaveSettlementAmount
+              }
+            />
           </td>
         </tr>
       )}
@@ -702,8 +853,14 @@ function ReportRows({
 
 function ReportCoursesTable({
   report,
+  savingSettlementCourseId,
+  onSaveSettlementAmount,
 }: {
   report: WeeklyTruckRevenueReportRow;
+  savingSettlementCourseId: string | null;
+  onSaveSettlementAmount: (
+    input: SaveSettlementInput,
+  ) => Promise<void>;
 }) {
   if (report.courses.length === 0) {
     return (
@@ -795,8 +952,21 @@ function ReportCoursesTable({
                 {formatMoney(course.expectedRevenue)}
               </td>
 
-              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                {formatNullableMoney(course.settlementAmount)}
+              <td className="border-b border-slate-200 px-3 py-2">
+                <CourseSettlementInput
+                  course={course}
+                  isSaving={
+                    savingSettlementCourseId ===
+                    course.courseId
+                  }
+                  onSave={(value) =>
+                    onSaveSettlementAmount({
+                      reportId: report.id,
+                      course,
+                      value,
+                    })
+                  }
+                />
               </td>
 
               <td
@@ -831,6 +1001,79 @@ function ReportCoursesTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function CourseSettlementInput({
+  course,
+  isSaving,
+  onSave,
+}: {
+  course: WeeklyTruckRevenueReportCourseRow;
+  isSaving: boolean;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const initialValue =
+    course.settlementAmount === null
+      ? ""
+      : formatNumberInputValue(
+          course.settlementAmount,
+        );
+
+  const [value, setValue] =
+    useState(initialValue);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const isDirty =
+    value.trim() !== initialValue.trim();
+
+  const canSave =
+    Boolean(course.courseId) &&
+    isDirty &&
+    !isSaving;
+
+  async function handleSubmit(): Promise<void> {
+    if (!canSave) {
+      return;
+    }
+
+    await onSave(value);
+  }
+
+  return (
+    <div className="flex min-w-[160px] items-center justify-end gap-1">
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        placeholder="—"
+        disabled={isSaving || !course.courseId}
+        aria-label={`Призната сума за ${course.containerNumber ?? course.customerNameAtReport}`}
+        onChange={(event) =>
+          setValue(event.target.value)
+        }
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void handleSubmit();
+          }
+        }}
+        className="h-8 w-24 rounded-md border border-slate-300 bg-white px-2 text-right text-xs text-slate-950 outline-none transition hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+      />
+
+      <button
+        type="button"
+        onClick={() => void handleSubmit()}
+        disabled={!canSave}
+        className="inline-flex h-8 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-2 text-xs font-semibold text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isSaving ? "..." : "OK"}
+      </button>
     </div>
   );
 }
@@ -896,6 +1139,203 @@ function getSettlementStatusClassName(
   }
 }
 
+function updateReportsWithSettlementAmount(
+  reports: readonly WeeklyTruckRevenueReportRow[],
+  {
+    reportId,
+    courseRowId,
+    settlementAmount,
+    settlementStatus,
+  }: {
+    reportId: string;
+    courseRowId: string;
+    settlementAmount: number | null;
+    settlementStatus: WeeklyTruckRevenueReportCourseRow["settlementStatus"];
+  },
+): WeeklyTruckRevenueReportRow[] {
+  return reports.map((report) => {
+    if (report.id !== reportId) {
+      return report;
+    }
+
+    const courses = report.courses.map((course) => {
+      if (course.id !== courseRowId) {
+        return course;
+      }
+
+      const settlementDifference =
+        settlementAmount === null
+          ? null
+          : roundMoney(
+              settlementAmount -
+                course.expectedRevenue,
+            );
+
+      return {
+        ...course,
+        settlementAmount,
+        settlementDifference,
+        settlementStatus:
+          settlementStatus === "DISPUTED"
+            ? "DISPUTED"
+            : calculateSettlementStatus({
+                settlementAmount,
+                settlementDifference,
+              }),
+        totalRevenue:
+          settlementAmount ??
+          course.expectedRevenue,
+      };
+    });
+
+    return recalculateReportTotals({
+      ...report,
+      courses,
+    });
+  });
+}
+
+function recalculateReportTotals(
+  report: WeeklyTruckRevenueReportRow,
+): WeeklyTruckRevenueReportRow {
+  const expectedRevenue = roundMoney(
+    report.courses.reduce(
+      (sum, course) =>
+        sum + course.expectedRevenue,
+      0,
+    ),
+  );
+
+  const totalRevenue = roundMoney(
+    report.courses.reduce(
+      (sum, course) => sum + course.totalRevenue,
+      0,
+    ),
+  );
+
+  const settlementAmount = roundMoney(
+    report.courses.reduce(
+      (sum, course) =>
+        sum + (course.settlementAmount ?? 0),
+      0,
+    ),
+  );
+
+  const settlementCheckedCount =
+    report.courses.filter(
+      (course) =>
+        course.settlementAmount !== null,
+    ).length;
+
+  return {
+    ...report,
+    courseCount: report.courses.length,
+    expectedRevenue,
+    settlementAmount,
+    settlementDifference: roundMoney(
+      totalRevenue - expectedRevenue,
+    ),
+    settlementCheckedCount,
+    notCheckedCount:
+      report.courses.length -
+      settlementCheckedCount,
+    underpaidCount:
+      report.courses.filter(
+        (course) =>
+          course.settlementStatus === "UNDERPAID",
+      ).length,
+    totalRevenue,
+  };
+}
+
+function calculateSettlementStatus({
+  settlementAmount,
+  settlementDifference,
+}: {
+  settlementAmount: number | null;
+  settlementDifference: number | null;
+}): WeeklyTruckRevenueReportCourseRow["settlementStatus"] {
+  if (settlementAmount === null) {
+    return "NOT_CHECKED";
+  }
+
+  if (
+    settlementDifference === null ||
+    Math.abs(settlementDifference) < 0.01
+  ) {
+    return "OK";
+  }
+
+  return settlementDifference < 0
+    ? "UNDERPAID"
+    : "OVERPAID";
+}
+
+function normalizeSettlementStatusFromUnknown(
+  value: unknown,
+): WeeklyTruckRevenueReportCourseRow["settlementStatus"] | null {
+  if (
+    value === "NOT_CHECKED" ||
+    value === "OK" ||
+    value === "UNDERPAID" ||
+    value === "OVERPAID" ||
+    value === "DISPUTED"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function parseSettlementAmountInput(
+  value: string,
+): number | null | "INVALID" {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue === "") {
+    return null;
+  }
+
+  const parsedValue = Number(trimmedValue);
+
+  if (
+    !Number.isFinite(parsedValue) ||
+    parsedValue < 0
+  ) {
+    return "INVALID";
+  }
+
+  return roundMoney(parsedValue);
+}
+
+function parseApiNullableNumber(
+  value: unknown,
+): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isFinite(parsedValue)
+    ? roundMoney(parsedValue)
+    : null;
+}
+
+function hasOwn(
+  object: object,
+  property: PropertyKey,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(
+    object,
+    property,
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -937,8 +1377,18 @@ function parsePositiveInteger(value: string): number | null {
   return parsedValue;
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function formatMoney(value: number): string {
   return `€${value.toFixed(2)}`;
+}
+
+function formatNumberInputValue(value: number): string {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2);
 }
 
 function formatMoneyWithSign(value: number): string {
@@ -951,10 +1401,6 @@ function formatMoneyWithSign(value: number): string {
   }
 
   return formatMoney(0);
-}
-
-function formatNullableMoney(value: number | null): string {
-  return value === null ? "—" : formatMoney(value);
 }
 
 function formatNullableMoneyWithSign(
