@@ -10,6 +10,8 @@ export type AddressOption = {
   postalCode: string | null;
   country: string;
   type: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type AddressSelectionValue = {

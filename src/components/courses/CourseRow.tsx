@@ -198,11 +198,16 @@ type RouteCalculationApiResponse = {
   error?: string;
 };
 
+type RouteCalculationCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
 type RouteCalculationStopPayload = {
   type: "ORIGIN" | "VIA" | "DESTINATION";
   addressId: string | null;
   label: string | null;
-  coordinate: null;
+  coordinate: RouteCalculationCoordinate | null;
 };
 
 const ADDRESS_FIELDS: readonly AddressField[] = [
@@ -2167,8 +2172,13 @@ function buildRouteCalculationStops(
     ),
   );
 
-  return candidates.map(
-    (candidate, index) => ({
+  return candidates.map((candidate, index) => {
+    const selectedAddress = getAddressById(
+      addresses,
+      candidate.addressId,
+    );
+
+    return {
       type: getRouteStopType(
         index,
         candidates.length,
@@ -2181,8 +2191,54 @@ function buildRouteCalculationStops(
           candidate.addressId,
           candidate.addressText,
         ) || null,
-      coordinate: null,
-    }),
+      coordinate:
+        buildRouteCalculationCoordinate(
+          selectedAddress,
+        ),
+    };
+  });
+}
+
+function buildRouteCalculationCoordinate(
+  address: AddressOption | null,
+): RouteCalculationCoordinate | null {
+  if (
+    !address ||
+    address.latitude === null ||
+    address.longitude === null
+  ) {
+    return null;
+  }
+
+  if (
+    !Number.isFinite(address.latitude) ||
+    !Number.isFinite(address.longitude)
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: address.latitude,
+    longitude: address.longitude,
+  };
+}
+
+function getAddressById(
+  addresses: readonly AddressOption[],
+  addressId: string,
+): AddressOption | null {
+  const normalizedAddressId =
+    addressId.trim();
+
+  if (normalizedAddressId === "") {
+    return null;
+  }
+
+  return (
+    addresses.find(
+      (option) =>
+        option.id === normalizedAddressId,
+    ) ?? null
   );
 }
 

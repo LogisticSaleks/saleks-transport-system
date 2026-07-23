@@ -14,6 +14,8 @@ type AddressForDeduplication = {
 
 type AddressForDisplay = AddressForDeduplication & {
   id: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type CourseStopForRow = {
@@ -124,6 +126,8 @@ export default async function CoursesPage() {
         postalCode: true,
         country: true,
         type: true,
+        latitude: true,
+        longitude: true,
       },
       orderBy: [
         {
@@ -248,7 +252,17 @@ export default async function CoursesPage() {
         address,
       ]),
     ).values(),
-  );
+  ).map((address) => ({
+    id: address.id,
+    name: address.name,
+    street: address.street,
+    city: address.city,
+    postalCode: address.postalCode,
+    country: address.country,
+    type: address.type,
+    latitude: toNullableNumber(address.latitude),
+    longitude: toNullableNumber(address.longitude),
+  }));
 
   const initialCourses: CourseRowData[] =
     rawCourses.map((course, index) =>
