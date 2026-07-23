@@ -25,6 +25,10 @@ type CourseTableProps = {
   initialCourses: readonly CourseRowData[];
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
+type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
+
 function createEmptyCourseRow(
   id: number,
 ): CourseRowData {
@@ -93,8 +97,8 @@ export default function CourseTable({
   const [rows, setRows] = useState<
     CourseRowData[]
   >(() => [
-    ...initialCourses,
     createEmptyCourseRow(firstEmptyRowId),
+    ...initialCourses,
   ]);
 
   const [dateFrom, setDateFrom] =
@@ -102,6 +106,12 @@ export default function CourseTable({
 
   const [dateTo, setDateTo] =
     useState("");
+
+  const [pageSize, setPageSize] =
+    useState<PageSizeOption>(10);
+
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const [isExporting, setIsExporting] =
     useState(false);
@@ -114,15 +124,19 @@ export default function CourseTable({
     [rows],
   );
 
-  const visibleRows = useMemo(
+  const draftRows = useMemo(
+    () =>
+      rows.filter(
+        (row) => row.databaseId === null,
+      ),
+    [rows],
+  );
+
+  const filteredSavedRows = useMemo(
     () =>
       rows.filter((row) => {
-        /*
-         * Празните редове винаги остават видими,
-         * за да може да се въвежда нов курс.
-         */
         if (row.databaseId === null) {
-          return true;
+          return false;
         }
 
         if (
@@ -144,35 +158,68 @@ export default function CourseTable({
     [rows, dateFrom, dateTo],
   );
 
+  const totalPages = Math.max(
+    Math.ceil(filteredSavedRows.length / pageSize),
+    1,
+  );
+
+  const safeCurrentPage = Math.min(
+    Math.max(currentPage, 1),
+    totalPages,
+  );
+
+  const paginatedSavedRows = useMemo(() => {
+    const startIndex =
+      (safeCurrentPage - 1) * pageSize;
+
+    return filteredSavedRows.slice(
+      startIndex,
+      startIndex + pageSize,
+    );
+  }, [filteredSavedRows, pageSize, safeCurrentPage]);
+
+  const visibleRows = useMemo(
+    () => [
+      ...draftRows,
+      ...paginatedSavedRows,
+    ],
+    [draftRows, paginatedSavedRows],
+  );
+
   const savedCoursesCount = rows.filter(
     (row) => row.databaseId !== null,
   ).length;
 
-  const visibleSavedRows = useMemo(
-    () =>
-      visibleRows.filter(
-        (row) => row.databaseId !== null,
-      ),
-    [visibleRows],
-  );
-
   const visibleSavedCoursesCount =
-    visibleSavedRows.length;
+    paginatedSavedRows.length;
+
+  const filteredSavedCoursesCount =
+    filteredSavedRows.length;
+
+  const paginationStart =
+    filteredSavedRows.length === 0
+      ? 0
+      : (safeCurrentPage - 1) * pageSize + 1;
+
+  const paginationEnd = Math.min(
+    safeCurrentPage * pageSize,
+    filteredSavedRows.length,
+  );
 
   const settlementSummary = useMemo(
     () =>
       calculateSettlementSummary(
-        visibleSavedRows,
+        paginatedSavedRows,
       ),
-    [visibleSavedRows],
+    [paginatedSavedRows],
   );
 
   const summary = useMemo(
     () =>
       calculateCourseSummary(
-        visibleSavedRows,
+        paginatedSavedRows,
       ),
-    [visibleSavedRows],
+    [paginatedSavedRows],
   );
 
   function handleAddRow(): void {
@@ -181,9 +228,11 @@ export default function CourseTable({
     nextRowId.current += 1;
 
     setRows((currentRows) => [
-      ...currentRows,
       createEmptyCourseRow(newRowId),
+      ...currentRows,
     ]);
+
+    setCurrentPage(1);
   }
 
   const handleRowChange = useCallback(
@@ -208,6 +257,8 @@ export default function CourseTable({
             : row,
         ),
       );
+
+      setCurrentPage(1);
     },
     [],
   );
@@ -224,7 +275,7 @@ export default function CourseTable({
   );
 
   async function handleExport(): Promise<void> {
-    if (visibleSavedRows.length === 0) {
+    if (filteredSavedRows.length === 0) {
       setExportError(
         "Няма записани курсове за експорт.",
       );
@@ -235,7 +286,7 @@ export default function CourseTable({
     setExportError(null);
 
     try {
-      const exportRows = visibleSavedRows.map(
+      const exportRows = filteredSavedRows.map(
         (row) =>
           buildCourseExcelExportRow({
             row,
@@ -308,7 +359,31 @@ export default function CourseTable({
   function handleClearFilters(): void {
     setDateFrom("");
     setDateTo("");
+    setCurrentPage(1);
     setExportError(null);
+  }
+
+  function handleDateFromChange(value: string): void {
+    setDateFrom(value);
+    setCurrentPage(1);
+    setExportError(null);
+  }
+
+  function handleDateToChange(value: string): void {
+    setDateTo(value);
+    setCurrentPage(1);
+    setExportError(null);
+  }
+
+  function handlePageSizeChange(value: string): void {
+    const nextPageSize = Number(value);
+
+    if (!isPageSizeOption(nextPageSize)) {
+      return;
+    }
+
+    setPageSize(nextPageSize);
+    setCurrentPage(1);
   }
 
   return (
@@ -332,7 +407,7 @@ export default function CourseTable({
               value={dateFrom}
               max={dateTo || undefined}
               onChange={(event) =>
-                setDateFrom(
+                handleDateFromChange(
                   event.target.value,
                 )
               }
@@ -347,12 +422,31 @@ export default function CourseTable({
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(event) =>
-                setDateTo(
+                handleDateToChange(
                   event.target.value,
                 )
               }
               className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
             />
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+            На страница
+            <select
+              value={pageSize}
+              onChange={(event) =>
+                handlePageSizeChange(
+                  event.target.value,
+                )
+              }
+              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+            >
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </label>
 
           <button
@@ -372,9 +466,10 @@ export default function CourseTable({
             onClick={handleExport}
             disabled={
               isExporting ||
-              visibleSavedRows.length === 0
+              filteredSavedRows.length === 0
             }
             aria-busy={isExporting}
+            title="Експортира всички филтрирани записани курсове, не само текущата страница."
             className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isExporting
@@ -396,28 +491,35 @@ export default function CourseTable({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
         <span>
-          Показани записани курсове:{" "}
+          Показани на страница: {" "}
           <strong className="text-slate-900">
             {visibleSavedCoursesCount}
           </strong>
         </span>
 
         <span>
-          Общо записани:{" "}
+          Филтрирани записани: {" "}
+          <strong className="text-slate-900">
+            {filteredSavedCoursesCount}
+          </strong>
+        </span>
+
+        <span>
+          Общо записани: {" "}
           <strong className="text-slate-900">
             {savedCoursesCount}
           </strong>
         </span>
 
         <span>
-          Settlement checked:{" "}
+          Settlement checked: {" "}
           <strong className="text-slate-900">
             {settlementSummary.checked}
           </strong>
         </span>
 
         <span>
-          Underpaid:{" "}
+          Underpaid: {" "}
           <strong className="text-red-700">
             {settlementSummary.underpaid}
           </strong>
@@ -429,6 +531,44 @@ export default function CourseTable({
             Активен филтър по дата
           </span>
         )}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-300 bg-white px-3 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="text-sm text-slate-600">
+          Показани записани курсове {paginationStart}–{paginationEnd} от {filteredSavedRows.length}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentPage((page) =>
+                Math.max(page - 1, 1),
+              )
+            }
+            disabled={safeCurrentPage <= 1}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Previous
+          </button>
+
+          <span className="text-sm font-medium text-slate-700">
+            Page {safeCurrentPage} / {totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentPage((page) =>
+                Math.min(page + 1, totalPages),
+              )
+            }
+            disabled={safeCurrentPage >= totalPages}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {exportError && (
@@ -509,12 +649,11 @@ export default function CourseTable({
       </div>
 
       <p className="text-xs text-slate-500">
-        Таблицата показва кратък преглед на курсовете. Натисни Редакция, за да отвориш всички полета на реда без хоризонтално местене. Филтърът използва планираната дата, а когато тя липсва — датата на създаване на курса.
+        Новите курсове се добавят най-отгоре. По подразбиране се показват последните 10 записани курса. Експортът използва всички филтрирани записани курсове, а не само текущата страница.
       </p>
     </section>
   );
 }
-
 
 function buildFixedCostAllocationCounts(
   rows: readonly CourseRowData[],
@@ -620,7 +759,6 @@ function getTodayDate(): string {
     .toISOString()
     .slice(0, 10);
 }
-
 
 function calculateSettlementSummary(
   rows: readonly CourseRowData[],
@@ -744,7 +882,6 @@ function roundSummaryValue(
 ): number {
   return Math.round(value * 100) / 100;
 }
-
 
 type BuildExcelExportRowInput = {
   row: CourseRowData;
@@ -1045,4 +1182,12 @@ function downloadBlob(
   link.remove();
 
   URL.revokeObjectURL(objectUrl);
+}
+
+function isPageSizeOption(
+  value: number,
+): value is PageSizeOption {
+  return (
+    PAGE_SIZE_OPTIONS as readonly number[]
+  ).includes(value);
 }
