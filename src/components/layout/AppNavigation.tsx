@@ -2,12 +2,29 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
 type NavigationItem = {
   href: string;
   label: string;
+};
+
+type NavigationUserProfile = {
+  email: string;
+  fullName: string;
+  role: string;
+  status: string;
+};
+
+type CurrentUserApiResponse = {
+  status?: string;
+  profile?: NavigationUserProfile | null;
 };
 
 const NAVIGATION_ITEMS: readonly NavigationItem[] = [
@@ -40,7 +57,64 @@ const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 export default function AppNavigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+
+  const [profile, setProfile] =
+    useState<NavigationUserProfile | null>(null);
+
+  useEffect(() => {
+    if (pathname === "/login") {
+      setProfile(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadNavigationProfile(): Promise<void> {
+      try {
+        const response = await fetch(
+          "/api/auth/current-user",
+          {
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          if (isMounted) {
+            setProfile(null);
+          }
+
+          return;
+        }
+
+        const responseData =
+          (await response.json()) as CurrentUserApiResponse;
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (
+          responseData.status === "AUTHORIZED" &&
+          responseData.profile
+        ) {
+          setProfile(responseData.profile);
+        } else {
+          setProfile(null);
+        }
+      } catch {
+        if (isMounted) {
+          setProfile(null);
+        }
+      }
+    }
+
+    loadNavigationProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
 
   if (pathname === "/login") {
     return null;
@@ -49,6 +123,7 @@ export default function AppNavigation() {
   async function handleLogout(): Promise<void> {
     await supabase.auth.signOut();
 
+    setProfile(null);
     router.push("/login");
     router.refresh();
   }
@@ -108,13 +183,29 @@ export default function AppNavigation() {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-red-300 bg-red-50 px-4 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-400 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300"
-          >
-            Logout
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {profile ? (
+              <div className="flex h-10 items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 shadow-sm">
+                <span className="max-w-44 truncate font-semibold text-white">
+                  {profile.fullName.trim() !== ""
+                    ? profile.fullName
+                    : profile.email}
+                </span>
+
+                <span className="rounded-full bg-sky-500/15 px-2 py-1 font-bold uppercase tracking-wide text-sky-200">
+                  {formatRole(profile.role)}
+                </span>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-red-300 bg-red-50 px-4 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-400 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -130,4 +221,26 @@ function isActiveNavigationItem(
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function formatRole(role: string): string {
+  switch (role) {
+    case "OWNER":
+      return "Owner";
+
+    case "ADMIN":
+      return "Admin";
+
+    case "DISPATCHER":
+      return "Dispatcher";
+
+    case "FINANCE":
+      return "Finance";
+
+    case "VIEWER":
+      return "Viewer";
+
+    default:
+      return role;
+  }
 }
