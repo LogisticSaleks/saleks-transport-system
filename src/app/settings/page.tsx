@@ -30,6 +30,13 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
     status: "Ready",
   },
   {
+    title: "Route / API settings",
+    description:
+      "Route provider configuration, myPTV connection, toll calculation defaults, cache behavior and API health checks.",
+    href: "/settings/route-api",
+    status: "Ready",
+  },
+  {
     title: "Truck defaults",
     description:
       "Truck master data, fuel consumption, fixed monthly costs, license plates and technical status.",
@@ -42,12 +49,6 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Customer pricing rules, active tariffs, Vepco tariff table, MSI price per kilometer and customer-specific rates.",
     href: "/customers",
     status: "Connected",
-  },
-  {
-    title: "Route / API settings",
-    description:
-      "Route provider configuration, myPTV connection, toll calculation defaults, cache behavior and API health checks.",
-    status: "Planned",
   },
   {
     title: "Company settings",
