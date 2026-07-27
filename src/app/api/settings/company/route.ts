@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiPermission } from "@/lib/auth/permissions";
 import {
   loadCompanySettingsFromDb,
   saveCompanySettingsToDb,
@@ -9,9 +10,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const permission = await requireApiPermission("settings:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
-    const company =
-      await loadCompanySettingsFromDb();
+    const company = await loadCompanySettingsFromDb();
 
     return NextResponse.json({
       company,
@@ -35,12 +41,16 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  try {
-    const payload =
-      await request.json();
+  const permission = await requireApiPermission("settings:manage");
 
-    const company =
-      await saveCompanySettingsToDb(payload);
+  if (!permission.ok) {
+    return permission.response;
+  }
+
+  try {
+    const payload = await request.json();
+
+    const company = await saveCompanySettingsToDb(payload);
 
     return NextResponse.json({
       company,

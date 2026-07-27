@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiPermission } from "@/lib/auth/permissions";
 import {
   loadCalculationSettingsFromDb,
   parseCalculationSettingsPayload,
@@ -10,9 +11,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const permission = await requireApiPermission("settings:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
-    const settings =
-      await loadCalculationSettingsFromDb();
+    const settings = await loadCalculationSettingsFromDb();
 
     return NextResponse.json({
       settings,
@@ -36,18 +42,22 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const permission = await requireApiPermission("settings:manage");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const requestBody = await request.json();
 
-    const parsedSettings =
-      parseCalculationSettingsPayload(
-        requestBody,
-      );
+    const parsedSettings = parseCalculationSettingsPayload(
+      requestBody,
+    );
 
-    const savedSettings =
-      await saveCalculationSettingsToDb(
-        parsedSettings,
-      );
+    const savedSettings = await saveCalculationSettingsToDb(
+      parsedSettings,
+    );
 
     return NextResponse.json({
       settings: savedSettings,

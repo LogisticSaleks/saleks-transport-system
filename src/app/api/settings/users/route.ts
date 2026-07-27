@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiPermission } from "@/lib/auth/permissions";
 import {
   createUserProfileInDb,
   loadUserProfilesFromDb,
@@ -10,6 +11,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const permission = await requireApiPermission("users:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const result = await loadUserProfilesFromDb();
 
@@ -29,6 +36,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const permission = await requireApiPermission("users:manage");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const payload = await request.json();
     const user = await createUserProfileInDb(payload);
@@ -56,6 +69,12 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const permission = await requireApiPermission("users:manage");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const payload = await request.json();
     const user = await updateUserProfileInDb(payload);
