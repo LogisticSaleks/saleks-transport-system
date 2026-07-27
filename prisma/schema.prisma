@@ -119,6 +119,19 @@ enum SettingValueType {
   JSON
 }
 
+enum UserRole {
+  OWNER
+  ADMIN
+  DISPATCHER
+  FINANCE
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Company {
   id                 String  @id @default(cuid())
   name               String  @unique
@@ -157,6 +170,25 @@ model AppSetting {
 
   @@index([group])
   @@index([key])
+}
+
+model UserProfile {
+  id         String     @id @default(cuid())
+  authUserId String     @unique
+  email      String     @unique
+  fullName   String?
+  role       UserRole   @default(VIEWER)
+  status     UserStatus @default(ACTIVE)
+  notes      String?
+  lastSeenAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("user_profiles")
 }
 
 model Customer {
