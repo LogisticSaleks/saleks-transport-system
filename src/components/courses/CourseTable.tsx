@@ -17,12 +17,14 @@ import CourseSummaryBar, {
 } from "./CourseSummaryBar";
 import type { CustomerOption } from "./CustomerSelect";
 import type { TruckOption } from "./TruckSelect";
+import type { CalculationSettings } from "@/lib/settings/calculationSettings";
 
 type CourseTableProps = {
   trucks: readonly TruckOption[];
   customers: readonly CustomerOption[];
   addresses: readonly AddressOption[];
   initialCourses: readonly CourseRowData[];
+  calculationSettings: CalculationSettings;
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -86,6 +88,7 @@ export default function CourseTable({
   customers,
   addresses,
   initialCourses,
+  calculationSettings,
 }: CourseTableProps) {
   const firstEmptyRowId =
     getNextRowId(initialCourses);
@@ -632,6 +635,7 @@ export default function CourseTable({
                   addressOptions={
                     addresses
                   }
+                  calculationSettings={calculationSettings}
                   onChange={
                     handleRowChange
                   }

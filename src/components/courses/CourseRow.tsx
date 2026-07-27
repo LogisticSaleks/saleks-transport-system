@@ -16,7 +16,7 @@ import {
   buildCourseDisplayWarnings,
   buildCourseInputWarnings,
 } from "@/lib/calculations/courseWarnings";
-import { calculationSettings } from "@/lib/settings/calculationSettings";
+import type { CalculationSettings } from "@/lib/settings/calculationSettings";
 
 import AddressAutocomplete, {
   type AddressOption,
@@ -481,6 +481,7 @@ type CourseRowProps = {
   fixedCostAllocationCourseCount: number;
   customerOptions: readonly CustomerOption[];
   addressOptions: readonly AddressOption[];
+  calculationSettings: CalculationSettings;
   onChange: (row: CourseRowData) => void;
   onSave: (row: CourseRowData) => void;
   onDelete: (rowId: number) => void;
@@ -493,6 +494,7 @@ export default function CourseRow({
   fixedCostAllocationCourseCount,
   customerOptions,
   addressOptions,
+  calculationSettings,
   onChange,
   onSave,
   onDelete,
@@ -807,6 +809,7 @@ export default function CourseRow({
     pricing,
     selectedTruck,
     allocatedTruckFixedCost,
+    calculationSettings,
   ]);
 
   const effectivePrice =

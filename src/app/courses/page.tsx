@@ -1,6 +1,7 @@
 import CourseTable from "@/components/courses/CourseTable";
 import type { CourseRowData } from "@/components/courses/CourseRow";
 import { prisma } from "@/lib/prisma";
+import { loadCalculationSettingsFromDb } from "@/lib/settings/calculationSettingsDb";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function CoursesPage() {
     rawCustomers,
     rawAddresses,
     rawCourses,
+    courseCalculationSettings,
   ] = await Promise.all([
     prisma.truck.findMany({
       where: {
@@ -197,7 +199,11 @@ export default async function CoursesPage() {
         },
       ],
     }),
+
+    loadCalculationSettingsFromDb(),
   ]);
+
+
 
   const trucks = rawTrucks.map((truck) => ({
     id: truck.id,
@@ -275,6 +281,7 @@ export default async function CoursesPage() {
       customers={customers}
       addresses={addresses}
       initialCourses={initialCourses}
+      calculationSettings={courseCalculationSettings}
     />
   );
 }
