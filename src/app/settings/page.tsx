@@ -44,6 +44,13 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
     status: "Ready",
   },
   {
+    title: "Users & roles",
+    description:
+      "User profiles, viewer/editor permissions, finance access, dispatcher roles and owner/admin control.",
+    href: "/settings/users",
+    status: "Ready",
+  },
+  {
     title: "Truck defaults",
     description:
       "Truck master data, fuel consumption, fixed monthly costs, license plates and technical status.",
@@ -56,12 +63,6 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Customer pricing rules, active tariffs, Vepco tariff table, MSI price per kilometer and customer-specific rates.",
     href: "/customers",
     status: "Connected",
-  },
-  {
-    title: "Users & roles",
-    description:
-      "User accounts, viewer/editor permissions, finance access, dispatcher roles and owner/admin control.",
-    status: "Planned",
   },
   {
     title: "System info",
