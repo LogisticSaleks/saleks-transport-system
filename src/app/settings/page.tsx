@@ -23,6 +23,13 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
     status: "Ready",
   },
   {
+    title: "Calculation settings",
+    description:
+      "Default fuel price, default waiting rules, MSI default price per kilometer and profit status thresholds.",
+    href: "/settings/calculation",
+    status: "Ready",
+  },
+  {
     title: "Truck defaults",
     description:
       "Truck master data, fuel consumption, fixed monthly costs, license plates and technical status.",
@@ -35,12 +42,6 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Customer pricing rules, active tariffs, Vepco tariff table, MSI price per kilometer and customer-specific rates.",
     href: "/customers",
     status: "Connected",
-  },
-  {
-    title: "Calculation settings",
-    description:
-      "Default fuel price, waiting time rules, free waiting minutes, margin thresholds and profit status rules.",
-    status: "Planned",
   },
   {
     title: "Route / API settings",
