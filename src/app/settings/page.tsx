@@ -37,6 +37,13 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
     status: "Ready",
   },
   {
+    title: "Company settings",
+    description:
+      "Company profile, legal details, VAT number, contact information, address and internal notes.",
+    href: "/settings/company",
+    status: "Ready",
+  },
+  {
     title: "Truck defaults",
     description:
       "Truck master data, fuel consumption, fixed monthly costs, license plates and technical status.",
@@ -49,12 +56,6 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Customer pricing rules, active tariffs, Vepco tariff table, MSI price per kilometer and customer-specific rates.",
     href: "/customers",
     status: "Connected",
-  },
-  {
-    title: "Company settings",
-    description:
-      "Company profile, default currency, company name, internal contact details and document defaults.",
-    status: "Planned",
   },
   {
     title: "Users & roles",
