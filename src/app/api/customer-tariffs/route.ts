@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
+import { requireApiPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -89,6 +90,12 @@ const CUSTOMER_TARIFF_INCLUDE = {
  */
 export async function GET(request: Request) {
   try {
+    const permission = await requireApiPermission("customers:read");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const url = new URL(request.url);
     const customerId = normalizeOptionalString(
       url.searchParams.get("customerId"),
@@ -140,6 +147,12 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const permission = await requireApiPermission("customers:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = await readJsonObject(request);
     const tariffData = buildCustomerTariffCreateData(body);
 
@@ -170,6 +183,12 @@ export async function POST(request: Request) {
  */
 export async function PATCH(request: Request) {
   try {
+    const permission = await requireApiPermission("customers:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = await readJsonObject(request);
     const tariffId = readRequiredString(body.id, "id");
     const updateData = buildCustomerTariffUpdateData(body);

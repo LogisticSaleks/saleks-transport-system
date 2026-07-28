@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { Prisma, TruckStatus } from "@/generated/prisma/client";
+import { requireApiPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type TruckRequestBody = {
   id?: unknown;
@@ -19,6 +23,12 @@ type TruckRequestBody = {
 };
 
 export async function GET() {
+  const permission = await requireApiPermission("trucks:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const trucks = await prisma.truck.findMany({
     orderBy: [
       {
@@ -37,6 +47,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const permission = await requireApiPermission("trucks:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = (await request.json()) as TruckRequestBody;
 
     const name = normalizeRequiredString(body.name, "Truck name");
@@ -107,6 +123,12 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const permission = await requireApiPermission("trucks:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = (await request.json()) as TruckRequestBody;
 
     const id = normalizeRequiredString(body.id, "Truck id");

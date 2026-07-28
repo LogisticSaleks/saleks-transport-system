@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
+import { requireApiPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -71,6 +72,12 @@ const CUSTOMER_INCLUDE: Prisma.CustomerInclude = {
  */
 export async function GET() {
   try {
+    const permission = await requireApiPermission("customers:read");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const customers = await prisma.customer.findMany({
       include: CUSTOMER_INCLUDE,
       orderBy: {
@@ -94,6 +101,12 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    const permission = await requireApiPermission("customers:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = await readJsonObject(request);
     const customerData = buildCustomerWriteData(body);
 

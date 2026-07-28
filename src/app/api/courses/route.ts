@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
+import { requireApiPermission, type Permission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -298,6 +299,12 @@ const COURSE_INCLUDE = {
  */
 export async function GET(request: Request) {
   try {
+    const permission = await requireApiPermission("courses:read");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const url = new URL(request.url);
     const courseId = normalizeOptionalString(url.searchParams.get("id"));
 
@@ -341,6 +348,12 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const permission = await requireApiPermission("courses:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const body = await readJsonObject(request);
 
     const courseData = buildCourseWriteData({
@@ -440,6 +453,12 @@ export async function PUT(request: Request) {
  */
 export async function DELETE(request: Request) {
   try {
+    const permission = await requireApiPermission("courses:write");
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const courseId = await readDeleteCourseId(request);
 
     if (!courseId) {
@@ -466,6 +485,14 @@ export async function DELETE(request: Request) {
 async function updateCourse(request: Request) {
   try {
     const body = await readJsonObject(request);
+    const permission = await requireApiPermission(
+      getCourseUpdatePermission(body),
+    );
+
+    if (!permission.ok) {
+      return permission.response;
+    }
+
     const courseId = readRequiredString(body.id, "id");
 
     const courseData = buildCourseWriteData({
@@ -2008,6 +2035,34 @@ function calculateExpectedRevenue({
     (agreedPrice ?? 0) +
       (waitingAmount ?? 0),
   );
+}
+
+function getCourseUpdatePermission(body: JsonObject): Permission {
+  const settlementUpdateFields = new Set<string>([
+    "settlementAmount",
+    "settlementStatus",
+    "settlementCheckedAt",
+    "settlementReference",
+    "settlementNotes",
+  ]);
+
+  let hasSettlementUpdateField = false;
+
+  for (const fieldName of Object.keys(body)) {
+    if (fieldName === "id") {
+      continue;
+    }
+
+    if (!settlementUpdateFields.has(fieldName)) {
+      return "courses:write";
+    }
+
+    hasSettlementUpdateField = true;
+  }
+
+  return hasSettlementUpdateField
+    ? "settlements:write"
+    : "courses:write";
 }
 
 function roundMoney(value: number): number {
