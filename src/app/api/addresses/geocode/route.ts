@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +61,12 @@ type PtvGeocodingResponse = {
 export async function POST(
   request: Request,
 ) {
+  const permission = await requireApiPermission("addresses:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body =
       await readJsonObject(request);

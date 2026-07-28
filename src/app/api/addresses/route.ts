@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,12 @@ type AddressRecord =
 export async function GET(
   request: NextRequest,
 ) {
+  const permission = await requireApiPermission("addresses:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const searchParams =
     request.nextUrl.searchParams;
 
@@ -81,6 +88,12 @@ export async function GET(
 export async function POST(
   request: Request,
 ) {
+  const permission = await requireApiPermission("addresses:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body =
       await readJsonObject(request);
@@ -128,6 +141,12 @@ export async function POST(
 export async function PATCH(
   request: Request,
 ) {
+  const permission = await requireApiPermission("addresses:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body =
       await readJsonObject(request);

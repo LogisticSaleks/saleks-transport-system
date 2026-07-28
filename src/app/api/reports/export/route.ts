@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,12 @@ type WorkbookInput = {
 export async function GET(
   request: NextRequest,
 ) {
+  const permission = await requireApiPermission("reports:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const filters =
       buildReportFiltersFromSearchParams(

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
+import { requireApiPermission } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,12 @@ type CourseExcelExportRow = {
 export async function POST(
   request: Request,
 ) {
+  const permission = await requireApiPermission("courses:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body =
       await readJsonObject(request);

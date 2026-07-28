@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/auth/permissions";
 import {
   RouteServiceError,
   routeService,
@@ -46,6 +47,12 @@ type CalculateRouteBody = {
 };
 
 export async function POST(request: Request) {
+  const permission = await requireApiPermission("routes:calculate");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body = await readJsonObject(request);
     const parsedBody = readCalculateRouteBody(body);

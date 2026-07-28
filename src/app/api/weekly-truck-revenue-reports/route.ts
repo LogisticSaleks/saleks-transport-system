@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,6 +108,12 @@ type WeeklyReportForResponse = {
  * GET /api/weekly-truck-revenue-reports?year=2026&weekNumber=30&truckId=TRUCK_ID
  */
 export async function GET(request: Request) {
+  const permission = await requireApiPermission("reports:read");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const url = new URL(request.url);
 
@@ -197,6 +204,12 @@ export async function GET(request: Request) {
  * Разходи не се записват и не се показват тук.
  */
 export async function POST(request: Request) {
+  const permission = await requireApiPermission("reports:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body = await readJsonObject(request);
 
@@ -243,6 +256,12 @@ export async function POST(request: Request) {
  * }
  */
 export async function PATCH(request: Request) {
+  const permission = await requireApiPermission("reports:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   try {
     const body = await readJsonObject(request);
 
