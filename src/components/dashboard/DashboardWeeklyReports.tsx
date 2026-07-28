@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { useCurrentUserAccess } from "@/components/auth/AuthContext";
+
 export type DashboardTruckOption = {
   id: string;
   name: string;
@@ -150,6 +152,20 @@ export default function DashboardWeeklyReports({
   trucks,
   initialReports,
 }: DashboardWeeklyReportsProps) {
+  const userAccess = useCurrentUserAccess();
+
+  const canReadReports =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("reports:read");
+
+  const canWriteReports =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("reports:write");
+
+  const canWriteSettlements =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("settlements:write");
+
   const [year, setYear] = useState(String(initialYear));
   const [weekNumber, setWeekNumber] = useState(
     String(initialWeekNumber),
@@ -267,6 +283,13 @@ export default function DashboardWeeklyReports({
   );
 
   async function handleLoadReports(): Promise<void> {
+    if (!canReadReports) {
+      setErrorMessage(
+        "Твоята роля няма право да зарежда седмични отчети.",
+      );
+      return;
+    }
+
     if (!hasValidWeekSelection) {
       setErrorMessage(
         "Въведи валидна година и седмица между 1 и 53.",
@@ -311,6 +334,13 @@ export default function DashboardWeeklyReports({
   async function handleGenerateReports(
     forceRefresh: boolean,
   ): Promise<void> {
+    if (!canWriteReports) {
+      setErrorMessage(
+        "Твоята роля няма право да генерира или обновява седмични отчети.",
+      );
+      return;
+    }
+
     if (!hasValidWeekSelection) {
       setErrorMessage(
         "Въведи валидна година и седмица между 1 и 53.",
@@ -385,6 +415,13 @@ export default function DashboardWeeklyReports({
   async function handleToggleLock(
     report: WeeklyTruckRevenueReportRow,
   ): Promise<void> {
+    if (!canWriteReports) {
+      setErrorMessage(
+        "Твоята роля няма право да заключва или отключва седмични отчети.",
+      );
+      return;
+    }
+
     setIsUpdatingLock(report.id);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -445,6 +482,13 @@ export default function DashboardWeeklyReports({
     course,
     value,
   }: SaveSettlementInput): Promise<void> {
+    if (!canWriteSettlements) {
+      setErrorMessage(
+        "Твоята роля няма право да променя признати суми.",
+      );
+      return;
+    }
+
     if (!course.courseId) {
       setErrorMessage(
         "Този ред няма връзка към оригиналния курс.",
@@ -551,6 +595,16 @@ export default function DashboardWeeklyReports({
     }
   }
 
+  if (userAccess.status === "checking") {
+    return <DashboardAccessStatusPanel message="Checking dashboard permissions..." />;
+  }
+
+  if (!canReadReports) {
+    return (
+      <DashboardAccessStatusPanel message="Твоята роля няма право да вижда Dashboard и седмични финансови отчети." />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
@@ -605,7 +659,11 @@ export default function DashboardWeeklyReports({
             <button
               type="button"
               onClick={handleLoadReports}
-              disabled={isLoadingReports || isGeneratingReports}
+              disabled={
+                isLoadingReports ||
+                isGeneratingReports ||
+                !canReadReports
+              }
               className="inline-flex h-10 items-center justify-center rounded-md border border-slate-500 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoadingReports ? "Зарежда..." : "Зареди"}
@@ -614,7 +672,11 @@ export default function DashboardWeeklyReports({
             <button
               type="button"
               onClick={() => handleGenerateReports(false)}
-              disabled={isLoadingReports || isGeneratingReports}
+              disabled={
+                isLoadingReports ||
+                isGeneratingReports ||
+                !canWriteReports
+              }
               className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isGeneratingReports
@@ -625,13 +687,23 @@ export default function DashboardWeeklyReports({
             <button
               type="button"
               onClick={() => handleGenerateReports(true)}
-              disabled={isLoadingReports || isGeneratingReports}
+              disabled={
+                isLoadingReports ||
+                isGeneratingReports ||
+                !canWriteReports
+              }
               className="inline-flex h-10 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-4 text-sm font-semibold text-sky-800 shadow-sm transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Refresh
             </button>
           </div>
         </div>
+
+        {!canWriteReports && (
+          <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            Твоята роля може да преглежда Dashboard, но не може да генерира, refresh-ва, заключва или отключва отчети.
+          </p>
+        )}
 
         {(errorMessage || successMessage) && (
           <div className="mt-4">
@@ -883,6 +955,8 @@ export default function DashboardWeeklyReports({
                     savingSettlementCourseId={
                       savingSettlementCourseId
                     }
+                    canWriteReports={canWriteReports}
+                    canWriteSettlements={canWriteSettlements}
                     onSaveSettlementAmount={
                       handleSaveSettlementAmount
                     }
@@ -902,6 +976,24 @@ export default function DashboardWeeklyReports({
         )}
       </section>
     </div>
+  );
+}
+
+function DashboardAccessStatusPanel({
+  message,
+}: {
+  message: string;
+}) {
+  return (
+    <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">
+        Dashboard permissions
+      </h2>
+
+      <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
+        {message}
+      </p>
+    </section>
   );
 }
 
@@ -1029,6 +1121,8 @@ function ReportRows({
   isExpanded,
   isUpdatingLock,
   savingSettlementCourseId,
+  canWriteReports,
+  canWriteSettlements,
   onSaveSettlementAmount,
   onToggleDetails,
   onToggleLock,
@@ -1037,6 +1131,8 @@ function ReportRows({
   isExpanded: boolean;
   isUpdatingLock: boolean;
   savingSettlementCourseId: string | null;
+  canWriteReports: boolean;
+  canWriteSettlements: boolean;
   onSaveSettlementAmount: (
     input: SaveSettlementInput,
   ) => Promise<void>;
@@ -1137,18 +1233,20 @@ function ReportRows({
               {isExpanded ? "Скрий" : "Детайли"}
             </button>
 
-            <button
-              type="button"
-              onClick={onToggleLock}
-              disabled={isUpdatingLock}
-              className="inline-flex h-8 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-semibold text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isUpdatingLock
-                ? "..."
-                : report.isLocked
-                  ? "Отключи"
-                  : "Заключи"}
-            </button>
+            {canWriteReports && (
+              <button
+                type="button"
+                onClick={onToggleLock}
+                disabled={isUpdatingLock}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-semibold text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isUpdatingLock
+                  ? "..."
+                  : report.isLocked
+                    ? "Отключи"
+                    : "Заключи"}
+              </button>
+            )}
           </div>
         </td>
       </tr>
@@ -1164,6 +1262,7 @@ function ReportRows({
               savingSettlementCourseId={
                 savingSettlementCourseId
               }
+              canWriteSettlements={canWriteSettlements}
               onSaveSettlementAmount={
                 onSaveSettlementAmount
               }
@@ -1178,10 +1277,12 @@ function ReportRows({
 function ReportCoursesTable({
   report,
   savingSettlementCourseId,
+  canWriteSettlements,
   onSaveSettlementAmount,
 }: {
   report: WeeklyTruckRevenueReportRow;
   savingSettlementCourseId: string | null;
+  canWriteSettlements: boolean;
   onSaveSettlementAmount: (
     input: SaveSettlementInput,
   ) => Promise<void>;
@@ -1283,6 +1384,7 @@ function ReportCoursesTable({
                     savingSettlementCourseId ===
                     course.courseId
                   }
+                  canWriteSettlements={canWriteSettlements}
                   onSave={(value) =>
                     onSaveSettlementAmount({
                       reportId: report.id,
@@ -1332,10 +1434,12 @@ function ReportCoursesTable({
 function CourseSettlementInput({
   course,
   isSaving,
+  canWriteSettlements,
   onSave,
 }: {
   course: WeeklyTruckRevenueReportCourseRow;
   isSaving: boolean;
+  canWriteSettlements: boolean;
   onSave: (value: string) => Promise<void>;
 }) {
   const initialValue =
@@ -1356,6 +1460,7 @@ function CourseSettlementInput({
     value.trim() !== initialValue.trim();
 
   const canSave =
+    canWriteSettlements &&
     Boolean(course.courseId) &&
     isDirty &&
     !isSaving;
@@ -1366,6 +1471,14 @@ function CourseSettlementInput({
     }
 
     await onSave(value);
+  }
+
+  if (!canWriteSettlements) {
+    return (
+      <div className="min-w-[160px] text-right font-semibold text-slate-700">
+        {formatNullableMoney(course.settlementAmount)}
+      </div>
+    );
   }
 
   return (
@@ -1707,6 +1820,10 @@ function roundMoney(value: number): number {
 
 function formatMoney(value: number): string {
   return `€${value.toFixed(2)}`;
+}
+
+function formatNullableMoney(value: number | null): string {
+  return value === null ? "—" : formatMoney(value);
 }
 
 function formatNumberInputValue(value: number): string {

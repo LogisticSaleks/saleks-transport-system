@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import type { Prisma } from "@/generated/prisma/client";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
+import { roleHasPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -124,6 +126,25 @@ export default async function ReportsPage({
   const filters = buildReportFilters(
     resolvedSearchParams,
   );
+
+  const currentUserAccess =
+    await loadCurrentUserAccess();
+
+  const canReadReports =
+    currentUserAccess.status === "AUTHORIZED" &&
+    currentUserAccess.profile !== null &&
+    roleHasPermission(
+      currentUserAccess.profile.role,
+      "reports:read",
+    );
+
+  if (!canReadReports) {
+    return (
+      <AppShell title="Reports">
+        <ReportAccessDeniedPanel />
+      </AppShell>
+    );
+  }
 
   const presets = buildDatePresets(filters);
 
@@ -640,6 +661,20 @@ export default async function ReportsPage({
         </section>
       </div>
     </AppShell>
+  );
+}
+
+function ReportAccessDeniedPanel() {
+  return (
+    <section className="rounded-lg border border-amber-300 bg-amber-50 p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-950">
+        Reports read-only blocked
+      </h2>
+
+      <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
+        Твоята роля няма право да вижда финансовите Reports.
+      </p>
+    </section>
   );
 }
 

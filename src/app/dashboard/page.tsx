@@ -3,6 +3,8 @@ import DashboardWeeklyReports, {
   type WeeklyTruckRevenueReportRow,
 } from "@/components/dashboard/DashboardWeeklyReports";
 import { AppShell } from "@/components/layout/AppShell";
+import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
+import { roleHasPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +53,25 @@ type WeeklyReportForDashboard = {
 };
 
 export default async function DashboardPage() {
+  const currentUserAccess =
+    await loadCurrentUserAccess();
+
+  const canReadDashboard =
+    currentUserAccess.status === "AUTHORIZED" &&
+    currentUserAccess.profile !== null &&
+    roleHasPermission(
+      currentUserAccess.profile.role,
+      "reports:read",
+    );
+
+  if (!canReadDashboard) {
+    return (
+      <AppShell title="Dashboard">
+        <DashboardAccessDeniedPanel />
+      </AppShell>
+    );
+  }
+
   const currentWeek = getIsoWeek(new Date());
 
   const [trucks, reports] = await Promise.all([
@@ -121,6 +142,20 @@ export default async function DashboardPage() {
         initialReports={reports.map(mapWeeklyReportForDashboard)}
       />
     </AppShell>
+  );
+}
+
+function DashboardAccessDeniedPanel() {
+  return (
+    <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">
+        Dashboard access blocked
+      </h2>
+
+      <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
+        Твоята роля няма право да вижда Dashboard и седмични финансови отчети.
+      </p>
+    </section>
   );
 }
 

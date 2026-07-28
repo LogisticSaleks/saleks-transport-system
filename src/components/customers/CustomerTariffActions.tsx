@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useCurrentUserAccess } from "@/components/auth/AuthContext";
+
 const TARIFF_TYPE_OPTIONS = [
   {
     value: "FIXED_TABLE_UPPER_BOUND",
@@ -102,6 +104,11 @@ export default function CustomerTariffActions({
   tariff,
 }: CustomerTariffActionsProps) {
   const router = useRouter();
+  const userAccess = useCurrentUserAccess();
+
+  const canWriteCustomers =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("customers:write");
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [form, setForm] = useState<FormState>(() =>
@@ -129,6 +136,13 @@ export default function CustomerTariffActions({
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canWriteCustomers) {
+      setErrorMessage(
+        "Твоята роля няма право да редактира тарифни правила.",
+      );
+      return;
+    }
 
     const validationError = validateForm(form);
 
@@ -191,6 +205,13 @@ export default function CustomerTariffActions({
   }
 
   async function handleToggleActive(): Promise<void> {
+    if (!canWriteCustomers) {
+      setErrorMessage(
+        "Твоята роля няма право да активира или деактивира тарифни правила.",
+      );
+      return;
+    }
+
     const nextIsActive = !tariff.isActive;
     const confirmed = window.confirm(
       nextIsActive
@@ -240,6 +261,22 @@ export default function CustomerTariffActions({
     } finally {
       setIsChangingStatus(false);
     }
+  }
+
+  if (userAccess.status === "checking") {
+    return (
+      <span className="text-xs font-medium text-slate-400">
+        Checking...
+      </span>
+    );
+  }
+
+  if (!canWriteCustomers) {
+    return (
+      <span className="text-xs font-medium text-slate-500">
+        Read-only
+      </span>
+    );
   }
 
   return (

@@ -1,4 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
+import { roleHasPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import CustomerCreateForm from "@/components/customers/CustomerCreateForm";
 import CustomerTariffCreateForm from "@/components/customers/CustomerTariffCreateForm";
@@ -9,6 +11,25 @@ import CustomerTariffActions, {
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
+  const currentUserAccess =
+    await loadCurrentUserAccess();
+
+  const canReadCustomers =
+    currentUserAccess.status === "AUTHORIZED" &&
+    currentUserAccess.profile !== null &&
+    roleHasPermission(
+      currentUserAccess.profile.role,
+      "customers:read",
+    );
+
+  if (!canReadCustomers) {
+    return (
+      <AppShell title="Клиенти">
+        <CustomersAccessDeniedPanel />
+      </AppShell>
+    );
+  }
+
   const customers = await getCustomers();
 
   const activeCustomersCount = customers.filter(
@@ -38,8 +59,8 @@ export default async function CustomersPage() {
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               Преглед на клиентите, тяхната логика за платими
-              километри и активните тарифни правила. Можеш да
-              добавяш, редактираш, активираш и деактивираш тарифи.
+              километри и активните тарифни правила. Действията за
+              добавяне и редакция се показват според ролята.
             </p>
           </div>
 
@@ -86,6 +107,20 @@ export default async function CustomersPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+function CustomersAccessDeniedPanel() {
+  return (
+    <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">
+        Customers access blocked
+      </h2>
+
+      <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
+        Твоята роля няма право да вижда клиенти и тарифни правила.
+      </p>
+    </section>
   );
 }
 

@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useCurrentUserAccess } from "@/components/auth/AuthContext";
+
 const BILLABLE_KM_OPTIONS = [
   {
     value: "TOTAL_ROUTE",
@@ -65,6 +67,11 @@ const EMPTY_FORM: FormState = {
 
 export default function CustomerCreateForm() {
   const router = useRouter();
+  const userAccess = useCurrentUserAccess();
+
+  const canWriteCustomers =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("customers:write");
 
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -93,6 +100,13 @@ export default function CustomerCreateForm() {
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canWriteCustomers) {
+      setErrorMessage(
+        "Твоята роля няма право да създава клиенти.",
+      );
+      return;
+    }
 
     const customerName = form.name.trim();
 
@@ -148,6 +162,38 @@ export default function CustomerCreateForm() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (userAccess.status === "checking") {
+    return (
+      <section className="rounded-2xl border border-slate-300 bg-slate-100 p-3 shadow-sm">
+        <div className="rounded-xl border border-slate-400 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">
+            Нов клиент
+          </h2>
+
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Проверка на правата за създаване на клиенти...
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!canWriteCustomers) {
+    return (
+      <section className="rounded-2xl border border-slate-300 bg-slate-100 p-3 shadow-sm">
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">
+            Клиенти read-only
+          </h2>
+
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            Твоята роля може да вижда клиенти, но не може да създава нови клиентски записи.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   return (

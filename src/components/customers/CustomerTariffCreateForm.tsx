@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useCurrentUserAccess } from "@/components/auth/AuthContext";
+
 const TARIFF_TYPE_OPTIONS = [
   {
     value: "FIXED_TABLE_UPPER_BOUND",
@@ -107,6 +109,11 @@ export default function CustomerTariffCreateForm({
   defaultBillableKmLogic,
 }: CustomerTariffCreateFormProps) {
   const router = useRouter();
+  const userAccess = useCurrentUserAccess();
+
+  const canWriteCustomers =
+    userAccess.status === "authorized" &&
+    userAccess.hasPermission("customers:write");
 
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<FormState>(() =>
@@ -137,6 +144,13 @@ export default function CustomerTariffCreateForm({
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canWriteCustomers) {
+      setErrorMessage(
+        "Твоята роля няма право да създава тарифни правила.",
+      );
+      return;
+    }
 
     const validationError = validateForm(form);
 
@@ -199,6 +213,14 @@ export default function CustomerTariffCreateForm({
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (userAccess.status === "checking") {
+    return null;
+  }
+
+  if (!canWriteCustomers) {
+    return null;
   }
 
   return (
