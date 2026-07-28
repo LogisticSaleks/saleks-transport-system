@@ -14,6 +14,7 @@ import type {
   UserRoleValue,
   UserStatusValue,
 } from "@/lib/settings/userProfiles";
+import { useCan } from "@/components/auth/AuthContext";
 
 type UserProfilesManagementProps = {
   initialResult: UserProfilesResult;
@@ -95,6 +96,9 @@ const EMPTY_USER_PROFILE: UserProfileSettings = {
 export default function UserProfilesManagement({
   initialResult,
 }: UserProfilesManagementProps) {
+  const canManageUsers =
+    useCan("users:manage");
+
   const [users, setUsers] = useState<UserProfileSettings[]>(
     initialResult.users,
   );
@@ -203,6 +207,10 @@ export default function UserProfilesManagement({
   }
 
   function handleEdit(user: UserProfileSettings): void {
+    if (!canManageUsers) {
+      return;
+    }
+
     setFormState(user);
     setSaveError(null);
     setSaveMessage(null);
@@ -227,6 +235,14 @@ export default function UserProfilesManagement({
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canManageUsers) {
+      setSaveError(
+        "Only OWNER can create or update user profiles.",
+      );
+      setSaveMessage(null);
+      return;
+    }
 
     const validationError = validateUserProfile(formState);
 
@@ -319,9 +335,15 @@ export default function UserProfilesManagement({
               Create the Supabase auth account first, then add its auth user id
               and assign the internal Saleks role here.
             </p>
+
+            {!canManageUsers && (
+              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                Твоята роля може да вижда users, но само OWNER може да създава или променя user profiles.
+              </p>
+            )}
           </div>
 
-          {isEditing && (
+          {isEditing && canManageUsers && (
             <button
               type="button"
               onClick={handleCancelEdit}
@@ -343,6 +365,7 @@ export default function UserProfilesManagement({
               required
               placeholder="UUID from Supabase Auth"
               className="xl:col-span-2"
+              disabled={!canManageUsers}
               onChange={(value) =>
                 handleFieldChange("authUserId", value)
               }
@@ -353,6 +376,7 @@ export default function UserProfilesManagement({
               value={formState.email}
               required
               placeholder="user@example.com"
+              disabled={!canManageUsers}
               onChange={(value) =>
                 handleFieldChange("email", value)
               }
@@ -362,6 +386,7 @@ export default function UserProfilesManagement({
               label="Full name"
               value={formState.fullName}
               placeholder="Name shown internally"
+              disabled={!canManageUsers}
               onChange={(value) =>
                 handleFieldChange("fullName", value)
               }
@@ -370,6 +395,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Role"
               value={formState.role}
+              disabled={!canManageUsers}
               onChange={handleRoleChange}
             >
               {USER_ROLES.map((role) => (
@@ -382,6 +408,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Status"
               value={formState.status}
+              disabled={!canManageUsers}
               onChange={handleStatusChange}
             >
               {USER_STATUSES.map((status) => (
@@ -396,6 +423,7 @@ export default function UserProfilesManagement({
               value={formState.notes}
               placeholder="Internal notes"
               className="xl:col-span-2"
+              disabled={!canManageUsers}
               onChange={(value) =>
                 handleFieldChange("notes", value)
               }
@@ -423,22 +451,26 @@ export default function UserProfilesManagement({
 
               {!saveError && !saveMessage && (
                 <span>
-                  Roles will be enforced in the next API/UI protection task.
+                  {canManageUsers
+                    ? "Only OWNER can create or update user profiles."
+                    : "Read-only view. Only OWNER can manage user profiles."}
                 </span>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || !canManageUsers}
               aria-busy={isSaving}
               className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving
-                ? "Saving..."
-                : isEditing
-                  ? "Update user profile"
-                  : "Create user profile"}
+              {!canManageUsers
+                ? "Read-only"
+                : isSaving
+                  ? "Saving..."
+                  : isEditing
+                    ? "Update user profile"
+                    : "Create user profile"}
             </button>
           </div>
         </form>
@@ -583,9 +615,15 @@ export default function UserProfilesManagement({
                     <button
                       type="button"
                       onClick={() => handleEdit(user)}
-                      className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      disabled={!canManageUsers}
+                      title={
+                        canManageUsers
+                          ? "Edit user profile"
+                          : "Only OWNER can edit user profiles"
+                      }
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Edit
+                      {canManageUsers ? "Edit" : "Read-only"}
                     </button>
                   </td>
                 </tr>
@@ -645,6 +683,7 @@ function TextField({
   required = false,
   placeholder,
   className = "",
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -652,6 +691,7 @@ function TextField({
   required?: boolean;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <label
@@ -665,9 +705,15 @@ function TextField({
         type="text"
         value={value}
         required={required}
+        disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+        className={[
+          "h-10 rounded-md border px-3 text-sm outline-none transition",
+          disabled
+            ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
+            : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200",
+        ].join(" ")}
       />
     </label>
   );
@@ -678,19 +724,27 @@ function SelectField({
   value,
   onChange,
   children,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   children: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm font-semibold text-slate-800">
       {label}
       <select
         value={value}
+        disabled={disabled}
         onChange={onChange}
-        className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+        className={[
+          "h-10 rounded-md border px-3 text-sm outline-none transition",
+          disabled
+            ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
+            : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200",
+        ].join(" ")}
       >
         {children}
       </select>

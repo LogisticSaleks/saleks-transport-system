@@ -152,6 +152,7 @@ type NumberInputWithMarkerProps = {
   min?: number;
   step?: number;
   readOnly?: boolean;
+  disabled?: boolean;
   showMarker: boolean;
   onChange?: (value: string) => void;
 };
@@ -482,6 +483,9 @@ type CourseRowProps = {
   customerOptions: readonly CustomerOption[];
   addressOptions: readonly AddressOption[];
   calculationSettings: CalculationSettings;
+  canWriteCourses: boolean;
+  canWriteSettlements: boolean;
+  canCalculateRoutes: boolean;
   onChange: (row: CourseRowData) => void;
   onSave: (row: CourseRowData) => void;
   onDelete: (rowId: number) => void;
@@ -495,6 +499,9 @@ export default function CourseRow({
   customerOptions,
   addressOptions,
   calculationSettings,
+  canWriteCourses,
+  canWriteSettlements,
+  canCalculateRoutes,
   onChange,
   onSave,
   onDelete,
@@ -533,7 +540,22 @@ export default function CourseRow({
     useState(false);
 
   const [isEditOpen, setIsEditOpen] =
-    useState(initialRow.databaseId === null);
+    useState(
+      initialRow.databaseId === null &&
+        canWriteCourses,
+    );
+
+  const canSaveFullCourse =
+    canWriteCourses;
+
+  const canSaveSettlementOnly =
+    draft.databaseId !== null &&
+    !canWriteCourses &&
+    canWriteSettlements;
+
+  const canSaveCurrentRow =
+    canSaveFullCourse ||
+    canSaveSettlementOnly;
 
   const selectedCustomer = useMemo(
     () =>
@@ -949,12 +971,13 @@ export default function CourseRow({
     useMemo(
       () =>
         draft.databaseId !== null &&
+        canWriteCourses &&
         !isSaved &&
         hasCalculatedFinancialDifference(
           draft,
           calculatedRow,
         ),
-      [draft, calculatedRow, isSaved],
+      [draft, calculatedRow, isSaved, canWriteCourses],
     );
 
   useEffect(() => {
@@ -968,6 +991,15 @@ export default function CourseRow({
     field: EditableCourseField,
     value: string,
   ): void {
+    if (
+      !canEditCourseField(field, {
+        canWriteCourses,
+        canWriteSettlements,
+      })
+    ) {
+      return;
+    }
+
     setDraft((currentDraft) => {
       const nextDraft = {
         ...currentDraft,
@@ -992,6 +1024,10 @@ export default function CourseRow({
   }
 
   function handleCustomerChange(customerId: string): void {
+    if (!canWriteCourses) {
+      return;
+    }
+
     const nextCustomer = customerOptions.find(
       (customer) => customer.id === customerId,
     );
@@ -1009,6 +1045,10 @@ export default function CourseRow({
   }
 
   function handleCourseTypeChange(courseType: string): void {
+    if (!canWriteCourses) {
+      return;
+    }
+
     setDraft((currentDraft) => {
       const currentCustomer = customerOptions.find(
         (customer) =>
@@ -1055,6 +1095,10 @@ export default function CourseRow({
     field: AddressField,
     value: AddressSelectionValue,
   ): void {
+    if (!canWriteCourses) {
+      return;
+    }
+
     const textField = ADDRESS_TEXT_FIELD_BY_ID[field];
 
     setDraft((currentDraft) => ({
@@ -1073,6 +1117,13 @@ export default function CourseRow({
     setRouteCalculationError(null);
     setRouteCalculationInfo(null);
     setSaveError(null);
+
+    if (!canWriteCourses || !canCalculateRoutes) {
+      setRouteCalculationError(
+        "Твоята роля няма право да изчислява маршрути за курсове.",
+      );
+      return;
+    }
 
     const routeStops =
       buildRouteCalculationStops(
@@ -1193,6 +1244,18 @@ export default function CourseRow({
   async function handleSave(): Promise<void> {
     setIsSaved(false);
     setSaveError(null);
+
+    if (!canWriteCourses) {
+      if (canSaveSettlementOnly) {
+        await handleSaveSettlementOnly();
+        return;
+      }
+
+      setSaveError(
+        "Твоята роля няма право да записва курсове.",
+      );
+      return;
+    }
 
     const validationError =
       validateCourseForSave(draft);
@@ -1396,6 +1459,94 @@ export default function CourseRow({
     }
   }
 
+  async function handleSaveSettlementOnly(): Promise<void> {
+    if (!draft.databaseId) {
+      setSaveError(
+        "Settlement може да се записва само към вече записан курс.",
+      );
+      return;
+    }
+
+    if (
+      draft.settlementAmount.trim() !== "" &&
+      parseNullableNonNegativeNumber(
+        draft.settlementAmount,
+      ) === null
+    ) {
+      setSaveError(
+        "Признатата сума трябва да бъде валидно неотрицателно число.",
+      );
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(
+        "/api/courses",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: draft.databaseId,
+            settlementAmount:
+              parseNullableNumber(
+                draft.settlementAmount,
+              ),
+            settlementStatus:
+              calculatedSettlementStatus,
+            settlementReference:
+              draft.settlementReference.trim() ||
+              null,
+            settlementNotes:
+              draft.settlementNotes.trim() || null,
+          }),
+        },
+      );
+
+      const responseData =
+        (await response
+          .json()
+          .catch(() => null)) as
+          | CourseApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "Settlement данните не можаха да бъдат записани.",
+        );
+      }
+
+      const savedRow: CourseRowData = {
+        ...calculatedRow,
+        databaseId: draft.databaseId,
+        filterDate: resolveSavedCourseDate(
+          responseData?.course,
+          draft.filterDate,
+        ),
+        ...buildCourseSnapshotFromApiResponse(
+          responseData?.course,
+          calculatedRow,
+        ),
+      };
+
+      setDraft(savedRow);
+      onSave(savedRow);
+      setIsSaved(true);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Settlement данните не можаха да бъдат записани.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function handleDelete(): Promise<void> {
     if (!draft.databaseId) {
       return;
@@ -1463,8 +1614,19 @@ export default function CourseRow({
   }
 
   function renderEditorControl(column: CourseColumn) {
+    const fieldCanBeEdited =
+      canEditCourseField(column.key, {
+        canWriteCourses,
+        canWriteSettlements,
+      });
+
+    const fieldIsReadOnly =
+      column.readOnly === true ||
+      !fieldCanBeEdited;
+
     if (column.key === "truckId") {
-      return (
+      return renderPermissionGuard(
+        fieldCanBeEdited,
         <TruckSelect
           value={draft.truckId}
           trucks={truckOptions}
@@ -1472,23 +1634,25 @@ export default function CourseRow({
           onChange={(truckId) =>
             handleCellChange("truckId", truckId)
           }
-        />
+        />,
       );
     }
 
     if (column.key === "customerId") {
-      return (
+      return renderPermissionGuard(
+        fieldCanBeEdited,
         <CustomerSelect
           value={draft.customerId}
           customers={customerOptions}
           rowNumber={rowNumber}
           onChange={handleCustomerChange}
-        />
+        />,
       );
     }
 
     if (column.key === "customerTariffId") {
-      return (
+      return renderPermissionGuard(
+        fieldCanBeEdited,
         <CustomerTariffSelect
           value={draft.customerTariffId}
           tariffs={selectableCustomerTariffs}
@@ -1501,22 +1665,24 @@ export default function CourseRow({
               customerTariffId,
             )
           }
-        />
+        />,
       );
     }
 
     if (column.key === "courseType") {
-      return (
+      return renderPermissionGuard(
+        fieldCanBeEdited,
         <CourseTypeSelect
           value={draft.courseType}
           rowNumber={rowNumber}
           onChange={handleCourseTypeChange}
-        />
+        />,
       );
     }
 
     if (isAddressField(column.key)) {
-      return (
+      return renderPermissionGuard(
+        fieldCanBeEdited,
         <AddressAutocomplete
           value={draft[column.key]}
           inputValue={
@@ -1534,7 +1700,7 @@ export default function CourseRow({
               addressValue,
             )
           }
-        />
+        />,
       );
     }
 
@@ -1547,7 +1713,9 @@ export default function CourseRow({
           placeholder={column.placeholder}
           min={column.min}
           step={column.step}
+          disabled={!fieldCanBeEdited}
           showMarker={
+            fieldCanBeEdited &&
             draft[column.key].trim() !== ""
           }
           onChange={(value) =>
@@ -1578,7 +1746,9 @@ export default function CourseRow({
           min={0}
           step={0.01}
           readOnly={pricing.isAutomatic}
+          disabled={!fieldCanBeEdited}
           showMarker={
+            fieldCanBeEdited &&
             !pricing.isAutomatic &&
             draft.price.trim() !== ""
           }
@@ -1598,7 +1768,11 @@ export default function CourseRow({
           placeholder={column.placeholder}
           min={column.min}
           step={column.step}
-          showMarker={draft.tollFee.trim() !== ""}
+          disabled={!fieldCanBeEdited}
+          showMarker={
+            fieldCanBeEdited &&
+            draft.tollFee.trim() !== ""
+          }
           onChange={(value) =>
             handleCellChange("tollFee", value)
           }
@@ -1667,6 +1841,7 @@ export default function CourseRow({
         <SettlementStatusSelect
           value={draft.settlementStatus}
           rowNumber={rowNumber}
+          disabled={!fieldCanBeEdited}
           onChange={(value) =>
             handleCellChange(
               "settlementStatus",
@@ -1691,7 +1866,8 @@ export default function CourseRow({
         value={draft[column.key]}
         min={column.min}
         step={column.step}
-        readOnly={column.readOnly}
+        readOnly={fieldIsReadOnly}
+        disabled={!fieldCanBeEdited}
         placeholder={column.placeholder}
         aria-label={`${column.label}, ред ${rowNumber}`}
         onChange={(event) =>
@@ -1702,7 +1878,7 @@ export default function CourseRow({
         }
         className={[
           "h-10 w-full rounded-md border px-3 outline-none transition shadow-sm",
-          column.readOnly
+          fieldIsReadOnly
             ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
             : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200",
         ].join(" ")}
@@ -1951,6 +2127,8 @@ export default function CourseRow({
               type="button"
               onClick={handleCalculateRoute}
               disabled={
+                !canWriteCourses ||
+                !canCalculateRoutes ||
                 isCalculatingRoute ||
                 isSaving ||
                 isDeleting ||
@@ -1958,9 +2136,11 @@ export default function CourseRow({
               }
               aria-busy={isCalculatingRoute}
               title={
-                canCalculateRoute
-                  ? "Изчисли маршрут с PTV"
-                  : "Избери поне два адреса"
+                !canWriteCourses || !canCalculateRoutes
+                  ? "Твоята роля няма право да изчислява маршрути"
+                  : canCalculateRoute
+                    ? "Изчисли маршрут с PTV"
+                    : "Избери поне два адреса"
               }
               className="inline-flex h-9 items-center justify-center rounded-md border border-sky-300 bg-sky-50 px-3 text-sm font-medium text-sky-800 transition hover:border-sky-400 hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -1969,19 +2149,23 @@ export default function CourseRow({
                 : "Маршрут"}
             </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving || isDeleting}
-              aria-busy={isSaving}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving
-                ? "Записване..."
-                : draft.databaseId
-                  ? "Обнови"
-                  : "Запази"}
-            </button>
+            {canSaveCurrentRow && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving || isDeleting}
+                aria-busy={isSaving}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving
+                  ? "Записване..."
+                  : canSaveSettlementOnly
+                    ? "Запази settlement"
+                    : draft.databaseId
+                      ? "Обнови"
+                      : "Запази"}
+              </button>
+            )}
 
             <button
               type="button"
@@ -2009,7 +2193,7 @@ export default function CourseRow({
               Детайли
             </button>
 
-            {draft.databaseId && (
+            {draft.databaseId && canWriteCourses && (
               <button
                 type="button"
                 onClick={handleDelete}
@@ -2021,6 +2205,11 @@ export default function CourseRow({
                   ? "Изтриване..."
                   : "Изтрий"}
               </button>
+            )}
+            {!canSaveCurrentRow && (
+              <span className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-500">
+                Read-only
+              </span>
             )}
           </div>
 
@@ -2072,7 +2261,11 @@ export default function CourseRow({
                     Редакция на курс #{rowNumber}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Всички полета са тук, без хоризонтално местене.
+                    {canWriteCourses
+                      ? "Всички полета са тук, без хоризонтално местене."
+                      : canWriteSettlements
+                        ? "Можеш да редактираш само settlement полетата."
+                        : "Този екран е само за преглед за твоята роля."}
                   </p>
                 </div>
 
@@ -2177,6 +2370,43 @@ export default function CourseRow({
   );
 }
 
+function canEditCourseField(
+  field: EditableCourseField,
+  {
+    canWriteCourses,
+    canWriteSettlements,
+  }: {
+    canWriteCourses: boolean;
+    canWriteSettlements: boolean;
+  },
+): boolean {
+  if (
+    field === "fuelCost" ||
+    field === "totalCost" ||
+    field === "profit" ||
+    field === "status"
+  ) {
+    return false;
+  }
+
+  if (isSettlementEditableField(field)) {
+    return canWriteCourses || canWriteSettlements;
+  }
+
+  return canWriteCourses;
+}
+
+function isSettlementEditableField(
+  field: EditableCourseField,
+): boolean {
+  return (
+    field === "settlementAmount" ||
+    field === "settlementStatus" ||
+    field === "settlementReference" ||
+    field === "settlementNotes"
+  );
+}
+
 function hasCalculatedFinancialDifference(
   savedRow: CourseRowData,
   calculatedRow: CourseRowData,
@@ -2262,6 +2492,7 @@ function NumberInputWithMarker({
   min,
   step,
   readOnly = false,
+  disabled = false,
   showMarker,
   onChange,
 }: NumberInputWithMarkerProps) {
@@ -2272,7 +2503,8 @@ function NumberInputWithMarker({
         value={value}
         min={min}
         step={step}
-        readOnly={readOnly}
+        readOnly={readOnly || disabled}
+        disabled={disabled}
         placeholder={placeholder}
         aria-label={`${label}, ред ${rowNumber}`}
         onChange={(event) =>
@@ -2280,7 +2512,7 @@ function NumberInputWithMarker({
         }
         className={[
           "h-10 w-full rounded-md border px-3 pr-12 outline-none transition shadow-sm",
-          readOnly
+          readOnly || disabled
             ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
             : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200",
         ].join(" ")}
@@ -2298,10 +2530,12 @@ function NumberInputWithMarker({
 function SettlementStatusSelect({
   value,
   rowNumber,
+  disabled = false,
   onChange,
 }: {
   value: string;
   rowNumber: number;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -2312,10 +2546,16 @@ function SettlementStatusSelect({
           : "NOT_CHECKED"
       }
       aria-label={`Settlement status, ред ${rowNumber}`}
+      disabled={disabled}
       onChange={(event) =>
         onChange(event.target.value)
       }
-      className="h-10 w-full rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200"
+      className={[
+        "h-10 w-full rounded-md border px-3 shadow-sm outline-none transition",
+        disabled
+          ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700"
+          : "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200",
+      ].join(" ")}
     >
       {SETTLEMENT_STATUSES.map((status) => (
         <option
@@ -2326,6 +2566,21 @@ function SettlementStatusSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+function renderPermissionGuard(
+  isEditable: boolean,
+  children: ReactNode,
+) {
+  if (isEditable) {
+    return children;
+  }
+
+  return (
+    <div className="pointer-events-none opacity-70">
+      {children}
+    </div>
   );
 }
 

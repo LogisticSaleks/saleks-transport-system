@@ -8,6 +8,14 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
+import {
+  AuthProvider,
+  type CurrentUserProfileForClient,
+} from "@/components/auth/AuthContext";
+import {
+  isUserRole,
+  isUserStatus,
+} from "@/lib/auth/clientPermissions";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthGuardProps = {
@@ -43,8 +51,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     useState<AuthGuardState>("checking");
   const [blockedMessage, setBlockedMessage] =
     useState<string | null>(null);
-  const [blockedProfile, setBlockedProfile] =
-    useState<CurrentUserApiResponse["profile"]>(null);
+  const [profile, setProfile] =
+    useState<CurrentUserProfileForClient | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,29 +82,37 @@ export function AuthGuard({ children }: AuthGuardProps) {
           return;
         }
 
+        const normalizedProfile =
+          normalizeCurrentUserProfile(
+            responseData?.profile ?? null,
+          );
+
         if (!response.ok) {
           setBlockedMessage(
             responseData?.message ??
               responseData?.error ??
               "Your account is not authorized to use Saleks Transport System.",
           );
-          setBlockedProfile(responseData?.profile ?? null);
+          setProfile(normalizedProfile);
           setAuthState("blocked");
           return;
         }
 
-        if (responseData?.status !== "AUTHORIZED") {
+        if (
+          responseData?.status !== "AUTHORIZED" ||
+          !normalizedProfile
+        ) {
           setBlockedMessage(
             responseData?.message ??
               "Your account is not authorized to use Saleks Transport System.",
           );
-          setBlockedProfile(responseData?.profile ?? null);
+          setProfile(normalizedProfile);
           setAuthState("blocked");
           return;
         }
 
         setBlockedMessage(null);
-        setBlockedProfile(responseData.profile ?? null);
+        setProfile(normalizedProfile);
         setAuthState("authorized");
       } catch {
         if (!isMounted) {
@@ -106,7 +122,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         setBlockedMessage(
           "Authentication could not be checked. Please refresh the page.",
         );
-        setBlockedProfile(null);
+        setProfile(null);
         setAuthState("blocked");
       }
     }
@@ -139,59 +155,89 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (authState === "blocked") {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-200 bg-white p-8 shadow">
-          <div className="rounded-xl bg-red-50 p-5">
-            <p className="text-sm font-semibold uppercase tracking-wide text-red-700">
-              Access blocked
-            </p>
+      <AuthProvider status="blocked" profile={profile}>
+        <main className="min-h-screen bg-slate-100 p-8">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-red-200 bg-white p-8 shadow">
+            <div className="rounded-xl bg-red-50 p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-red-700">
+                Access blocked
+              </p>
 
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">
-              Your account is not active in Saleks Transport System.
-            </h1>
+              <h1 className="mt-2 text-2xl font-bold text-slate-950">
+                Your account is not active in Saleks Transport System.
+              </h1>
 
-            <p className="mt-3 text-sm leading-6 text-slate-700">
-              {blockedMessage ??
-                "Ask an owner or admin to activate your user profile."}
-            </p>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                {blockedMessage ??
+                  "Ask an owner or admin to activate your user profile."}
+              </p>
 
-            {blockedProfile ? (
-              <div className="mt-4 rounded-lg border border-red-100 bg-white p-4 text-sm text-slate-700">
-                <div>
-                  Email:{" "}
-                  <span className="font-semibold text-slate-950">
-                    {blockedProfile.email}
-                  </span>
+              {profile ? (
+                <div className="mt-4 rounded-lg border border-red-100 bg-white p-4 text-sm text-slate-700">
+                  <div>
+                    Email:{" "}
+                    <span className="font-semibold text-slate-950">
+                      {profile.email}
+                    </span>
+                  </div>
+
+                  <div className="mt-1">
+                    Role:{" "}
+                    <span className="font-semibold text-slate-950">
+                      {profile.role}
+                    </span>
+                  </div>
+
+                  <div className="mt-1">
+                    Status:{" "}
+                    <span className="font-semibold text-slate-950">
+                      {profile.status}
+                    </span>
+                  </div>
                 </div>
+              ) : null}
 
-                <div className="mt-1">
-                  Role:{" "}
-                  <span className="font-semibold text-slate-950">
-                    {blockedProfile.role}
-                  </span>
-                </div>
-
-                <div className="mt-1">
-                  Status:{" "}
-                  <span className="font-semibold text-slate-950">
-                    {blockedProfile.status}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            >
-              Logout
-            </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                Logout
+              </button>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </AuthProvider>
     );
   }
 
-  return <>{children}</>;
+  return (
+    <AuthProvider status="authorized" profile={profile}>
+      {children}
+    </AuthProvider>
+  );
+}
+
+function normalizeCurrentUserProfile(
+  profile:
+    | CurrentUserApiResponse["profile"]
+    | null,
+): CurrentUserProfileForClient | null {
+  if (!profile) {
+    return null;
+  }
+
+  if (
+    !isUserRole(profile.role) ||
+    !isUserStatus(profile.status)
+  ) {
+    return null;
+  }
+
+  return {
+    email: profile.email,
+    fullName: profile.fullName,
+    role: profile.role,
+    status: profile.status,
+  };
 }

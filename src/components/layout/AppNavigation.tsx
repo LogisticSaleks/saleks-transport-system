@@ -8,49 +8,70 @@ import {
   useState,
 } from "react";
 
+import {
+  formatClientRoleLabel,
+  isUserRole,
+  isUserStatus,
+  roleHasClientPermission,
+  type Permission,
+  type UserRoleValue,
+  type UserStatusValue,
+} from "@/lib/auth/clientPermissions";
 import { createClient } from "@/lib/supabase/client";
 
 type NavigationItem = {
   href: string;
   label: string;
+  permission: Permission;
 };
 
 type NavigationUserProfile = {
   email: string;
   fullName: string;
-  role: string;
-  status: string;
+  role: UserRoleValue;
+  status: UserStatusValue;
 };
 
 type CurrentUserApiResponse = {
   status?: string;
-  profile?: NavigationUserProfile | null;
+  profile?: {
+    email: string;
+    fullName: string;
+    role: string;
+    status: string;
+  } | null;
 };
 
 const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
+    permission: "reports:read",
   },
   {
     href: "/courses",
     label: "Courses",
+    permission: "courses:read",
   },
   {
     href: "/customers",
     label: "Customers",
+    permission: "customers:read",
   },
   {
     href: "/trucks",
     label: "Trucks",
+    permission: "trucks:read",
   },
   {
     href: "/reports",
     label: "Reports",
+    permission: "reports:read",
   },
   {
     href: "/settings",
     label: "Settings",
+    permission: "settings:read",
   },
 ];
 
@@ -94,11 +115,16 @@ export default function AppNavigation() {
           return;
         }
 
+        const normalizedProfile =
+          normalizeNavigationProfile(
+            responseData.profile ?? null,
+          );
+
         if (
           responseData.status === "AUTHORIZED" &&
-          responseData.profile
+          normalizedProfile
         ) {
-          setProfile(responseData.profile);
+          setProfile(normalizedProfile);
         } else {
           setProfile(null);
         }
@@ -128,11 +154,23 @@ export default function AppNavigation() {
     router.refresh();
   }
 
+  const visibleNavigationItems = profile
+    ? NAVIGATION_ITEMS.filter((item) =>
+        roleHasClientPermission(
+          profile.role,
+          item.permission,
+        ),
+      )
+    : [];
+
+  const defaultNavigationHref =
+    visibleNavigationItems[0]?.href ?? "/login";
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-700 bg-slate-950 shadow-lg">
       <div className="mx-auto flex min-h-16 w-full max-w-[1800px] flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:px-6">
         <Link
-          href="/dashboard"
+          href={defaultNavigationHref}
           className="group inline-flex items-center gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-300"
           aria-label="Saleks Transport System dashboard"
         >
@@ -156,7 +194,7 @@ export default function AppNavigation() {
             aria-label="Main navigation"
             className="flex gap-2 overflow-x-auto pb-1 lg:pb-0"
           >
-            {NAVIGATION_ITEMS.map((item) => {
+            {visibleNavigationItems.map((item) => {
               const isActive =
                 isActiveNavigationItem(
                   pathname,
@@ -193,7 +231,7 @@ export default function AppNavigation() {
                 </span>
 
                 <span className="rounded-full bg-sky-500/15 px-2 py-1 font-bold uppercase tracking-wide text-sky-200">
-                  {formatRole(profile.role)}
+                  {formatClientRoleLabel(profile.role)}
                 </span>
               </div>
             ) : null}
@@ -223,24 +261,26 @@ function isActiveNavigationItem(
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function formatRole(role: string): string {
-  switch (role) {
-    case "OWNER":
-      return "Owner";
-
-    case "ADMIN":
-      return "Admin";
-
-    case "DISPATCHER":
-      return "Dispatcher";
-
-    case "FINANCE":
-      return "Finance";
-
-    case "VIEWER":
-      return "Viewer";
-
-    default:
-      return role;
+function normalizeNavigationProfile(
+  profile:
+    | CurrentUserApiResponse["profile"]
+    | null,
+): NavigationUserProfile | null {
+  if (!profile) {
+    return null;
   }
+
+  if (
+    !isUserRole(profile.role) ||
+    !isUserStatus(profile.status)
+  ) {
+    return null;
+  }
+
+  return {
+    email: profile.email,
+    fullName: profile.fullName,
+    role: profile.role,
+    status: profile.status,
+  };
 }
