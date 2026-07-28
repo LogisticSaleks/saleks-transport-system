@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { useCan } from "@/components/auth/AuthContext";
 import type { CalculationSettings } from "@/lib/settings/calculationSettings";
 
 type CalculationSettingsFormProps = {
@@ -28,6 +29,7 @@ export default function CalculationSettingsForm({
   initialSettings,
   defaultSettings,
 }: CalculationSettingsFormProps) {
+  const canManageSettings = useCan("settings:manage");
   const [fuelConsumption, setFuelConsumption] =
     useState(
       String(
@@ -164,6 +166,12 @@ export default function CalculationSettingsForm({
   );
 
   async function handleSave(): Promise<void> {
+    if (!canManageSettings) {
+      setErrorMessage("Твоята роля няма право да променя calculation settings.");
+      setSuccessMessage(null);
+      return;
+    }
+
     setIsSaving(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -216,6 +224,12 @@ export default function CalculationSettingsForm({
   }
 
   function handleResetToDefaults(): void {
+    if (!canManageSettings) {
+      setErrorMessage("Твоята роля няма право да променя calculation settings.");
+      setSuccessMessage(null);
+      return;
+    }
+
     applySettingsToForm(defaultSettings);
     setErrorMessage(null);
     setSuccessMessage(
@@ -311,6 +325,12 @@ export default function CalculationSettingsForm({
 
   return (
     <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {!canManageSettings && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Твоята роля е read-only за calculation settings. Можеш да преглеждаш стойностите, но не можеш да ги променяш.
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {fields.map((field) => (
           <label
@@ -324,12 +344,13 @@ export default function CalculationSettingsForm({
               value={field.value}
               min={field.min}
               step={field.step}
+              disabled={!canManageSettings}
               onChange={(event) =>
                 field.onChange(
                   event.target.value,
                 )
               }
-              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             />
 
             <span className="text-xs font-normal leading-5 text-slate-500">
@@ -379,7 +400,7 @@ export default function CalculationSettingsForm({
           <button
             type="button"
             onClick={handleResetToDefaults}
-            disabled={isSaving}
+            disabled={isSaving || !canManageSettings}
             className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Load defaults
@@ -388,7 +409,7 @@ export default function CalculationSettingsForm({
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !canManageSettings}
             aria-busy={isSaving}
             className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
           >

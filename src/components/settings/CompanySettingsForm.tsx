@@ -8,6 +8,7 @@ import {
   type HTMLAttributes,
 } from "react";
 
+import { useCan } from "@/components/auth/AuthContext";
 import type {
   CompanySettings,
   CompanyStatusValue,
@@ -53,6 +54,7 @@ const COMPANY_STATUSES: readonly {
 export default function CompanySettingsForm({
   initialCompany,
 }: CompanySettingsFormProps) {
+  const canManageSettings = useCan("settings:manage");
   const [formState, setFormState] =
     useState<CompanySettings>(initialCompany);
 
@@ -80,6 +82,10 @@ export default function CompanySettingsForm({
     field: EditableCompanyField,
     value: string,
   ): void {
+    if (!canManageSettings) {
+      return;
+    }
+
     setFormState((currentState) => ({
       ...currentState,
       [field]: value,
@@ -92,6 +98,10 @@ export default function CompanySettingsForm({
   function handleStatusChange(
     event: ChangeEvent<HTMLSelectElement>,
   ): void {
+    if (!canManageSettings) {
+      return;
+    }
+
     const value = event.target.value;
 
     setFormState((currentState) => ({
@@ -110,6 +120,12 @@ export default function CompanySettingsForm({
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canManageSettings) {
+      setSaveError("Твоята роля няма право да променя company settings.");
+      setSaveMessage(null);
+      return;
+    }
 
     const validationError =
       validateCompanySettings(formState);
@@ -174,6 +190,13 @@ export default function CompanySettingsForm({
       onSubmit={handleSubmit}
       className="space-y-6"
     >
+      {!canManageSettings && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 shadow-sm">
+          Твоята роля е read-only за company settings. Можеш да преглеждаш фирмените данни, но не можеш да ги променяш.
+        </section>
+      )}
+
+      <fieldset disabled={!canManageSettings} className="contents">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -237,8 +260,9 @@ export default function CompanySettingsForm({
             Status
             <select
               value={formState.status}
+              disabled={!canManageSettings}
               onChange={handleStatusChange}
-              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+              className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             >
               {COMPANY_STATUSES.map((status) => (
                 <option
@@ -342,6 +366,7 @@ export default function CompanySettingsForm({
           <textarea
             value={formState.notes}
             rows={5}
+            readOnly={!canManageSettings}
             onChange={(event) =>
               handleFieldChange(
                 "notes",
@@ -349,10 +374,12 @@ export default function CompanySettingsForm({
               )
             }
             placeholder="Internal company notes"
-            className="rounded-md border border-slate-400 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+            className="rounded-md border border-slate-400 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 read-only:cursor-not-allowed read-only:bg-slate-100 read-only:text-slate-500"
           />
         </label>
       </section>
+
+      </fieldset>
 
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-slate-600">
@@ -381,7 +408,7 @@ export default function CompanySettingsForm({
 
         <button
           type="submit"
-          disabled={isSaving}
+          disabled={isSaving || !canManageSettings}
           aria-busy={isSaving}
           className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -401,6 +428,7 @@ function TextField({
   inputMode,
   maxLength,
   className = "",
+  readOnly = false,
 }: {
   label: string;
   value: string;
@@ -410,6 +438,7 @@ function TextField({
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   maxLength?: number;
   className?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label
@@ -426,10 +455,11 @@ function TextField({
         placeholder={placeholder}
         inputMode={inputMode}
         maxLength={maxLength}
+        readOnly={readOnly}
         onChange={(event) =>
           onChange(event.target.value)
         }
-        className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+        className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-950 outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 read-only:cursor-not-allowed read-only:bg-slate-100 read-only:text-slate-500"
       />
     </label>
   );

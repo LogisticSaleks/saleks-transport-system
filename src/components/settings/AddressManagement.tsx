@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import { useCan } from "@/components/auth/AuthContext";
+
 const ADDRESS_TYPES = [
   "TERMINAL",
   "DEPOT",
@@ -110,6 +112,7 @@ const TYPE_LABELS: Record<
 export default function AddressManagement({
   initialAddresses,
 }: AddressManagementProps) {
+  const canWriteAddresses = useCan("addresses:write");
   const [
     addresses,
     setAddresses,
@@ -207,6 +210,12 @@ export default function AddressManagement({
   ) {
     event.preventDefault();
 
+    if (!canWriteAddresses) {
+      setSaveError("Твоята роля няма право да създава или редактира адреси.");
+      setSuccessMessage("");
+      return;
+    }
+
     setIsSaving(true);
     setSaveError("");
     setSuccessMessage("");
@@ -281,6 +290,12 @@ export default function AddressManagement({
   async function handleToggleActive(
     address: AddressManagementRow,
   ) {
+    if (!canWriteAddresses) {
+      setSaveError("Твоята роля няма право да активира или деактивира адреси.");
+      setSuccessMessage("");
+      return;
+    }
+
     setSaveError("");
     setSuccessMessage("");
 
@@ -346,6 +361,12 @@ export default function AddressManagement({
   async function handleFindCoordinates(
     address: AddressManagementRow,
   ): Promise<void> {
+    if (!canWriteAddresses) {
+      setSaveError("Твоята роля няма право да обновява координати на адреси.");
+      setSuccessMessage("");
+      return;
+    }
+
     setSaveError("");
     setSuccessMessage("");
     setGeocodingAddressId(address.id);
@@ -413,6 +434,12 @@ export default function AddressManagement({
   function handleEdit(
     address: AddressManagementRow,
   ): void {
+    if (!canWriteAddresses) {
+      setSaveError("Твоята роля няма право да редактира адреси.");
+      setSuccessMessage("");
+      return;
+    }
+
     setEditingId(address.id);
     setSaveError("");
     setSuccessMessage("");
@@ -500,6 +527,13 @@ export default function AddressManagement({
         />
       </section>
 
+      {!canWriteAddresses && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 shadow-sm">
+          Твоята роля е read-only за Address Book. Можеш да преглеждаш и филтрираш адреси, но не можеш да добавяш, редактираш, активираш или намираш координати.
+        </section>
+      )}
+
+      {canWriteAddresses && (
       <section
         ref={formSectionRef}
         className={[
@@ -736,6 +770,7 @@ export default function AddressManagement({
           </div>
         </form>
       </section>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-5">
@@ -850,6 +885,7 @@ export default function AddressManagement({
           onFindCoordinates={
             handleFindCoordinates
           }
+          canWriteAddresses={canWriteAddresses}
         />
       </section>
     </div>
@@ -899,6 +935,7 @@ function AddressTable({
   onEdit,
   onToggleActive,
   onFindCoordinates,
+  canWriteAddresses,
 }: {
   addresses: readonly AddressManagementRow[];
   geocodingAddressId: string | null;
@@ -911,6 +948,7 @@ function AddressTable({
   onFindCoordinates: (
     address: AddressManagementRow,
   ) => void;
+  canWriteAddresses: boolean;
 }) {
   if (addresses.length === 0) {
     return (
@@ -1047,52 +1085,58 @@ function AddressTable({
               </DataCell>
 
               <DataCell align="right">
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onEdit(address)
-                    }
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Edit
-                  </button>
-
-                  {!hasCoordinates(address) && (
+                {canWriteAddresses ? (
+                  <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() =>
-                        onFindCoordinates(address)
+                        onEdit(address)
                       }
-                      disabled={
-                        geocodingAddressId !== null
-                      }
-                      className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                     >
-                      {geocodingAddressId ===
-                      address.id
-                        ? "Finding..."
-                        : "Find coordinates"}
+                      Edit
                     </button>
-                  )}
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onToggleActive(address)
-                    }
-                    className={[
-                      "rounded-md border px-3 py-1.5 text-xs font-semibold transition",
-                      address.isActive
-                        ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-                    ].join(" ")}
-                  >
-                    {address.isActive
-                      ? "Deactivate"
-                      : "Activate"}
-                  </button>
-                </div>
+                    {!hasCoordinates(address) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onFindCoordinates(address)
+                        }
+                        disabled={
+                          geocodingAddressId !== null
+                        }
+                        className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {geocodingAddressId ===
+                        address.id
+                          ? "Finding..."
+                          : "Find coordinates"}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onToggleActive(address)
+                      }
+                      className={[
+                        "rounded-md border px-3 py-1.5 text-xs font-semibold transition",
+                        address.isActive
+                          ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                      ].join(" ")}
+                    >
+                      {address.isActive
+                        ? "Deactivate"
+                        : "Activate"}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
+                    Read-only
+                  </span>
+                )}
               </DataCell>
             </tr>
           ))}

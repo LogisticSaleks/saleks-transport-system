@@ -3,6 +3,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { useCan } from "@/components/auth/AuthContext";
+
 export type TruckStatusValue =
   | "ACTIVE"
   | "INACTIVE"
@@ -104,6 +106,7 @@ const EMPTY_FORM_STATE: TruckFormState = {
 export default function TruckManagement({
   initialTrucks,
 }: TruckManagementProps) {
+  const canWriteTrucks = useCan("trucks:write");
   const [trucks, setTrucks] = useState<TruckRow[]>([
     ...initialTrucks,
   ]);
@@ -152,6 +155,12 @@ export default function TruckManagement({
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    if (!canWriteTrucks) {
+      setErrorMessage("Твоята роля няма право да добавя или редактира камиони.");
+      setSuccessMessage(null);
+      return;
+    }
 
     const name = formState.name.trim();
     const licensePlate = formState.licensePlate
@@ -277,6 +286,12 @@ export default function TruckManagement({
   }
 
   function handleEdit(truck: TruckRow): void {
+    if (!canWriteTrucks) {
+      setErrorMessage("Твоята роля няма право да редактира камиони.");
+      setSuccessMessage(null);
+      return;
+    }
+
     setFormState({
       id: truck.id,
       name: truck.name,
@@ -363,6 +378,12 @@ export default function TruckManagement({
         )}
       </section>
 
+      {!canWriteTrucks && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800 shadow-sm">
+          Твоята роля е read-only за Trucks. Можеш да преглеждаш камионите и fixed costs, но не можеш да добавяш или редактираш камиони.
+        </section>
+      )}
+
       <section className="grid gap-4 md:grid-cols-5">
         <MetricCard label="Всички" value={String(totals.all)} />
         <MetricCard
@@ -384,6 +405,7 @@ export default function TruckManagement({
       </section>
 
       <section className="grid gap-6 2xl:grid-cols-[460px_1fr]">
+        {canWriteTrucks ? (
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm"
@@ -640,6 +662,9 @@ export default function TruckManagement({
             )}
           </div>
         </form>
+        ) : (
+          <ReadOnlyPanel />
+        )}
 
         <section className="rounded-2xl border border-slate-400 bg-white shadow-sm">
           <div className="border-b border-slate-300 px-4 py-4">
@@ -753,13 +778,19 @@ export default function TruckManagement({
 
                         <td className="border-b border-slate-200 px-4 py-3">
                           <div className="flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => handleEdit(truck)}
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
-                            >
-                              Редактирай
-                            </button>
+                            {canWriteTrucks ? (
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(truck)}
+                                className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
+                              >
+                                Редактирай
+                              </button>
+                            ) : (
+                              <span className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500">
+                                Read-only
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -772,6 +803,21 @@ export default function TruckManagement({
         </section>
       </section>
     </div>
+  );
+}
+
+
+function ReadOnlyPanel() {
+  return (
+    <aside className="rounded-2xl border border-slate-300 bg-slate-50 p-4 shadow-sm">
+      <h2 className="text-base font-bold text-slate-950">
+        Read-only access
+      </h2>
+
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        Тази роля може да преглежда fleet данните, fuel consumption и fixed costs, но не може да създава или редактира камиони.
+      </p>
+    </aside>
   );
 }
 
