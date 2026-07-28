@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -18,6 +19,7 @@ import CourseSummaryBar, {
 import type { CustomerOption } from "./CustomerSelect";
 import type { TruckOption } from "./TruckSelect";
 import type { CalculationSettings } from "@/lib/settings/calculationSettings";
+import { useCan } from "@/components/auth/AuthContext";
 
 type CourseTableProps = {
   trucks: readonly TruckOption[];
@@ -90,6 +92,15 @@ export default function CourseTable({
   initialCourses,
   calculationSettings,
 }: CourseTableProps) {
+  const canWriteCourses =
+    useCan("courses:write");
+
+  const canWriteSettlements =
+    useCan("settlements:write");
+
+  const canCalculateRoutes =
+    useCan("routes:calculate");
+
   const firstEmptyRowId =
     getNextRowId(initialCourses);
 
@@ -99,10 +110,41 @@ export default function CourseTable({
 
   const [rows, setRows] = useState<
     CourseRowData[]
-  >(() => [
-    createEmptyCourseRow(firstEmptyRowId),
-    ...initialCourses,
-  ]);
+  >(() =>
+    canWriteCourses
+      ? [
+          createEmptyCourseRow(firstEmptyRowId),
+          ...initialCourses,
+        ]
+      : [...initialCourses],
+  );
+
+  useEffect(() => {
+    setRows((currentRows) => {
+      if (!canWriteCourses) {
+        return currentRows.filter(
+          (row) => row.databaseId !== null,
+        );
+      }
+
+      const hasDraftRow = currentRows.some(
+        (row) => row.databaseId === null,
+      );
+
+      if (hasDraftRow) {
+        return currentRows;
+      }
+
+      const newRowId = nextRowId.current;
+
+      nextRowId.current += 1;
+
+      return [
+        createEmptyCourseRow(newRowId),
+        ...currentRows,
+      ];
+    });
+  }, [canWriteCourses]);
 
   const [dateFrom, setDateFrom] =
     useState("");
@@ -129,10 +171,12 @@ export default function CourseTable({
 
   const draftRows = useMemo(
     () =>
-      rows.filter(
-        (row) => row.databaseId === null,
-      ),
-    [rows],
+      canWriteCourses
+        ? rows.filter(
+            (row) => row.databaseId === null,
+          )
+        : [],
+    [rows, canWriteCourses],
   );
 
   const filteredSavedRows = useMemo(
@@ -226,6 +270,10 @@ export default function CourseTable({
   );
 
   function handleAddRow(): void {
+    if (!canWriteCourses) {
+      return;
+    }
+
     const newRowId = nextRowId.current;
 
     nextRowId.current += 1;
@@ -400,6 +448,12 @@ export default function CourseTable({
           <p className="mt-1 text-sm text-slate-500">
             Добавяне и управление на транспортни курсове.
           </p>
+
+          {!canWriteCourses && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+              Твоята роля е read-only за курсове. Можеш да преглеждаш и експортираш, но не можеш да създаваш или редактираш курсове.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -480,13 +534,15 @@ export default function CourseTable({
               : "Експорт Excel"}
           </button>
 
-          <button
-            type="button"
-            onClick={handleAddRow}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
-          >
-            Add Row
-          </button>
+          {canWriteCourses && (
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Add Row
+            </button>
+          )}
         </div>
       </div>
 
@@ -636,6 +692,9 @@ export default function CourseTable({
                     addresses
                   }
                   calculationSettings={calculationSettings}
+                  canWriteCourses={canWriteCourses}
+                  canWriteSettlements={canWriteSettlements}
+                  canCalculateRoutes={canCalculateRoutes}
                   onChange={
                     handleRowChange
                   }
