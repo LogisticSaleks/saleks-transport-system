@@ -1,6 +1,12 @@
 import Link from "next/link";
 
 import { AppShell } from "@/components/layout/AppShell";
+import {
+  roleHasPermission,
+  type Permission,
+} from "@/lib/auth/permissions";
+import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
+import type { UserRoleValue } from "@/lib/settings/userProfiles";
 
 type SettingsCardStatus =
   | "Ready"
@@ -11,6 +17,7 @@ type SettingsCard = {
   title: string;
   description: string;
   status: SettingsCardStatus;
+  permissions: readonly Permission[];
   href?: string;
 };
 
@@ -21,6 +28,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Terminals, depots, customer sites, coordinates, active/inactive addresses and route calculation locations.",
     href: "/settings/addresses",
     status: "Ready",
+    permissions: ["addresses:read"],
   },
   {
     title: "Calculation settings",
@@ -28,6 +36,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Default fuel price, default waiting rules, MSI default price per kilometer and profit status thresholds.",
     href: "/settings/calculation",
     status: "Ready",
+    permissions: ["settings:read"],
   },
   {
     title: "Route / API settings",
@@ -35,6 +44,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Route provider configuration, myPTV connection, toll calculation defaults, cache behavior and API health checks.",
     href: "/settings/route-api",
     status: "Ready",
+    permissions: ["settings:read"],
   },
   {
     title: "Company settings",
@@ -42,6 +52,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Company profile, legal details, VAT number, contact information, address and internal notes.",
     href: "/settings/company",
     status: "Ready",
+    permissions: ["settings:read"],
   },
   {
     title: "Users & roles",
@@ -49,6 +60,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "User profiles, viewer/editor permissions, finance access, dispatcher roles and owner/admin control.",
     href: "/settings/users",
     status: "Ready",
+    permissions: ["users:read"],
   },
   {
     title: "Truck defaults",
@@ -56,6 +68,7 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Truck master data, fuel consumption, fixed monthly costs, license plates and technical status.",
     href: "/trucks",
     status: "Connected",
+    permissions: ["settings:read"],
   },
   {
     title: "Customer tariffs",
@@ -63,21 +76,42 @@ const SETTINGS_CARDS: readonly SettingsCard[] = [
       "Customer pricing rules, active tariffs, Vepco tariff table, MSI price per kilometer and customer-specific rates.",
     href: "/customers",
     status: "Connected",
+    permissions: ["settings:read"],
   },
   {
     title: "System info",
     description:
       "Application version, database status, environment, last deployment and basic technical diagnostics.",
     status: "Planned",
+    permissions: ["settings:read"],
   },
 ];
 
-export default function SettingsPage() {
-  const readyCards = SETTINGS_CARDS.filter(
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const access = await loadCurrentUserAccess();
+
+  if (
+    access.status !== "AUTHORIZED" ||
+    !access.profile
+  ) {
+    return (
+      <AppShell title="Settings">
+        <AccessDeniedPanel />
+      </AppShell>
+    );
+  }
+
+  const visibleCards = SETTINGS_CARDS.filter((card) =>
+    canViewSettingsCard(access.profile!.role, card),
+  );
+
+  const readyCards = visibleCards.filter(
     (card) => card.status !== "Planned",
   );
 
-  const plannedCards = SETTINGS_CARDS.filter(
+  const plannedCards = visibleCards.filter(
     (card) => card.status === "Planned",
   );
 
@@ -93,8 +127,8 @@ export default function SettingsPage() {
 
               <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
                 Central place for master data, calculation rules,
-                integrations, users and system configuration. Ready sections
-                are clickable. Planned sections show what will be added next.
+                integrations, users and system configuration. Only sections
+                allowed for your current Saleks role are shown here.
               </p>
             </div>
 
@@ -112,58 +146,95 @@ export default function SettingsPage() {
               />
 
               <SettingsCounter
-                label="Total"
-                value={SETTINGS_CARDS.length}
+                label="Visible"
+                value={visibleCards.length}
                 tone="default"
               />
             </div>
           </div>
         </section>
 
-        <section>
-          <div className="mb-3">
+        {readyCards.length > 0 ? (
+          <section>
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-slate-950">
+                Active settings
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                These sections are already connected to existing parts of the
+                system.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {readyCards.map((card) => (
+                <SettingsCardItem
+                  key={card.title}
+                  card={card}
+                />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-base font-semibold text-slate-950">
-              Active settings
+              No settings sections available
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              These sections are already connected to existing parts of the
-              system.
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Your current role does not have access to any settings module.
             </p>
-          </div>
+          </section>
+        )}
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {readyCards.map((card) => (
-              <SettingsCardItem
-                key={card.title}
-                card={card}
-              />
-            ))}
-          </div>
-        </section>
+        {plannedCards.length > 0 && (
+          <section>
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-slate-950">
+                Planned settings
+              </h2>
 
-        <section>
-          <div className="mb-3">
-            <h2 className="text-base font-semibold text-slate-950">
-              Planned settings
-            </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                These cards are placeholders for the next configuration modules.
+              </p>
+            </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              These cards are placeholders for the next configuration modules.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {plannedCards.map((card) => (
-              <SettingsCardItem
-                key={card.title}
-                card={card}
-              />
-            ))}
-          </div>
-        </section>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {plannedCards.map((card) => (
+                <SettingsCardItem
+                  key={card.title}
+                  card={card}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </AppShell>
+  );
+}
+
+function canViewSettingsCard(
+  role: UserRoleValue,
+  card: SettingsCard,
+): boolean {
+  return card.permissions.some((permission) =>
+    roleHasPermission(role, permission),
+  );
+}
+
+function AccessDeniedPanel() {
+  return (
+    <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+      <h2 className="text-base font-semibold">
+        Settings access blocked
+      </h2>
+
+      <p className="mt-2 leading-6">
+        Your account is not authorized to view settings modules.
+      </p>
+    </section>
   );
 }
 

@@ -22,7 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 type NavigationItem = {
   href: string;
   label: string;
-  permission: Permission;
+  permissions: readonly Permission[];
 };
 
 type NavigationUserProfile = {
@@ -46,32 +46,32 @@ const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
-    permission: "reports:read",
+    permissions: ["reports:read"],
   },
   {
     href: "/courses",
     label: "Courses",
-    permission: "courses:read",
+    permissions: ["courses:read"],
   },
   {
     href: "/customers",
     label: "Customers",
-    permission: "customers:read",
+    permissions: ["customers:read"],
   },
   {
     href: "/trucks",
     label: "Trucks",
-    permission: "trucks:read",
+    permissions: ["trucks:read"],
   },
   {
     href: "/reports",
     label: "Reports",
-    permission: "reports:read",
+    permissions: ["reports:read"],
   },
   {
     href: "/settings",
     label: "Settings",
-    permission: "settings:read",
+    permissions: ["settings:read", "addresses:read"],
   },
 ];
 
@@ -156,10 +156,7 @@ export default function AppNavigation() {
 
   const visibleNavigationItems = profile
     ? NAVIGATION_ITEMS.filter((item) =>
-        roleHasClientPermission(
-          profile.role,
-          item.permission,
-        ),
+        isNavigationItemVisible(profile.role, item),
       )
     : [];
 
@@ -247,6 +244,15 @@ export default function AppNavigation() {
         </div>
       </div>
     </header>
+  );
+}
+
+function isNavigationItemVisible(
+  role: UserRoleValue,
+  item: NavigationItem,
+): boolean {
+  return item.permissions.some((permission) =>
+    roleHasClientPermission(role, permission),
   );
 }
 
