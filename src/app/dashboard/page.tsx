@@ -61,7 +61,7 @@ export default async function DashboardPage() {
     currentUserAccess.profile !== null &&
     roleHasPermission(
       currentUserAccess.profile.role,
-      "reports:read",
+      "dashboard:read",
     );
 
   if (!canReadDashboard) {
@@ -153,7 +153,7 @@ function DashboardAccessDeniedPanel() {
       </h2>
 
       <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
-        Твоята роля няма право да вижда Dashboard и седмични финансови отчети.
+        Твоята роля няма право да вижда Dashboard.
       </p>
     </section>
   );

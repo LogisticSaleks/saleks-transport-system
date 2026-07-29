@@ -25,6 +25,7 @@ export type Permission =
   | "addresses:read"
   | "addresses:write"
   | "routes:calculate"
+  | "dashboard:read"
   | "reports:read"
   | "reports:write"
   | "settlements:read"
@@ -64,6 +65,7 @@ const ALL_PERMISSIONS: readonly Permission[] = [
   "addresses:read",
   "addresses:write",
   "routes:calculate",
+  "dashboard:read",
   "reports:read",
   "reports:write",
   "settlements:read",
@@ -95,6 +97,7 @@ const ROLE_PERMISSIONS: Record<
   ],
 
   FINANCE: [
+    "dashboard:read",
     "courses:read",
     "customers:read",
     "trucks:read",
@@ -105,10 +108,10 @@ const ROLE_PERMISSIONS: Record<
   ],
 
   VIEWER: [
+    "dashboard:read",
     "courses:read",
     "customers:read",
     "trucks:read",
-    "reports:read",
     "settlements:read",
   ],
 };

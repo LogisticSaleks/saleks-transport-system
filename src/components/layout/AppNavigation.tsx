@@ -46,7 +46,7 @@ const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
-    permissions: ["reports:read"],
+    permissions: ["dashboard:read"],
   },
   {
     href: "/courses",

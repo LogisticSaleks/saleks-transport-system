@@ -108,7 +108,7 @@ type WeeklyReportForResponse = {
  * GET /api/weekly-truck-revenue-reports?year=2026&weekNumber=30&truckId=TRUCK_ID
  */
 export async function GET(request: Request) {
-  const permission = await requireApiPermission("reports:read");
+  const permission = await requireApiPermission("dashboard:read");
 
   if (!permission.ok) {
     return permission.response;
