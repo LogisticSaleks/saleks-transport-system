@@ -182,6 +182,11 @@ model UserProfile {
   notes      String?
   lastSeenAt DateTime?
 
+  passwordHash      String?
+  passwordChangedAt DateTime?
+
+  sessions UserSession[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -189,6 +194,29 @@ model UserProfile {
   @@index([role])
   @@index([status])
   @@map("user_profiles")
+}
+
+model UserSession {
+  id            String @id @default(cuid())
+  userProfileId String
+  tokenHash     String @unique
+
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+
+  userAgent String?
+  ipAddress String?
+
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userProfileId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("user_sessions")
 }
 
 model Customer {
