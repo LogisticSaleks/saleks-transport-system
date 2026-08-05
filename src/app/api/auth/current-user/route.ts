@@ -23,6 +23,7 @@ export async function GET() {
 
     if (
       access.status === "PROFILE_REQUIRED" ||
+      access.status === "PENDING" ||
       access.status === "INACTIVE"
     ) {
       return NextResponse.json(

@@ -143,6 +143,17 @@ export async function requireApiPermission(
     });
   }
 
+  if (access.status === "PENDING") {
+    return buildPermissionFailure({
+      status: 403,
+      code: "PENDING_PROFILE",
+      message:
+        access.message ??
+        "Your Saleks account is waiting for owner approval.",
+      permission,
+    });
+  }
+
   if (access.status === "INACTIVE") {
     return buildPermissionFailure({
       status: 403,
@@ -217,6 +228,7 @@ function buildPermissionFailure({
   code:
     | "UNAUTHENTICATED"
     | "PROFILE_REQUIRED"
+    | "PENDING_PROFILE"
     | "INACTIVE_PROFILE"
     | "MISSING_PERMISSION";
   message: string;

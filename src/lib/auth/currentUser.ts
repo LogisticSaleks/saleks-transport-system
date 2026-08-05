@@ -15,6 +15,7 @@ export type CurrentUserAccessStatus =
   | "AUTHORIZED"
   | "UNAUTHENTICATED"
   | "PROFILE_REQUIRED"
+  | "PENDING"
   | "INACTIVE";
 
 export type CurrentAuthUser = {
@@ -88,6 +89,17 @@ export async function loadCurrentUserAccess(): Promise<CurrentUserAccess> {
     profile,
     lastSignInAt: normalizedSession.lastSeenAt,
   });
+
+  if (profile.status === "PENDING") {
+    return {
+      status: "PENDING",
+      authUser,
+      profile: serializeUserProfile(profile),
+      profileCreated: false,
+      message:
+        "Your Saleks account is waiting for owner approval.",
+    };
+  }
 
   if (profile.status !== "ACTIVE") {
     return {

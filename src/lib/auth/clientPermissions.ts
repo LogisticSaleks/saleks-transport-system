@@ -7,6 +7,7 @@ export type UserRoleValue =
 
 export type UserStatusValue =
   | "ACTIVE"
+  | "PENDING"
   | "INACTIVE";
 
 export type Permission =
@@ -130,7 +131,11 @@ export function isUserRole(
 export function isUserStatus(
   value: string,
 ): value is UserStatusValue {
-  return value === "ACTIVE" || value === "INACTIVE";
+  return (
+    value === "ACTIVE" ||
+    value === "PENDING" ||
+    value === "INACTIVE"
+  );
 }
 
 export function formatClientRoleLabel(role: string): string {

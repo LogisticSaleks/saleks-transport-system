@@ -129,6 +129,7 @@ enum UserRole {
 
 enum UserStatus {
   ACTIVE
+  PENDING
   INACTIVE
 }
 
@@ -178,7 +179,7 @@ model UserProfile {
   email      String     @unique
   fullName   String?
   role       UserRole   @default(VIEWER)
-  status     UserStatus @default(ACTIVE)
+  status     UserStatus @default(PENDING)
   notes      String?
   lastSeenAt DateTime?
 

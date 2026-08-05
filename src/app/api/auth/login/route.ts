@@ -46,6 +46,18 @@ export async function POST(request: Request) {
       return invalidLoginResponse();
     }
 
+    if (userProfile.status === "PENDING") {
+      return NextResponse.json(
+        {
+          error:
+            "Your Saleks account is waiting for owner approval.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
     if (userProfile.status !== "ACTIVE") {
       return NextResponse.json(
         {

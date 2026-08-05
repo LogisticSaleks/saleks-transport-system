@@ -35,6 +35,7 @@ type CurrentUserApiResponse = {
     | "AUTHORIZED"
     | "UNAUTHENTICATED"
     | "PROFILE_REQUIRED"
+    | "PENDING"
     | "INACTIVE";
   profile?: {
     email: string;

@@ -11,6 +11,7 @@ export type UserRoleValue =
 
 export type UserStatusValue =
   | "ACTIVE"
+  | "PENDING"
   | "INACTIVE";
 
 export type UserProfileSettings = {
@@ -29,6 +30,7 @@ export type UserProfileSettings = {
 export type UserProfileSummary = {
   total: number;
   active: number;
+  pending: number;
   inactive: number;
   owners: number;
   admins: number;
@@ -52,7 +54,7 @@ type UserProfileWriteData = {
 };
 
 const DEFAULT_USER_ROLE: UserRoleValue = "VIEWER";
-const DEFAULT_USER_STATUS: UserStatusValue = "ACTIVE";
+const DEFAULT_USER_STATUS: UserStatusValue = "PENDING";
 
 export async function loadUserProfilesFromDb(): Promise<UserProfilesResult> {
   const users = await prisma.userProfile.findMany({
@@ -224,6 +226,7 @@ function buildUserProfileSummary(
   const summary: UserProfileSummary = {
     total: users.length,
     active: 0,
+    pending: 0,
     inactive: 0,
     owners: 0,
     admins: 0,
@@ -235,6 +238,8 @@ function buildUserProfileSummary(
   for (const user of users) {
     if (user.status === "ACTIVE") {
       summary.active += 1;
+    } else if (user.status === "PENDING") {
+      summary.pending += 1;
     } else {
       summary.inactive += 1;
     }
@@ -317,13 +322,13 @@ function readUserStatus(value: unknown): UserStatusValue {
   }
 
   if (typeof value !== "string") {
-    throw new Error("User status must be ACTIVE or INACTIVE.");
+    throw new Error("User status must be ACTIVE, PENDING or INACTIVE.");
   }
 
   const normalizedValue = value.trim().toUpperCase();
 
   if (!isUserStatus(normalizedValue)) {
-    throw new Error("User status must be ACTIVE or INACTIVE.");
+    throw new Error("User status must be ACTIVE, PENDING or INACTIVE.");
   }
 
   return normalizedValue;
@@ -394,7 +399,11 @@ function isUserRole(value: string): value is UserRoleValue {
 }
 
 function isUserStatus(value: string): value is UserStatusValue {
-  return value === "ACTIVE" || value === "INACTIVE";
+  return (
+    value === "ACTIVE" ||
+    value === "PENDING" ||
+    value === "INACTIVE"
+  );
 }
 
 function isObjectRecord(
@@ -410,7 +419,7 @@ function isObjectRecord(
 function normalizeUserProfileDatabaseError(error: unknown): Error {
   if (isPrismaUniqueError(error)) {
     return new Error(
-      "A user profile with this Supabase auth user id or email already exists.",
+      "A user profile with this auth user id or email already exists.",
     );
   }
 
