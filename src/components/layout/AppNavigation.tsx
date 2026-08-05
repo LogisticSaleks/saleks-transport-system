@@ -40,6 +40,8 @@ type CurrentUserApiResponse = {
   } | null;
 };
 
+const PUBLIC_AUTH_PATHS = new Set(["/login", "/register"]);
+
 const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   {
     href: "/dashboard",
@@ -80,8 +82,10 @@ export default function AppNavigation() {
   const [profile, setProfile] =
     useState<NavigationUserProfile | null>(null);
 
+  const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(pathname);
+
   useEffect(() => {
-    if (pathname === "/login") {
+    if (isPublicAuthPath) {
       setProfile(null);
       return;
     }
@@ -137,9 +141,9 @@ export default function AppNavigation() {
     return () => {
       isMounted = false;
     };
-  }, [pathname]);
+  }, [isPublicAuthPath, pathname]);
 
-  if (pathname === "/login") {
+  if (isPublicAuthPath) {
     return null;
   }
 
