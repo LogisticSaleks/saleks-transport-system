@@ -50,7 +50,7 @@ export function setSessionCookie({
     value: token,
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     expires: expiresAt,
   });
@@ -62,7 +62,7 @@ export function clearSessionCookie(response: NextResponse): void {
     value: "",
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     maxAge: 0,
   });
@@ -85,6 +85,24 @@ export async function readRequestMetadata(): Promise<{
       forwardedFor?.split(",")[0] ?? realIp,
     ),
   };
+}
+
+function shouldUseSecureSessionCookie(): boolean {
+  const explicitSetting =
+    process.env.SESSION_COOKIE_SECURE
+      ?.normalize("NFKC")
+      .trim()
+      .toLowerCase() ?? "";
+
+  if (explicitSetting === "true") {
+    return true;
+  }
+
+  if (explicitSetting === "false") {
+    return false;
+  }
+
+  return process.env.NODE_ENV === "production";
 }
 
 function normalizeOptionalText(
