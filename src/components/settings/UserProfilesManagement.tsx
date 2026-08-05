@@ -8,13 +8,13 @@ import {
   type ReactNode,
 } from "react";
 
+import { useCan } from "@/components/auth/AuthContext";
 import type {
   UserProfileSettings,
   UserProfilesResult,
   UserRoleValue,
   UserStatusValue,
 } from "@/lib/settings/userProfiles";
-import { useCan } from "@/components/auth/AuthContext";
 
 type UserProfilesManagementProps = {
   initialResult: UserProfilesResult;
@@ -69,14 +69,22 @@ const USER_ROLES: readonly {
 const USER_STATUSES: readonly {
   value: UserStatusValue;
   label: string;
+  description: string;
 }[] = [
   {
     value: "ACTIVE",
     label: "Active",
+    description: "Approved user. Can log in and use the system according to role permissions.",
+  },
+  {
+    value: "PENDING",
+    label: "Pending",
+    description: "Registered user waiting for OWNER approval.",
   },
   {
     value: "INACTIVE",
     label: "Inactive",
+    description: "Blocked user. Cannot access the system.",
   },
 ];
 
@@ -86,7 +94,7 @@ const EMPTY_USER_PROFILE: UserProfileSettings = {
   email: "",
   fullName: "",
   role: "VIEWER",
-  status: "ACTIVE",
+  status: "PENDING",
   notes: "",
   lastSeenAt: null,
   createdAt: null,
@@ -96,8 +104,7 @@ const EMPTY_USER_PROFILE: UserProfileSettings = {
 export default function UserProfilesManagement({
   initialResult,
 }: UserProfilesManagementProps) {
-  const canManageUsers =
-    useCan("users:manage");
+  const canManageUsers = useCan("users:manage");
 
   const [users, setUsers] = useState<UserProfileSettings[]>(
     initialResult.users,
@@ -199,7 +206,7 @@ export default function UserProfilesManagement({
 
     setFormState((currentState) => ({
       ...currentState,
-      status: value === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+      status: isUserStatus(value) ? value : "PENDING",
     }));
 
     setSaveError(null);
@@ -238,7 +245,15 @@ export default function UserProfilesManagement({
 
     if (!canManageUsers) {
       setSaveError(
-        "Only OWNER can create or update user profiles.",
+        "Only OWNER can update user profiles.",
+      );
+      setSaveMessage(null);
+      return;
+    }
+
+    if (!isEditing) {
+      setSaveError(
+        "Select a registered user from the table before saving changes.",
       );
       setSaveMessage(null);
       return;
@@ -258,7 +273,7 @@ export default function UserProfilesManagement({
 
     try {
       const response = await fetch("/api/settings/users", {
-        method: isEditing ? "PATCH" : "POST",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -285,11 +300,7 @@ export default function UserProfilesManagement({
 
       setUsers(responseData.users);
       setFormState(EMPTY_USER_PROFILE);
-      setSaveMessage(
-        isEditing
-          ? "User profile updated."
-          : "User profile created.",
-      );
+      setSaveMessage("User profile updated.");
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -309,10 +320,11 @@ export default function UserProfilesManagement({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <SummaryCard label="Total users" value={summary.total} />
         <SummaryCard label="Active" value={summary.active} tone="positive" />
-        <SummaryCard label="Inactive" value={summary.inactive} />
+        <SummaryCard label="Pending" value={summary.pending} tone="warning" />
+        <SummaryCard label="Inactive" value={summary.inactive} tone="danger" />
         <SummaryCard label="Viewers" value={summary.viewers} />
       </section>
 
@@ -328,17 +340,17 @@ export default function UserProfilesManagement({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">
-              {isEditing ? "Edit user profile" : "Add user profile"}
+              {isEditing ? "Approve or edit user" : "Select a user to approve"}
             </h2>
 
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Create the Supabase auth account first, then add its auth user id
-              and assign the internal Saleks role here.
+              New users will register themselves. OWNER reviews the profile,
+              assigns the correct role and changes the status from Pending to Active.
             </p>
 
             {!canManageUsers && (
               <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-                Твоята роля може да вижда users, но само OWNER може да създава или променя user profiles.
+                Твоята роля може да вижда users, но само OWNER може да одобрява и променя user profiles.
               </p>
             )}
           </div>
@@ -360,12 +372,12 @@ export default function UserProfilesManagement({
         >
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <TextField
-              label="Supabase auth user id"
+              label="Auth user id"
               value={formState.authUserId}
               required
-              placeholder="UUID from Supabase Auth"
+              placeholder="Internal auth id"
               className="xl:col-span-2"
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={(value) =>
                 handleFieldChange("authUserId", value)
               }
@@ -376,7 +388,7 @@ export default function UserProfilesManagement({
               value={formState.email}
               required
               placeholder="user@example.com"
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={(value) =>
                 handleFieldChange("email", value)
               }
@@ -386,7 +398,7 @@ export default function UserProfilesManagement({
               label="Full name"
               value={formState.fullName}
               placeholder="Name shown internally"
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={(value) =>
                 handleFieldChange("fullName", value)
               }
@@ -395,7 +407,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Role"
               value={formState.role}
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={handleRoleChange}
             >
               {USER_ROLES.map((role) => (
@@ -408,7 +420,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Status"
               value={formState.status}
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={handleStatusChange}
             >
               {USER_STATUSES.map((status) => (
@@ -423,7 +435,7 @@ export default function UserProfilesManagement({
               value={formState.notes}
               placeholder="Internal notes"
               className="xl:col-span-2"
-              disabled={!canManageUsers}
+              disabled={!canManageUsers || !isEditing}
               onChange={(value) =>
                 handleFieldChange("notes", value)
               }
@@ -431,6 +443,7 @@ export default function UserProfilesManagement({
           </div>
 
           <RoleHelp />
+          <StatusHelp />
 
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-slate-600">
@@ -452,15 +465,17 @@ export default function UserProfilesManagement({
               {!saveError && !saveMessage && (
                 <span>
                   {canManageUsers
-                    ? "Only OWNER can create or update user profiles."
-                    : "Read-only view. Only OWNER can manage user profiles."}
+                    ? isEditing
+                      ? "Save the selected user's role/status changes."
+                      : "Select a user from the table below before saving."
+                    : "Read-only view. Only OWNER can approve or update user profiles."}
                 </span>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={isSaving || !canManageUsers}
+              disabled={isSaving || !canManageUsers || !isEditing}
               aria-busy={isSaving}
               className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -469,8 +484,8 @@ export default function UserProfilesManagement({
                 : isSaving
                   ? "Saving..."
                   : isEditing
-                    ? "Update user profile"
-                    : "Create user profile"}
+                    ? "Save user profile"
+                    : "Select user first"}
             </button>
           </div>
         </form>
@@ -528,18 +543,17 @@ export default function UserProfilesManagement({
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(
-                    event.target.value === "INACTIVE"
-                      ? "INACTIVE"
-                      : event.target.value === "ACTIVE"
-                        ? "ACTIVE"
-                        : "ALL",
+                    readStatusFilterValue(event.target.value),
                   )
                 }
                 className="h-10 rounded-md border border-slate-400 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
               >
                 <option value="ALL">All statuses</option>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
+                {USER_STATUSES.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -618,12 +632,18 @@ export default function UserProfilesManagement({
                       disabled={!canManageUsers}
                       title={
                         canManageUsers
-                          ? "Edit user profile"
+                          ? user.status === "PENDING"
+                            ? "Review pending user"
+                            : "Edit user profile"
                           : "Only OWNER can edit user profiles"
                       }
                       className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {canManageUsers ? "Edit" : "Read-only"}
+                      {canManageUsers
+                        ? user.status === "PENDING"
+                          ? "Review"
+                          : "Edit"
+                        : "Read-only"}
                     </button>
                   </td>
                 </tr>
@@ -654,8 +674,17 @@ function SummaryCard({
 }: {
   label: string;
   value: number;
-  tone?: "default" | "positive";
+  tone?: "default" | "positive" | "warning" | "danger";
 }) {
+  const valueClassName =
+    tone === "positive"
+      ? "text-emerald-700"
+      : tone === "warning"
+        ? "text-amber-700"
+        : tone === "danger"
+          ? "text-red-700"
+          : "text-slate-950";
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -665,9 +694,7 @@ function SummaryCard({
       <div
         className={[
           "mt-2 text-2xl font-bold",
-          tone === "positive"
-            ? "text-emerald-700"
-            : "text-slate-950",
+          valueClassName,
         ].join(" ")}
       >
         {value}
@@ -773,6 +800,27 @@ function RoleHelp() {
   );
 }
 
+function StatusHelp() {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {USER_STATUSES.map((status) => (
+        <div
+          key={status.value}
+          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+        >
+          <div className="text-sm font-semibold text-slate-900">
+            {status.label}
+          </div>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {status.description}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RoleBadge({
   role,
 }: {
@@ -809,7 +857,9 @@ function StatusBadge({
   const className =
     status === "ACTIVE"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : "border-slate-200 bg-slate-50 text-slate-600";
+      : status === "PENDING"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-slate-200 bg-slate-50 text-slate-600";
 
   return (
     <span
@@ -818,7 +868,7 @@ function StatusBadge({
         className,
       ].join(" ")}
     >
-      {status === "ACTIVE" ? "Active" : "Inactive"}
+      {getStatusLabel(status)}
     </span>
   );
 }
@@ -829,6 +879,7 @@ function calculateUserProfileSummary(
   const summary: UserProfilesResult["summary"] = {
     total: users.length,
     active: 0,
+    pending: 0,
     inactive: 0,
     owners: 0,
     admins: 0,
@@ -840,6 +891,8 @@ function calculateUserProfileSummary(
   for (const user of users) {
     if (user.status === "ACTIVE") {
       summary.active += 1;
+    } else if (user.status === "PENDING") {
+      summary.pending += 1;
     } else {
       summary.inactive += 1;
     }
@@ -872,7 +925,7 @@ function validateUserProfile(
   user: UserProfileSettings,
 ): string | null {
   if (user.authUserId.trim() === "") {
-    return "Supabase auth user id is required.";
+    return "Auth user id is required.";
   }
 
   if (user.email.trim() === "") {
@@ -890,12 +943,24 @@ function readRoleFilterValue(value: string): RoleFilterValue {
   return value === "ALL" || isUserRole(value) ? value : "ALL";
 }
 
+function readStatusFilterValue(value: string): StatusFilterValue {
+  return value === "ALL" || isUserStatus(value) ? value : "ALL";
+}
+
 function isUserRole(value: string): value is UserRoleValue {
   return USER_ROLES.some((role) => role.value === value);
 }
 
+function isUserStatus(value: string): value is UserStatusValue {
+  return USER_STATUSES.some((status) => status.value === value);
+}
+
 function getRoleLabel(role: UserRoleValue): string {
   return USER_ROLES.find((option) => option.value === role)?.label ?? role;
+}
+
+function getStatusLabel(status: UserStatusValue): string {
+  return USER_STATUSES.find((option) => option.value === status)?.label ?? status;
 }
 
 function formatNullableDateTime(value: string | null): string {
