@@ -2,36 +2,57 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     setErrorMessage("");
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (error) {
-      setErrorMessage("Invalid email or password.");
+      if (!response.ok) {
+        const responseData = (await response
+          .json()
+          .catch(() => null)) as
+          | { error?: string }
+          | null;
+
+        setErrorMessage(
+          responseData?.error ?? "Invalid email or password.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      router.push("/courses");
+      router.refresh();
+    } catch {
+      setErrorMessage(
+        "Login could not be completed. Please try again.",
+      );
       setIsLoading(false);
-      return;
     }
-
-    router.push("/courses");
-    router.refresh();
   }
 
   return (
@@ -58,7 +79,9 @@ export default function LoginPage() {
               id="email"
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               required
               autoComplete="email"
               className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
@@ -77,7 +100,9 @@ export default function LoginPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               required
               autoComplete="current-password"
               className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"

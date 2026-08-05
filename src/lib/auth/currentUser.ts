@@ -1,9 +1,10 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
-
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import {
+  hashSessionToken,
+  readSessionTokenFromCookies,
+} from "@/lib/auth/internalSession";
 import type {
   UserProfileSettings,
   UserRoleValue,
@@ -31,11 +32,6 @@ export type CurrentUserAccess = {
   message: string | null;
 };
 
-type ResolvedProfile = {
-  profile: UserProfileRecord;
-  created: boolean;
-};
-
 type UserProfileRecord = {
   id: string;
   authUserId: string;
@@ -49,144 +45,123 @@ type UserProfileRecord = {
   updatedAt: Date;
 };
 
+type UserSessionWithProfile = {
+  id: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  lastSeenAt: Date | null;
+  userProfile: UserProfileRecord;
+};
+
 export async function loadCurrentUserAccess(): Promise<CurrentUserAccess> {
-  const supabase = await createClient();
+  const sessionToken = await readSessionTokenFromCookies();
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    return {
-      status: "UNAUTHENTICATED",
-      authUser: null,
-      profile: null,
-      profileCreated: false,
-      message: "You must be logged in to use Saleks Transport System.",
-    };
+  if (!sessionToken) {
+    return buildUnauthenticatedAccess();
   }
 
-  const authUser = serializeAuthUser(user);
-  const resolvedProfile = await resolveProfileForAuthUser(user);
+  const session = await prisma.userSession.findUnique({
+    where: {
+      tokenHash: hashSessionToken(sessionToken),
+    },
+    include: {
+      userProfile: true,
+    },
+  });
 
-  if (!resolvedProfile) {
-    return {
-      status: "PROFILE_REQUIRED",
-      authUser,
-      profile: null,
-      profileCreated: false,
-      message:
-        "Your Supabase account is not connected to an active Saleks user profile.",
-    };
+  if (!session) {
+    return buildUnauthenticatedAccess();
   }
 
-  if (resolvedProfile.profile.status !== "ACTIVE") {
+  const normalizedSession = session as UserSessionWithProfile;
+  const now = new Date();
+
+  if (
+    normalizedSession.revokedAt !== null ||
+    normalizedSession.expiresAt <= now
+  ) {
+    return buildUnauthenticatedAccess();
+  }
+
+  const profile = normalizedSession.userProfile;
+  const authUser = serializeAuthUser({
+    profile,
+    lastSignInAt: normalizedSession.lastSeenAt,
+  });
+
+  if (profile.status !== "ACTIVE") {
     return {
       status: "INACTIVE",
       authUser,
-      profile: serializeUserProfile(resolvedProfile.profile),
-      profileCreated: resolvedProfile.created,
+      profile: serializeUserProfile(profile),
+      profileCreated: false,
       message:
         "Your Saleks user profile is inactive. Ask an owner or admin to activate it.",
     };
   }
 
-  const touchedProfile = await prisma.userProfile.update({
-    where: {
-      id: resolvedProfile.profile.id,
+  const touchedProfile = await prisma.$transaction(
+    async (transaction) => {
+      await transaction.userSession.update({
+        where: {
+          id: normalizedSession.id,
+        },
+        data: {
+          lastSeenAt: now,
+        },
+      });
+
+      return transaction.userProfile.update({
+        where: {
+          id: profile.id,
+        },
+        data: {
+          lastSeenAt: now,
+        },
+      });
     },
-    data: {
-      lastSeenAt: new Date(),
-    },
-  });
+  );
 
   return {
     status: "AUTHORIZED",
     authUser,
     profile: serializeUserProfile(touchedProfile),
-    profileCreated: resolvedProfile.created,
+    profileCreated: false,
     message: null,
   };
 }
 
-async function resolveProfileForAuthUser(
-  user: User,
-): Promise<ResolvedProfile | null> {
-  const existingProfileByAuthUserId = await prisma.userProfile.findUnique({
-    where: {
-      authUserId: user.id,
-    },
-  });
-
-  if (existingProfileByAuthUserId) {
-    return {
-      profile: existingProfileByAuthUserId,
-      created: false,
-    };
-  }
-
-  const normalizedEmail = normalizeEmail(user.email ?? "");
-
-  if (normalizedEmail !== "") {
-    const existingProfileByEmail = await prisma.userProfile.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
-    });
-
-    if (existingProfileByEmail) {
-      const linkedProfile = await prisma.userProfile.update({
-        where: {
-          id: existingProfileByEmail.id,
-        },
-        data: {
-          authUserId: user.id,
-        },
-      });
-
-      return {
-        profile: linkedProfile,
-        created: false,
-      };
-    }
-  }
-
-  const profileCount = await prisma.userProfile.count();
-
-  if (profileCount > 0 || normalizedEmail === "") {
-    return null;
-  }
-
-  const ownerProfile = await prisma.userProfile.create({
-    data: {
-      authUserId: user.id,
-      email: normalizedEmail,
-      fullName: extractFullNameFromAuthUser(user),
-      role: "OWNER",
-      status: "ACTIVE",
-      notes:
-        "Automatically created as OWNER because this was the first Saleks user profile.",
-      lastSeenAt: new Date(),
-    },
-  });
-
+function buildUnauthenticatedAccess(): CurrentUserAccess {
   return {
-    profile: ownerProfile,
-    created: true,
+    status: "UNAUTHENTICATED",
+    authUser: null,
+    profile: null,
+    profileCreated: false,
+    message: "You must be logged in to use Saleks Transport System.",
   };
 }
 
-function serializeAuthUser(user: User): CurrentAuthUser {
+function serializeAuthUser({
+  profile,
+  lastSignInAt,
+}: {
+  profile: UserProfileRecord;
+  lastSignInAt: Date | null;
+}): CurrentAuthUser {
   return {
-    id: user.id,
-    email: user.email ?? "",
-    createdAt: user.created_at ?? null,
-    lastSignInAt: user.last_sign_in_at ?? null,
+    id: profile.id,
+    email: profile.email,
+    createdAt: profile.createdAt.toISOString(),
+    lastSignInAt:
+      lastSignInAt?.toISOString() ??
+      profile.lastSeenAt?.toISOString() ??
+      null,
   };
 }
 
-function serializeUserProfile(user: UserProfileRecord): UserProfileSettings {
+function serializeUserProfile(
+  user: UserProfileRecord,
+): UserProfileSettings {
   return {
     id: user.id,
     authUserId: user.authUserId,
@@ -199,47 +174,4 @@ function serializeUserProfile(user: UserProfileRecord): UserProfileSettings {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
-}
-
-function extractFullNameFromAuthUser(user: User): string | null {
-  const metadata = user.user_metadata as Record<string, unknown>;
-
-  const metadataFullName = readOptionalMetadataText(metadata.full_name);
-  const metadataName = readOptionalMetadataText(metadata.name);
-
-  if (metadataFullName) {
-    return metadataFullName;
-  }
-
-  if (metadataName) {
-    return metadataName;
-  }
-
-  const email = normalizeEmail(user.email ?? "");
-
-  if (email.includes("@")) {
-    return email.split("@")[0] ?? null;
-  }
-
-  return null;
-}
-
-function readOptionalMetadataText(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+/g, " ");
-
-  return normalizedValue === "" ? null : normalizedValue;
-}
-
-function normalizeEmail(value: string): string {
-  return value
-    .normalize("NFKC")
-    .trim()
-    .toLowerCase();
 }

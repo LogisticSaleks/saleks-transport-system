@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -17,7 +16,6 @@ import {
   type UserRoleValue,
   type UserStatusValue,
 } from "@/lib/auth/clientPermissions";
-import { createClient } from "@/lib/supabase/client";
 
 type NavigationItem = {
   href: string;
@@ -78,7 +76,6 @@ const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 export default function AppNavigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
 
   const [profile, setProfile] =
     useState<NavigationUserProfile | null>(null);
@@ -147,7 +144,9 @@ export default function AppNavigation() {
   }
 
   async function handleLogout(): Promise<void> {
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    }).catch(() => null);
 
     setProfile(null);
     router.push("/login");

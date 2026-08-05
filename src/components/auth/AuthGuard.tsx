@@ -3,7 +3,6 @@
 import {
   ReactNode,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -16,7 +15,6 @@ import {
   isUserRole,
   isUserStatus,
 } from "@/lib/auth/clientPermissions";
-import { createClient } from "@/lib/supabase/client";
 
 type AuthGuardProps = {
   children: ReactNode;
@@ -45,7 +43,6 @@ type AuthGuardState =
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
 
   const [authState, setAuthState] =
     useState<AuthGuardState>("checking");
@@ -135,7 +132,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }, [router]);
 
   async function handleLogout(): Promise<void> {
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    }).catch(() => null);
 
     router.replace("/login");
     router.refresh();
