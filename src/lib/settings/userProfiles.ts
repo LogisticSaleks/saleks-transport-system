@@ -126,6 +126,64 @@ export async function updateUserProfileInDb(
   }
 }
 
+export async function deleteUserProfileInDb(
+  payload: unknown,
+  currentUserProfileId: string,
+): Promise<UserProfileSettings> {
+  const userProfileId = parseUserProfileDeletePayload(payload);
+  const normalizedCurrentUserProfileId = normalizeText(currentUserProfileId);
+
+  if (normalizedCurrentUserProfileId === "") {
+    throw new Error("Current user profile id is required.");
+  }
+
+  if (userProfileId === normalizedCurrentUserProfileId) {
+    throw new Error("You cannot delete your own user account.");
+  }
+
+  try {
+    return await prisma.$transaction(async (transaction) => {
+      const existingUser = await transaction.userProfile.findUnique({
+        where: {
+          id: userProfileId,
+        },
+      });
+
+      if (!existingUser) {
+        throw new Error("User profile was not found.");
+      }
+
+      if (existingUser.role === "OWNER") {
+        const ownerCount = await transaction.userProfile.count({
+          where: {
+            role: "OWNER",
+          },
+        });
+
+        if (ownerCount <= 1) {
+          throw new Error("You cannot delete the last OWNER account.");
+        }
+      }
+
+      await transaction.userSession.deleteMany({
+        where: {
+          userProfileId: existingUser.id,
+        },
+      });
+
+      await transaction.userProfile.delete({
+        where: {
+          id: existingUser.id,
+        },
+      });
+
+      return serializeUserProfile(existingUser);
+    });
+  } catch (error) {
+    throw normalizeUserProfileDatabaseError(error);
+  }
+}
+
 export function parseUserProfilePayload(
   payload: unknown,
   options: {
@@ -154,6 +212,16 @@ export function parseUserProfilePayload(
     createdAt: null,
     updatedAt: null,
   });
+}
+
+function parseUserProfileDeletePayload(payload: unknown): string {
+  if (!isObjectRecord(payload)) {
+    throw new Error("User profile delete payload must be an object.");
+  }
+
+  const id = readRequiredText(payload.id, "id");
+
+  return id;
 }
 
 function normalizeUserProfile(

@@ -74,7 +74,8 @@ const USER_STATUSES: readonly {
   {
     value: "ACTIVE",
     label: "Active",
-    description: "Approved user. Can log in and use the system according to role permissions.",
+    description:
+      "Approved user. Can log in and use the system according to role permissions.",
   },
   {
     value: "PENDING",
@@ -125,6 +126,9 @@ export default function UserProfilesManagement({
   const [isSaving, setIsSaving] =
     useState(false);
 
+  const [deletingUserId, setDeletingUserId] =
+    useState<string | null>(null);
+
   const [saveError, setSaveError] =
     useState<string | null>(null);
 
@@ -171,6 +175,7 @@ export default function UserProfilesManagement({
   );
 
   const isEditing = formState.id !== null;
+  const isDeleting = deletingUserId !== null;
 
   function handleFieldChange(
     field: EditableUserProfileField,
@@ -214,7 +219,7 @@ export default function UserProfilesManagement({
   }
 
   function handleEdit(user: UserProfileSettings): void {
-    if (!canManageUsers) {
+    if (!canManageUsers || isDeleting) {
       return;
     }
 
@@ -312,6 +317,81 @@ export default function UserProfilesManagement({
     }
   }
 
+  async function handleDelete(user: UserProfileSettings): Promise<void> {
+    if (!canManageUsers || isDeleting) {
+      return;
+    }
+
+    if (!user.id) {
+      setSaveError("User profile id is required before delete.");
+      setSaveMessage(null);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      [
+        `Delete user account ${user.email}?`,
+        "",
+        "This will remove the user profile and all active sessions for this user.",
+        "The user will not be able to access Saleks Transport System anymore.",
+      ].join("\n"),
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingUserId(user.id);
+    setSaveError(null);
+    setSaveMessage(null);
+
+    try {
+      const response = await fetch("/api/settings/users", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: user.id,
+        }),
+      });
+
+      const responseData =
+        (await response.json().catch(() => null)) as
+          | UserProfilesApiResponse
+          | null;
+
+      if (!response.ok) {
+        throw new Error(
+          responseData?.error ??
+            "User profile could not be deleted.",
+        );
+      }
+
+      if (!responseData?.users) {
+        throw new Error(
+          "API did not return the updated user list.",
+        );
+      }
+
+      setUsers(responseData.users);
+
+      if (formState.id === user.id) {
+        setFormState(EMPTY_USER_PROFILE);
+      }
+
+      setSaveMessage(`User account ${user.email} deleted.`);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "User profile could not be deleted.",
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
   function handleClearFilters(): void {
     setRoleFilter("ALL");
     setStatusFilter("ALL");
@@ -359,7 +439,8 @@ export default function UserProfilesManagement({
             <button
               type="button"
               onClick={handleCancelEdit}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              disabled={isSaving || isDeleting}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel edit
             </button>
@@ -377,7 +458,7 @@ export default function UserProfilesManagement({
               required
               placeholder="Internal auth id"
               className="xl:col-span-2"
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={(value) =>
                 handleFieldChange("authUserId", value)
               }
@@ -388,7 +469,7 @@ export default function UserProfilesManagement({
               value={formState.email}
               required
               placeholder="user@example.com"
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={(value) =>
                 handleFieldChange("email", value)
               }
@@ -398,7 +479,7 @@ export default function UserProfilesManagement({
               label="Full name"
               value={formState.fullName}
               placeholder="Name shown internally"
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={(value) =>
                 handleFieldChange("fullName", value)
               }
@@ -407,7 +488,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Role"
               value={formState.role}
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={handleRoleChange}
             >
               {USER_ROLES.map((role) => (
@@ -420,7 +501,7 @@ export default function UserProfilesManagement({
             <SelectField
               label="Status"
               value={formState.status}
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={handleStatusChange}
             >
               {USER_STATUSES.map((status) => (
@@ -435,7 +516,7 @@ export default function UserProfilesManagement({
               value={formState.notes}
               placeholder="Internal notes"
               className="xl:col-span-2"
-              disabled={!canManageUsers || !isEditing}
+              disabled={!canManageUsers || !isEditing || isSaving || isDeleting}
               onChange={(value) =>
                 handleFieldChange("notes", value)
               }
@@ -475,7 +556,7 @@ export default function UserProfilesManagement({
 
             <button
               type="submit"
-              disabled={isSaving || !canManageUsers || !isEditing}
+              disabled={isSaving || isDeleting || !canManageUsers || !isEditing}
               aria-busy={isSaving}
               className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -625,26 +706,45 @@ export default function UserProfilesManagement({
                     {formatNullableDateTime(user.updatedAt)}
                   </td>
 
-                  <td className="px-4 py-3 align-top text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(user)}
-                      disabled={!canManageUsers}
-                      title={
-                        canManageUsers
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(user)}
+                        disabled={!canManageUsers || isDeleting}
+                        title={
+                          canManageUsers
+                            ? user.status === "PENDING"
+                              ? "Review pending user"
+                              : "Edit user profile"
+                            : "Only OWNER can edit user profiles"
+                        }
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {canManageUsers
                           ? user.status === "PENDING"
-                            ? "Review pending user"
-                            : "Edit user profile"
-                          : "Only OWNER can edit user profiles"
-                      }
-                      className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {canManageUsers
-                        ? user.status === "PENDING"
-                          ? "Review"
-                          : "Edit"
-                        : "Read-only"}
-                    </button>
+                            ? "Review"
+                            : "Edit"
+                          : "Read-only"}
+                      </button>
+
+                      {canManageUsers && (
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(user)}
+                          disabled={
+                            isDeleting ||
+                            !user.id
+                          }
+                          title="Delete user account"
+                          className="inline-flex h-9 items-center justify-center rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingUserId === user.id
+                            ? "Deleting..."
+                            : "Delete"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
