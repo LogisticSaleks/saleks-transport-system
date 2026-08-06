@@ -144,6 +144,14 @@ type ResolvedPricing = {
   hasTariff: boolean;
 };
 
+export type LastRecognizedSettlementInfo = {
+  amount: string;
+  date: string;
+  customerName: string;
+  containerNumber: string;
+};
+
+
 type NumberInputWithMarkerProps = {
   value: string;
   label: string;
@@ -486,6 +494,7 @@ type CourseRowProps = {
   canWriteCourses: boolean;
   canWriteSettlements: boolean;
   canCalculateRoutes: boolean;
+  lastRecognizedSettlement: LastRecognizedSettlementInfo | null;
   onChange: (row: CourseRowData) => void;
   onSave: (row: CourseRowData) => void;
   onDelete: (rowId: number) => void;
@@ -502,6 +511,7 @@ export default function CourseRow({
   canWriteCourses,
   canWriteSettlements,
   canCalculateRoutes,
+  lastRecognizedSettlement,
   onChange,
   onSave,
   onDelete,
@@ -510,6 +520,9 @@ export default function CourseRow({
     useState<CourseRowData>(initialRow);
 
   const [isSaved, setIsSaved] =
+    useState(false);
+
+  const [hasUserChangedRow, setHasUserChangedRow] =
     useState(false);
 
   const [isSaving, setIsSaving] =
@@ -972,12 +985,19 @@ export default function CourseRow({
       () =>
         draft.databaseId !== null &&
         canWriteCourses &&
+        hasUserChangedRow &&
         !isSaved &&
         hasCalculatedFinancialDifference(
           draft,
           calculatedRow,
         ),
-      [draft, calculatedRow, isSaved, canWriteCourses],
+      [
+        draft,
+        calculatedRow,
+        hasUserChangedRow,
+        isSaved,
+        canWriteCourses,
+      ],
     );
 
   useEffect(() => {
@@ -1086,6 +1106,7 @@ export default function CourseRow({
 
   function markDraftAsChanged(): void {
     setIsSaved(false);
+    setHasUserChangedRow(true);
     setSaveError(null);
     setRouteCalculationError(null);
     setRouteCalculationInfo(null);
@@ -1107,10 +1128,7 @@ export default function CourseRow({
       [textField]: value.inputValue,
     }));
 
-    setIsSaved(false);
-    setSaveError(null);
-    setRouteCalculationError(null);
-    setRouteCalculationInfo(null);
+    markDraftAsChanged();
   }
 
   async function handleCalculateRoute(): Promise<void> {
@@ -1140,6 +1158,7 @@ export default function CourseRow({
 
     setIsCalculatingRoute(true);
     setIsSaved(false);
+    setHasUserChangedRow(true);
 
     try {
       const response = await fetch(
@@ -1448,6 +1467,7 @@ export default function CourseRow({
       setDraft(savedRow);
       onSave(savedRow);
       setIsSaved(true);
+      setHasUserChangedRow(false);
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -1536,6 +1556,7 @@ export default function CourseRow({
       setDraft(savedRow);
       onSave(savedRow);
       setIsSaved(true);
+      setHasUserChangedRow(false);
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -1836,6 +1857,45 @@ export default function CourseRow({
       );
     }
 
+    if (column.key === "settlementAmount") {
+      return (
+        <div className="space-y-1">
+          <NumberInputWithMarker
+            value={draft.settlementAmount}
+            label={column.label}
+            rowNumber={rowNumber}
+            placeholder={column.placeholder}
+            min={column.min}
+            step={column.step}
+            disabled={!fieldCanBeEdited}
+            showMarker={
+              fieldCanBeEdited &&
+              draft.settlementAmount.trim() !== ""
+            }
+            onChange={(value) =>
+              handleCellChange("settlementAmount", value)
+            }
+          />
+
+          {lastRecognizedSettlement && (
+            <p className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium leading-4 text-sky-800">
+              Последна призната за този адрес:{" "}
+              <strong>{lastRecognizedSettlement.amount} €</strong>
+              {lastRecognizedSettlement.customerName
+                ? ` / ${lastRecognizedSettlement.customerName}`
+                : ""}
+              {lastRecognizedSettlement.date
+                ? ` / ${lastRecognizedSettlement.date}`
+                : ""}
+              {lastRecognizedSettlement.containerNumber
+                ? ` / ${lastRecognizedSettlement.containerNumber}`
+                : ""}
+            </p>
+          )}
+        </div>
+      );
+    }
+
     if (column.key === "settlementStatus") {
       return (
         <SettlementStatusSelect
@@ -2050,6 +2110,14 @@ export default function CourseRow({
                   : "—"
               }
             />
+            {settlementAmountValue === null &&
+              lastRecognizedSettlement && (
+                <SummaryLine
+                  label="Последна призната"
+                  value={`${lastRecognizedSettlement.amount} €`}
+                />
+              )}
+
             <SummaryLine
               label="Разлика"
               value={

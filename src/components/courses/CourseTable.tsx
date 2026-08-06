@@ -12,6 +12,7 @@ import type { AddressOption } from "./AddressAutocomplete";
 import CourseRow, {
   COURSE_COLUMNS,
   type CourseRowData,
+  type LastRecognizedSettlementInfo,
 } from "./CourseRow";
 import CourseSummaryBar, {
   type CourseSummaryValues,
@@ -261,6 +262,16 @@ export default function CourseTable({
     [paginatedSavedRows],
   );
 
+  const lastRecognizedSettlementByRowId = useMemo(
+    () =>
+      buildLastRecognizedSettlementByRowId({
+        rows,
+        customers,
+        addresses,
+      }),
+    [rows, customers, addresses],
+  );
+
   const summary = useMemo(
     () =>
       calculateCourseSummary(
@@ -282,8 +293,6 @@ export default function CourseTable({
       createEmptyCourseRow(newRowId),
       ...currentRows,
     ]);
-
-    setCurrentPage(1);
   }
 
   const handleRowChange = useCallback(
@@ -309,7 +318,6 @@ export default function CourseTable({
         ),
       );
 
-      setCurrentPage(1);
     },
     [],
   );
@@ -695,6 +703,9 @@ export default function CourseTable({
                   canWriteCourses={canWriteCourses}
                   canWriteSettlements={canWriteSettlements}
                   canCalculateRoutes={canCalculateRoutes}
+                  lastRecognizedSettlement={
+                    lastRecognizedSettlementByRowId.get(row.id) ?? null
+                  }
                   onChange={
                     handleRowChange
                   }
@@ -850,6 +861,132 @@ function calculateSettlementSummary(
     checked,
     underpaid,
   };
+}
+
+type BuildLastRecognizedSettlementByRowIdInput = {
+  rows: readonly CourseRowData[];
+  customers: readonly CustomerOption[];
+  addresses: readonly AddressOption[];
+};
+
+function buildLastRecognizedSettlementByRowId({
+  rows,
+  customers,
+  addresses,
+}: BuildLastRecognizedSettlementByRowIdInput): Map<
+  number,
+  LastRecognizedSettlementInfo
+> {
+  const result = new Map<
+    number,
+    LastRecognizedSettlementInfo
+  >();
+
+  const savedRowsWithSettlement = rows.filter(
+    (row) =>
+      row.databaseId !== null &&
+      parseNullableSummaryNumber(row.settlementAmount) !== null,
+  );
+
+  for (const row of rows) {
+    const addressKey =
+      createDestinationAddressLookupKey(row, addresses);
+
+    if (!addressKey) {
+      continue;
+    }
+
+    const matchingRow = savedRowsWithSettlement.find((savedRow) => {
+      if (savedRow.id === row.id) {
+        return false;
+      }
+
+      if (
+        row.databaseId !== null &&
+        savedRow.databaseId === row.databaseId
+      ) {
+        return false;
+      }
+
+      return (
+        createDestinationAddressLookupKey(savedRow, addresses) ===
+        addressKey
+      );
+    });
+
+    if (!matchingRow) {
+      continue;
+    }
+
+    const settlementAmount =
+      parseNullableSummaryNumber(matchingRow.settlementAmount);
+
+    if (settlementAmount === null) {
+      continue;
+    }
+
+    result.set(row.id, {
+      amount: settlementAmount.toFixed(2),
+      date: matchingRow.filterDate,
+      customerName: getCustomerName(
+        customers,
+        matchingRow.customerId,
+      ),
+      containerNumber:
+        matchingRow.containerNumber.trim(),
+    });
+  }
+
+  return result;
+}
+
+function createDestinationAddressLookupKey(
+  row: CourseRowData,
+  addresses: readonly AddressOption[],
+): string | null {
+  const addressText =
+    normalizeAddressLookupText(
+      row.loadingUnloadingAddressText,
+    );
+
+  if (addressText !== "") {
+    return `text:${addressText}`;
+  }
+
+  const addressLabel = normalizeAddressLookupText(
+    getAddressExportLabel(
+      addresses,
+      row.loadingUnloadingAddressId,
+      row.loadingUnloadingAddressText,
+    ),
+  );
+
+  if (addressLabel !== "") {
+    return `text:${addressLabel}`;
+  }
+
+  const addressId =
+    row.loadingUnloadingAddressId.trim();
+
+  return addressId === "" ? null : `id:${addressId}`;
+}
+
+function normalizeAddressLookupText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("bg-BG");
+}
+
+function getCustomerName(
+  customers: readonly CustomerOption[],
+  customerId: string,
+): string {
+  return (
+    customers.find((customer) => customer.id === customerId)?.name ??
+    ""
+  );
 }
 
 function calculateCourseSummary(

@@ -831,7 +831,7 @@ export default function DashboardWeeklyReports({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Отчети"
           value={String(dashboardTotals.reportsCount)}
@@ -841,27 +841,10 @@ export default function DashboardWeeklyReports({
           label="Курсове"
           value={String(dashboardTotals.courseCount)}
         />
-
-        <MetricCard
-          label="Очакван приход"
-          value={formatMoney(dashboardTotals.expectedRevenue)}
-        />
-
         <MetricCard
           label="Реален приход"
           value={formatMoney(dashboardTotals.totalRevenue)}
         />
-
-        <MetricCard
-          label="Разлика"
-          value={formatMoneyWithSign(
-            dashboardTotals.settlementDifference,
-          )}
-          tone={getMoneyTone(
-            dashboardTotals.settlementDifference,
-          )}
-        />
-
         <MetricCard
           label="Underpaid / Not checked"
           value={`${dashboardTotals.underpaidCount}/${dashboardTotals.notCheckedCount}`}
@@ -1174,18 +1157,7 @@ function ReportRows({
 
           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
             <div>
-              Очакван: {formatMoney(report.expectedRevenue)}
-            </div>
-            <div>
               Признат: {formatMoney(report.settlementAmount)}
-            </div>
-            <div
-              className={getMoneyTextClass(
-                report.settlementDifference,
-              )}
-            >
-              Разлика:{" "}
-              {formatMoneyWithSign(report.settlementDifference)}
             </div>
           </div>
         </td>
@@ -1297,7 +1269,7 @@ function ReportCoursesTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
-      <table className="w-full min-w-[1150px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[980px] border-collapse text-left text-xs">
         <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
           <tr>
             <th className="border-b border-slate-300 px-3 py-2">
@@ -1322,13 +1294,7 @@ function ReportCoursesTable({
               Престой
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Очакван
-            </th>
-            <th className="border-b border-slate-300 px-3 py-2 text-right">
               Призната
-            </th>
-            <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Разлика
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
               Settlement
@@ -1373,10 +1339,6 @@ function ReportCoursesTable({
                 {formatMoney(course.waitingAmount)}
               </td>
 
-              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                {formatMoney(course.expectedRevenue)}
-              </td>
-
               <td className="border-b border-slate-200 px-3 py-2">
                 <CourseSettlementInput
                   course={course}
@@ -1393,19 +1355,6 @@ function ReportCoursesTable({
                     })
                   }
                 />
-              </td>
-
-              <td
-                className={[
-                  "border-b border-slate-200 px-3 py-2 text-right font-semibold",
-                  getMoneyTextClass(
-                    course.settlementDifference,
-                  ),
-                ].join(" ")}
-              >
-                {formatNullableMoneyWithSign(
-                  course.settlementDifference,
-                )}
               </td>
 
               <td className="border-b border-slate-200 px-3 py-2">
