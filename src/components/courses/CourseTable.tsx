@@ -885,14 +885,14 @@ function buildLastRecognizedSettlementByRowId({
   const savedRowsWithSettlement = rows.filter(
     (row) =>
       row.databaseId !== null &&
-      parseNullableSummaryNumber(row.settlementAmount) !== null,
+      isRecognizedSettlementRow(row),
   );
 
   for (const row of rows) {
-    const addressKey =
-      createDestinationAddressLookupKey(row, addresses);
+    const addressKeys =
+      createDestinationAddressLookupKeys(row, addresses);
 
-    if (!addressKey) {
+    if (addressKeys.size === 0) {
       continue;
     }
 
@@ -908,9 +908,9 @@ function buildLastRecognizedSettlementByRowId({
         return false;
       }
 
-      return (
-        createDestinationAddressLookupKey(savedRow, addresses) ===
-        addressKey
+      return hasMatchingDestinationAddressLookupKey(
+        addressKeys,
+        createDestinationAddressLookupKeys(savedRow, addresses),
       );
     });
 
@@ -940,41 +940,72 @@ function buildLastRecognizedSettlementByRowId({
   return result;
 }
 
-function createDestinationAddressLookupKey(
+function isRecognizedSettlementRow(row: CourseRowData): boolean {
+  const settlementAmount =
+    parseNullableSummaryNumber(row.settlementAmount);
+
+  return (
+    settlementAmount !== null &&
+    settlementAmount > 0 &&
+    row.settlementStatus !== "NOT_CHECKED"
+  );
+}
+
+function createDestinationAddressLookupKeys(
   row: CourseRowData,
   addresses: readonly AddressOption[],
-): string | null {
-  const addressText =
-    normalizeAddressLookupText(
-      row.loadingUnloadingAddressText,
-    );
-
-  if (addressText !== "") {
-    return `text:${addressText}`;
-  }
-
-  const addressLabel = normalizeAddressLookupText(
-    getAddressExportLabel(
-      addresses,
-      row.loadingUnloadingAddressId,
-      row.loadingUnloadingAddressText,
-    ),
-  );
-
-  if (addressLabel !== "") {
-    return `text:${addressLabel}`;
-  }
-
+): Set<string> {
+  const keys = new Set<string>();
   const addressId =
     row.loadingUnloadingAddressId.trim();
 
-  return addressId === "" ? null : `id:${addressId}`;
+  if (addressId !== "") {
+    keys.add(`id:${addressId}`);
+  }
+
+  addDestinationAddressTextLookupKey(
+    keys,
+    row.loadingUnloadingAddressText,
+  );
+
+  addDestinationAddressTextLookupKey(
+    keys,
+    getAddressExportLabel(addresses, addressId, ""),
+  );
+
+  return keys;
+}
+
+function addDestinationAddressTextLookupKey(
+  keys: Set<string>,
+  value: string,
+): void {
+  const normalizedText =
+    normalizeAddressLookupText(value);
+
+  if (normalizedText !== "") {
+    keys.add(`text:${normalizedText}`);
+  }
+}
+
+function hasMatchingDestinationAddressLookupKey(
+  currentKeys: ReadonlySet<string>,
+  savedKeys: ReadonlySet<string>,
+): boolean {
+  for (const key of currentKeys) {
+    if (savedKeys.has(key)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeAddressLookupText(value: string): string {
   return value
     .normalize("NFKC")
     .trim()
+    .replace(/[—–]/g, "-")
     .replace(/\s+/g, " ")
     .toLocaleLowerCase("bg-BG");
 }
