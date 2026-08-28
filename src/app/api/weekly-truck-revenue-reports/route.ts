@@ -82,6 +82,7 @@ type WeeklyReportCourseForResponse = {
     settlementStatus: SettlementStatusValue;
     settlementReference: string | null;
     settlementNotes: string | null;
+    notes: string | null;
   } | null;
 };
 
@@ -737,6 +738,8 @@ function buildWeeklyReportCourseResponse(
       null,
     settlementNotes:
       course.course?.settlementNotes ?? null,
+    notes:
+      course.course?.notes ?? null,
     totalRevenue,
   };
 }
@@ -848,6 +851,7 @@ function buildWeeklyReportInclude() {
             settlementStatus: true,
             settlementReference: true,
             settlementNotes: true,
+            notes: true,
           },
         },
       },

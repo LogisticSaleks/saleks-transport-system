@@ -77,6 +77,7 @@ export type CourseRowData = {
   settlementCheckedAt: string;
   settlementReference: string;
   settlementNotes: string;
+  notes: string;
   fuelCost: string;
   totalCost: string;
   profit: string;
@@ -209,6 +210,7 @@ type CourseApiResponse = {
     settlementCheckedAt?: string | null;
     settlementReference?: string | null;
     settlementNotes?: string | null;
+    notes?: string | null;
   };
   error?: string;
 };
@@ -363,6 +365,12 @@ const EDIT_COLUMNS: readonly CourseColumn[] = [
     label: "Връщане",
     placeholder: "Търси адрес за връщане",
     width: 240,
+  },
+  {
+    key: "notes",
+    label: "Бележка за курса",
+    placeholder: "Вътрешна бележка за адрес, TAR, чакане, проблем или инструкция",
+    width: 320,
   },
   {
     key: "totalKm",
@@ -704,6 +712,7 @@ export default function CourseRow({
         draft.price,
         draft.tollFee,
         draft.portFee,
+        draft.notes,
       ].some(
         (value) => value.trim() !== "",
       ),
@@ -1407,6 +1416,8 @@ export default function CourseRow({
         null,
       settlementNotes:
         draft.settlementNotes.trim() || null,
+      notes:
+        draft.notes.trim() || null,
 
       stops,
       costs,
@@ -1854,6 +1865,31 @@ export default function CourseRow({
           aria-label={`Печалба, ред ${rowNumber}`}
           className="h-10 w-full cursor-not-allowed rounded border border-transparent bg-slate-100 px-2 text-slate-500 outline-none"
         />
+      );
+    }
+
+    if (column.key === "notes") {
+      return renderPermissionGuard(
+        fieldCanBeEdited,
+        <textarea
+          value={draft.notes}
+          disabled={!fieldCanBeEdited}
+          placeholder={column.placeholder}
+          aria-label={`${column.label}, ред ${rowNumber}`}
+          rows={4}
+          onChange={(event) =>
+            handleCellChange(
+              "notes",
+              event.target.value,
+            )
+          }
+          className={[
+            "min-h-24 w-full resize-y rounded-md border px-3 py-2 text-sm leading-5 outline-none transition shadow-sm",
+            fieldCanBeEdited
+              ? "border-slate-400 bg-white text-slate-950 hover:border-slate-500 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-200"
+              : "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-700",
+          ].join(" ")}
+        />,
       );
     }
 
@@ -2352,9 +2388,11 @@ export default function CourseRow({
                     key={column.key}
                     label={column.label}
                     className={
-                      isAddressField(column.key)
-                        ? "xl:col-span-2"
-                        : ""
+                      column.key === "notes"
+                        ? "md:col-span-2 xl:col-span-4"
+                        : isAddressField(column.key)
+                          ? "xl:col-span-2"
+                          : ""
                     }
                   >
                     {renderEditorControl(column)}
@@ -3855,6 +3893,7 @@ function buildCourseSnapshotFromApiResponse(
   | "settlementCheckedAt"
   | "settlementReference"
   | "settlementNotes"
+  | "notes"
 > {
   return {
     tariffNameAtBooking:
@@ -3918,6 +3957,10 @@ function buildCourseSnapshotFromApiResponse(
     settlementNotes:
       course?.settlementNotes ??
       fallbackRow.settlementNotes ??
+      "",
+    notes:
+      course?.notes ??
+      fallbackRow.notes ??
       "",
   };
 }

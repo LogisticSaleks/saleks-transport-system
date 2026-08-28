@@ -78,6 +78,7 @@ function createEmptyCourseRow(
     settlementCheckedAt: "",
     settlementReference: "",
     settlementNotes: "",
+    notes: "",
 
     fuelCost: "",
     totalCost: "",

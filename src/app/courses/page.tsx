@@ -319,6 +319,7 @@ function mapCourseToRow(
     settlementCheckedAt: Date | null;
     settlementReference: string | null;
     settlementNotes: string | null;
+    notes: string | null;
     plannedDate: Date | null;
     createdAt: Date;
     pickupAddress: AddressForDisplay | null;
@@ -523,6 +524,8 @@ function mapCourseToRow(
       course.settlementReference ?? "",
     settlementNotes:
       course.settlementNotes ?? "",
+    notes:
+      course.notes ?? "",
 
     fuelCost:
       fuelCost > 0

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Prisma } from "@/generated/prisma/client";
 
+import CourseNoteButton from "@/components/courses/CourseNoteButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
 import { roleHasPermission } from "@/lib/auth/permissions";
@@ -53,6 +54,7 @@ type CourseReportRow = {
   settlementAmount: number | null;
   settlementDifference: number | null;
   settlementStatus: string;
+  notes: string;
   revenue: number;
   cost: number;
   profit: number;
@@ -171,6 +173,7 @@ export default async function ReportsPage({
         waitingAmount: true,
         settlementAmount: true,
         settlementStatus: true,
+        notes: true,
 
         customer: {
           select: {
@@ -342,6 +345,8 @@ export default async function ReportsPage({
         settlementDifference,
         settlementStatus:
           course.settlementStatus ?? "NOT_CHECKED",
+        notes:
+          course.notes ?? "",
         revenue,
         cost,
         profit,
@@ -720,7 +725,7 @@ function CourseDrilldownTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1650px] border-collapse text-sm">
+      <table className="w-full min-w-[1750px] border-collapse text-sm">
         <thead className="bg-slate-50">
           <tr>
             <ReportHeaderCell>
@@ -761,6 +766,10 @@ function CourseDrilldownTable({
 
             <ReportHeaderCell align="right">
               Разлика
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Бележка
             </ReportHeaderCell>
 
             <ReportHeaderCell>
@@ -854,6 +863,13 @@ function CourseDrilldownTable({
                 {formatNullableCurrency(
                   course.settlementDifference,
                 )}
+              </ReportDataCell>
+
+              <ReportDataCell>
+                <CourseNoteButton
+                  note={course.notes}
+                  courseLabel={course.courseLabel}
+                />
               </ReportDataCell>
 
               <ReportDataCell>
@@ -1102,7 +1118,7 @@ function LossCoursesTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1200px] border-collapse text-sm">
+      <table className="w-full min-w-[1300px] border-collapse text-sm">
         <thead className="bg-red-50">
           <tr>
             <ReportHeaderCell>
@@ -1131,6 +1147,10 @@ function LossCoursesTable({
 
             <ReportHeaderCell align="right">
               Призната
+            </ReportHeaderCell>
+
+            <ReportHeaderCell>
+              Бележка
             </ReportHeaderCell>
 
             <ReportHeaderCell align="right">
@@ -1189,6 +1209,13 @@ function LossCoursesTable({
                 {formatNullableCurrency(
                   course.settlementAmount,
                 )}
+              </ReportDataCell>
+
+              <ReportDataCell>
+                <CourseNoteButton
+                  note={course.notes}
+                  courseLabel={course.courseLabel}
+                />
               </ReportDataCell>
 
               <ReportDataCell align="right">

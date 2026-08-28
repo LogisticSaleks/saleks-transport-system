@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import CourseNoteButton from "@/components/courses/CourseNoteButton";
 import { useCurrentUserAccess } from "@/components/auth/AuthContext";
 
 export type DashboardTruckOption = {
@@ -34,6 +35,7 @@ export type WeeklyTruckRevenueReportCourseRow = {
     | "DISPUTED";
   settlementReference: string | null;
   settlementNotes: string | null;
+  notes: string | null;
   totalRevenue: number;
 };
 
@@ -1297,6 +1299,9 @@ function ReportCoursesTable({
               Призната
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
+              Бележка
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2">
               Settlement
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
@@ -1353,6 +1358,16 @@ function ReportCoursesTable({
                       course,
                       value,
                     })
+                  }
+                />
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2">
+                <CourseNoteButton
+                  note={course.notes}
+                  courseLabel={
+                    course.containerNumber ??
+                    course.routeLabel
                   }
                 />
               </td>

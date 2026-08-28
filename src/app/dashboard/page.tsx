@@ -9,6 +9,13 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+type SettlementStatusValue =
+  | "NOT_CHECKED"
+  | "OK"
+  | "UNDERPAID"
+  | "OVERPAID"
+  | "DISPUTED";
+
 type WeeklyReportCourseForDashboard = {
   id: string;
   courseId: string | null;
@@ -26,15 +33,9 @@ type WeeklyReportCourseForDashboard = {
     settlementStatus: SettlementStatusValue;
     settlementReference: string | null;
     settlementNotes: string | null;
+    notes: string | null;
   } | null;
 };
-
-type SettlementStatusValue =
-  | "NOT_CHECKED"
-  | "OK"
-  | "UNDERPAID"
-  | "OVERPAID"
-  | "DISPUTED";
 
 type WeeklyReportForDashboard = {
   id: string;
@@ -109,6 +110,7 @@ export default async function DashboardPage() {
                 settlementStatus: true,
                 settlementReference: true,
                 settlementNotes: true,
+                notes: true,
               },
             },
           },
@@ -241,21 +243,28 @@ function mapWeeklyReportForDashboard(
 
 function mapWeeklyReportCourseForDashboard(
   course: WeeklyReportCourseForDashboard,
-) {
+): WeeklyTruckRevenueReportRow["courses"][number] {
   const agreedPrice = toNumber(course.agreedPrice);
-  const waitingAmount = toNumber(course.waitingAmount);
+
+  const waitingAmount = toNumber(
+    course.waitingAmount,
+  );
+
   const expectedRevenue = roundMoney(
     agreedPrice + waitingAmount,
   );
+
   const settlementAmount = toNullableNumber(
     course.course?.settlementAmount,
   );
+
   const settlementDifference =
     settlementAmount === null
       ? null
       : roundMoney(
           settlementAmount - expectedRevenue,
         );
+
   const settlementStatus =
     normalizeSettlementStatus({
       settlementStatus:
@@ -287,6 +296,7 @@ function mapWeeklyReportCourseForDashboard(
       course.course?.settlementReference ?? null,
     settlementNotes:
       course.course?.settlementNotes ?? null,
+    notes: course.course?.notes ?? null,
     totalRevenue:
       settlementAmount ?? expectedRevenue,
   };
@@ -352,11 +362,16 @@ function getIsoWeek(date: Date): {
   );
 
   const yearStart = new Date(
-    Date.UTC(targetDate.getUTCFullYear(), 0, 1),
+    Date.UTC(
+      targetDate.getUTCFullYear(),
+      0,
+      1,
+    ),
   );
 
   const weekNumber = Math.ceil(
-    ((targetDate.getTime() - yearStart.getTime()) / 86400000 +
+    ((targetDate.getTime() - yearStart.getTime()) /
+      86_400_000 +
       1) /
       7,
   );
@@ -381,10 +396,6 @@ function toNullableNumber(
     : null;
 }
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 function toNumber(value: unknown): number {
   if (value === null || value === undefined) {
     return 0;
@@ -397,20 +408,35 @@ function toNumber(value: unknown): number {
   if (typeof value === "string") {
     const parsedValue = Number(value);
 
-    return Number.isFinite(parsedValue) ? parsedValue : 0;
+    return Number.isFinite(parsedValue)
+      ? parsedValue
+      : 0;
   }
 
-  if (
-    typeof value === "object" &&
-    "toNumber" in value &&
-    typeof value.toNumber === "function"
-  ) {
-    const parsedValue = value.toNumber();
+  if (typeof value === "object") {
+    const possibleDecimal = value as {
+      toNumber?: () => number;
+    };
 
-    return Number.isFinite(parsedValue) ? parsedValue : 0;
+    if (
+      typeof possibleDecimal.toNumber === "function"
+    ) {
+      const parsedValue =
+        possibleDecimal.toNumber();
+
+      return Number.isFinite(parsedValue)
+        ? parsedValue
+        : 0;
+    }
   }
 
   const parsedValue = Number(value);
 
-  return Number.isFinite(parsedValue) ? parsedValue : 0;
+  return Number.isFinite(parsedValue)
+    ? parsedValue
+    : 0;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
