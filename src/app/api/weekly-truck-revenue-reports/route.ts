@@ -17,6 +17,7 @@ type CourseForWeeklyReport = {
   containerNumber: string | null;
   agreedPrice: unknown;
   waitingAmount: unknown;
+  totalKm: unknown;
   settlementAmount: unknown;
   settlementStatus: SettlementStatusValue;
   settlementReference: string | null;
@@ -83,6 +84,7 @@ type WeeklyReportCourseForResponse = {
     settlementReference: string | null;
     settlementNotes: string | null;
     notes: string | null;
+    totalKm: unknown;
   } | null;
 };
 
@@ -127,7 +129,7 @@ export async function GET(request: Request) {
 
       if (!report) {
         return errorResponse(
-          "Седмичният отчет не е намерен.",
+          "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ÑÑ‚ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
           404,
         );
       }
@@ -201,8 +203,8 @@ export async function GET(request: Request) {
  *   "forceRefresh": false
  * }
  *
- * Генерира или обновява седмичен приходен отчет за един камион.
- * Разходи не се записват и не се показват тук.
+ * Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð° Ð¸Ð»Ð¸ Ð¾Ð±Ð½Ð¾Ð²ÑÐ²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð·Ð° ÐµÐ´Ð¸Ð½ ÐºÐ°Ð¼Ð¸Ð¾Ð½.
+ * Ð Ð°Ð·Ñ…Ð¾Ð´Ð¸ Ð½Ðµ ÑÐµ Ð·Ð°Ð¿Ð¸ÑÐ²Ð°Ñ‚ Ð¸ Ð½Ðµ ÑÐµ Ð¿Ð¾ÐºÐ°Ð·Ð²Ð°Ñ‚ Ñ‚ÑƒÐº.
  */
 export async function POST(request: Request) {
   const permission = await requireApiPermission("reports:write");
@@ -270,7 +272,7 @@ export async function PATCH(request: Request) {
 
     if (!hasOwn(body, "isLocked")) {
       throw new ApiValidationError(
-        "Липсва isLocked за обновяване на отчета.",
+        "Ð›Ð¸Ð¿ÑÐ²Ð° isLocked Ð·Ð° Ð¾Ð±Ð½Ð¾Ð²ÑÐ²Ð°Ð½Ðµ Ð½Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚Ð°.",
       );
     }
 
@@ -332,7 +334,7 @@ async function generateWeeklyTruckRevenueReport(
 
   if (!truck) {
     throw new ApiValidationError(
-      "Камионът за седмичния отчет не е намерен.",
+      "ÐšÐ°Ð¼Ð¸Ð¾Ð½ÑŠÑ‚ Ð·Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
     );
   }
 
@@ -486,6 +488,7 @@ async function findCoursesForTruckWeek(
       containerNumber: true,
       agreedPrice: true,
       waitingAmount: true,
+      totalKm: true,
       settlementAmount: true,
       settlementStatus: true,
       settlementReference: true,
@@ -618,6 +621,13 @@ function buildWeeklyReportResponse(
     ),
   );
 
+  const totalKm = roundKilometers(
+    courses.reduce(
+      (sum, course) => sum + course.totalKm,
+      0,
+    ),
+  );
+
   const totalRevenue = roundMoney(
     courses.reduce(
       (sum, course) => sum + course.totalRevenue,
@@ -662,6 +672,7 @@ function buildWeeklyReportResponse(
     truckLicensePlateAtReport:
       report.truckLicensePlateAtReport,
     courseCount: report.courseCount,
+    totalKm,
     expectedRevenue,
     settlementAmount,
     settlementDifference,
@@ -729,6 +740,9 @@ function buildWeeklyReportCourseResponse(
       course.tariffNameAtBooking,
     agreedPrice,
     waitingAmount,
+    totalKm: roundKilometers(
+      toNumber(course.course?.totalKm),
+    ),
     expectedRevenue,
     settlementAmount,
     settlementDifference,
@@ -794,7 +808,7 @@ function buildRouteLabel(course: CourseForWeeklyReport): string {
     .filter((label): label is string => Boolean(label));
 
   if (stopLabels.length > 0) {
-    return stopLabels.join(" → ");
+    return stopLabels.join(" â†’ ");
   }
 
   const pickupLabel = formatAddressForRouteLabel(
@@ -811,10 +825,10 @@ function buildRouteLabel(course: CourseForWeeklyReport): string {
   ].filter((label): label is string => Boolean(label));
 
   if (fallbackLabels.length > 0) {
-    return fallbackLabels.join(" → ");
+    return fallbackLabels.join(" â†’ ");
   }
 
-  return "Маршрут без адреси";
+  return "ÐœÐ°Ñ€ÑˆÑ€ÑƒÑ‚ Ð±ÐµÐ· Ð°Ð´Ñ€ÐµÑÐ¸";
 }
 
 function formatAddressForRouteLabel(
@@ -852,6 +866,7 @@ function buildWeeklyReportInclude() {
             settlementReference: true,
             settlementNotes: true,
             notes: true,
+            totalKm: true,
           },
         },
       },
@@ -937,7 +952,7 @@ async function readJsonObject(
     value = await request.json();
   } catch {
     throw new ApiValidationError(
-      "Невалиден или липсващ JSON body.",
+      "ÐÐµÐ²Ð°Ð»Ð¸Ð´ÐµÐ½ Ð¸Ð»Ð¸ Ð»Ð¸Ð¿ÑÐ²Ð°Ñ‰ JSON body.",
     );
   }
 
@@ -954,7 +969,7 @@ function readJsonObjectValue(
     Array.isArray(value)
   ) {
     throw new ApiValidationError(
-      `${fieldName} трябва да бъде обект.`,
+      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¾Ð±ÐµÐºÑ‚.`,
     );
   }
 
@@ -967,7 +982,7 @@ function readRequiredString(
 ): string {
   if (typeof value !== "string") {
     throw new ApiValidationError(
-      `${fieldName} трябва да бъде текст.`,
+      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ñ‚ÐµÐºÑÑ‚.`,
     );
   }
 
@@ -975,7 +990,7 @@ function readRequiredString(
 
   if (normalizedValue === "") {
     throw new ApiValidationError(
-      `${fieldName} не може да бъде празно.`,
+      `${fieldName} Ð½Ðµ Ð¼Ð¾Ð¶Ðµ Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¿Ñ€Ð°Ð·Ð½Ð¾.`,
     );
   }
 
@@ -1017,7 +1032,7 @@ function readRequiredPositiveInteger(
     parsedValue < 1
   ) {
     throw new ApiValidationError(
-      `${fieldName} трябва да бъде положително цяло число.`,
+      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¿Ð¾Ð»Ð¾Ð¶Ð¸Ñ‚ÐµÐ»Ð½Ð¾ Ñ†ÑÐ»Ð¾ Ñ‡Ð¸ÑÐ»Ð¾.`,
     );
   }
 
@@ -1035,7 +1050,7 @@ function readRequiredIsoWeekNumber(
 
   if (weekNumber > 53) {
     throw new ApiValidationError(
-      `${fieldName} трябва да бъде между 1 и 53.`,
+      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¼ÐµÐ¶Ð´Ñƒ 1 Ð¸ 53.`,
     );
   }
 
@@ -1053,7 +1068,7 @@ function readBooleanWithDefault(
 
   if (typeof value !== "boolean") {
     throw new ApiValidationError(
-      `${fieldName} трябва да бъде true или false.`,
+      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ true Ð¸Ð»Ð¸ false.`,
     );
   }
 
@@ -1125,6 +1140,10 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function roundKilometers(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function serializeForJson(value: unknown): unknown {
   if (
     value === null ||
@@ -1189,19 +1208,19 @@ function handleApiError(error: unknown) {
     switch (error.code) {
       case "P2002":
         return errorResponse(
-          "Вече съществува седмичен отчет със същата седмица и камион.",
+          "Ð’ÐµÑ‡Ðµ ÑÑŠÑ‰ÐµÑÑ‚Ð²ÑƒÐ²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚ ÑÑŠÑ ÑÑŠÑ‰Ð°Ñ‚Ð° ÑÐµÐ´Ð¼Ð¸Ñ†Ð° Ð¸ ÐºÐ°Ð¼Ð¸Ð¾Ð½.",
           409,
         );
 
       case "P2003":
         return errorResponse(
-          "Посочен камион, курс или отчет не съществува.",
+          "ÐŸÐ¾ÑÐ¾Ñ‡ÐµÐ½ ÐºÐ°Ð¼Ð¸Ð¾Ð½, ÐºÑƒÑ€Ñ Ð¸Ð»Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ ÑÑŠÑ‰ÐµÑÑ‚Ð²ÑƒÐ²Ð°.",
           409,
         );
 
       case "P2025":
         return errorResponse(
-          "Седмичният отчет не е намерен.",
+          "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ÑÑ‚ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
           404,
         );
 
@@ -1209,7 +1228,7 @@ function handleApiError(error: unknown) {
         console.error("Prisma weekly reports API error:", error);
 
         return errorResponse(
-          "Възникна грешка при работа с базата.",
+          "Ð’ÑŠÐ·Ð½Ð¸ÐºÐ½Ð° Ð³Ñ€ÐµÑˆÐºÐ° Ð¿Ñ€Ð¸ Ñ€Ð°Ð±Ð¾Ñ‚Ð° Ñ Ð±Ð°Ð·Ð°Ñ‚Ð°.",
           500,
         );
     }
@@ -1219,7 +1238,7 @@ function handleApiError(error: unknown) {
     console.error("Prisma validation error:", error);
 
     return errorResponse(
-      "Подадените данни не са валидни за седмичен отчет.",
+      "ÐŸÐ¾Ð´Ð°Ð´ÐµÐ½Ð¸Ñ‚Ðµ Ð´Ð°Ð½Ð½Ð¸ Ð½Ðµ ÑÐ° Ð²Ð°Ð»Ð¸Ð´Ð½Ð¸ Ð·Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚.",
       400,
     );
   }
@@ -1227,7 +1246,7 @@ function handleApiError(error: unknown) {
   console.error("Unexpected weekly reports API error:", error);
 
   return errorResponse(
-    "Възникна неочаквана сървърна грешка.",
+    "Ð’ÑŠÐ·Ð½Ð¸ÐºÐ½Ð° Ð½ÐµÐ¾Ñ‡Ð°ÐºÐ²Ð°Ð½Ð° ÑÑŠÑ€Ð²ÑŠÑ€Ð½Ð° Ð³Ñ€ÐµÑˆÐºÐ°.",
     500,
   );
 }

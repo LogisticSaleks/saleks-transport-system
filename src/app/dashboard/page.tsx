@@ -34,6 +34,7 @@ type WeeklyReportCourseForDashboard = {
     settlementReference: string | null;
     settlementNotes: string | null;
     notes: string | null;
+    totalKm: unknown;
   } | null;
 };
 
@@ -111,6 +112,7 @@ export default async function DashboardPage() {
                 settlementReference: true,
                 settlementNotes: true,
                 notes: true,
+                totalKm: true,
               },
             },
           },
@@ -155,7 +157,7 @@ function DashboardAccessDeniedPanel() {
       </h2>
 
       <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
-        Твоята роля няма право да вижда Dashboard.
+        Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð²Ð¸Ð¶Ð´Ð° Dashboard.
       </p>
     </section>
   );
@@ -187,6 +189,13 @@ function mapWeeklyReportForDashboard(
   const expectedRevenue = roundMoney(
     courses.reduce(
       (sum, course) => sum + course.expectedRevenue,
+      0,
+    ),
+  );
+
+  const totalKm = roundKilometers(
+    courses.reduce(
+      (sum, course) => sum + course.totalKm,
       0,
     ),
   );
@@ -223,6 +232,7 @@ function mapWeeklyReportForDashboard(
     truckLicensePlateAtReport:
       report.truckLicensePlateAtReport,
     courseCount: report.courseCount,
+    totalKm,
     expectedRevenue,
     settlementAmount,
     settlementDifference:
@@ -288,6 +298,9 @@ function mapWeeklyReportCourseForDashboard(
       course.tariffNameAtBooking,
     agreedPrice,
     waitingAmount,
+    totalKm: roundKilometers(
+      toNumber(course.course?.totalKm),
+    ),
     expectedRevenue,
     settlementAmount,
     settlementDifference,
@@ -438,5 +451,9 @@ function toNumber(value: unknown): number {
 }
 
 function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function roundKilometers(value: number): number {
   return Math.round(value * 100) / 100;
 }

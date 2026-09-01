@@ -24,6 +24,7 @@ export type WeeklyTruckRevenueReportCourseRow = {
   tariffNameAtBooking: string | null;
   agreedPrice: number;
   waitingAmount: number;
+  totalKm: number;
   expectedRevenue: number;
   settlementAmount: number | null;
   settlementDifference: number | null;
@@ -49,6 +50,7 @@ export type WeeklyTruckRevenueReportRow = {
   truckNameAtReport: string;
   truckLicensePlateAtReport: string;
   courseCount: number;
+  totalKm: number;
   expectedRevenue: number;
   settlementAmount: number;
   settlementDifference: number;
@@ -108,43 +110,43 @@ const SETTLEMENT_FILTER_OPTIONS: readonly {
   {
     value: "ALL",
     label: "All",
-    description: "Показва всички курсове.",
+    description: "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° Ð²ÑÐ¸Ñ‡ÐºÐ¸ ÐºÑƒÑ€ÑÐ¾Ð²Ðµ.",
   },
   {
     value: "PROBLEM",
     label: "Problems only",
     description:
-      "Показва Not checked, Underpaid и Disputed.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° Not checked, Underpaid Ð¸ Disputed.",
   },
   {
     value: "NOT_CHECKED",
     label: "Not checked",
     description:
-      "Показва курсове без въведена призната сума.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ð±ÐµÐ· Ð²ÑŠÐ²ÐµÐ´ÐµÐ½Ð° Ð¿Ñ€Ð¸Ð·Ð½Ð°Ñ‚Ð° ÑÑƒÐ¼Ð°.",
   },
   {
     value: "UNDERPAID",
     label: "Underpaid",
     description:
-      "Показва курсове с призната сума под очакваната.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ñ Ð¿Ñ€Ð¸Ð·Ð½Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ð¿Ð¾Ð´ Ð¾Ñ‡Ð°ÐºÐ²Ð°Ð½Ð°Ñ‚Ð°.",
   },
   {
     value: "OVERPAID",
     label: "Overpaid",
     description:
-      "Показва курсове с призната сума над очакваната.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ñ Ð¿Ñ€Ð¸Ð·Ð½Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ð½Ð°Ð´ Ð¾Ñ‡Ð°ÐºÐ²Ð°Ð½Ð°Ñ‚Ð°.",
   },
   {
     value: "DISPUTED",
     label: "Disputed",
     description:
-      "Показва курсове, отбелязани като спорни.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ, Ð¾Ñ‚Ð±ÐµÐ»ÑÐ·Ð°Ð½Ð¸ ÐºÐ°Ñ‚Ð¾ ÑÐ¿Ð¾Ñ€Ð½Ð¸.",
   },
   {
     value: "OK",
     label: "OK",
     description:
-      "Показва проверени курсове без разлика.",
+      "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐµÐ½Ð¸ ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ð±ÐµÐ· Ñ€Ð°Ð·Ð»Ð¸ÐºÐ°.",
   },
 ];
 
@@ -253,6 +255,10 @@ export default function DashboardWeeklyReports({
         (sum, report) => sum + report.courseCount,
         0,
       ),
+      totalKm: filteredReports.reduce(
+        (sum, report) => sum + report.totalKm,
+        0,
+      ),
       expectedRevenue: filteredReports.reduce(
         (sum, report) => sum + report.expectedRevenue,
         0,
@@ -287,14 +293,14 @@ export default function DashboardWeeklyReports({
   async function handleLoadReports(): Promise<void> {
     if (!canReadReports) {
       setErrorMessage(
-        "Твоята роля няма право да зарежда седмични отчети.",
+        "Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð·Ð°Ñ€ÐµÐ¶Ð´Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸.",
       );
       return;
     }
 
     if (!hasValidWeekSelection) {
       setErrorMessage(
-        "Въведи валидна година и седмица между 1 и 53.",
+        "Ð’ÑŠÐ²ÐµÐ´Ð¸ Ð²Ð°Ð»Ð¸Ð´Ð½Ð° Ð³Ð¾Ð´Ð¸Ð½Ð° Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ†Ð° Ð¼ÐµÐ¶Ð´Ñƒ 1 Ð¸ 53.",
       );
       return;
     }
@@ -316,7 +322,7 @@ export default function DashboardWeeklyReports({
       if (!response.ok) {
         throw new Error(
           responseData?.error ??
-            "Седмичните отчети не можаха да бъдат заредени.",
+            "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ‚Ðµ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð½Ðµ Ð¼Ð¾Ð¶Ð°Ñ…Ð° Ð´Ð° Ð±ÑŠÐ´Ð°Ñ‚ Ð·Ð°Ñ€ÐµÐ´ÐµÐ½Ð¸.",
         );
       }
 
@@ -326,7 +332,7 @@ export default function DashboardWeeklyReports({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Седмичните отчети не можаха да бъдат заредени.",
+          : "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ‚Ðµ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð½Ðµ Ð¼Ð¾Ð¶Ð°Ñ…Ð° Ð´Ð° Ð±ÑŠÐ´Ð°Ñ‚ Ð·Ð°Ñ€ÐµÐ´ÐµÐ½Ð¸.",
       );
     } finally {
       setIsLoadingReports(false);
@@ -338,21 +344,21 @@ export default function DashboardWeeklyReports({
   ): Promise<void> {
     if (!canWriteReports) {
       setErrorMessage(
-        "Твоята роля няма право да генерира или обновява седмични отчети.",
+        "Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð° Ð¸Ð»Ð¸ Ð¾Ð±Ð½Ð¾Ð²ÑÐ²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸.",
       );
       return;
     }
 
     if (!hasValidWeekSelection) {
       setErrorMessage(
-        "Въведи валидна година и седмица между 1 и 53.",
+        "Ð’ÑŠÐ²ÐµÐ´Ð¸ Ð²Ð°Ð»Ð¸Ð´Ð½Ð° Ð³Ð¾Ð´Ð¸Ð½Ð° Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ†Ð° Ð¼ÐµÐ¶Ð´Ñƒ 1 Ð¸ 53.",
       );
       return;
     }
 
     if (trucks.length === 0) {
       setErrorMessage(
-        "Няма активни камиони, за които да се генерира отчет.",
+        "ÐÑÐ¼Ð° Ð°ÐºÑ‚Ð¸Ð²Ð½Ð¸ ÐºÐ°Ð¼Ð¸Ð¾Ð½Ð¸, Ð·Ð° ÐºÐ¾Ð¸Ñ‚Ð¾ Ð´Ð° ÑÐµ Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚.",
       );
       return;
     }
@@ -389,7 +395,7 @@ export default function DashboardWeeklyReports({
         if (!response.ok || !responseData?.report) {
           throw new Error(
             responseData?.error ??
-              `Отчетът за ${truck.name} не можа да бъде генериран.`,
+              `ÐžÑ‚Ñ‡ÐµÑ‚ÑŠÑ‚ Ð·Ð° ${truck.name} Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð½.`,
           );
         }
 
@@ -400,14 +406,14 @@ export default function DashboardWeeklyReports({
       setExpandedReportId(null);
       setSuccessMessage(
         forceRefresh
-          ? "Седмичните отчети са обновени."
-          : "Седмичните отчети са генерирани.",
+          ? "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ‚Ðµ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ ÑÐ° Ð¾Ð±Ð½Ð¾Ð²ÐµÐ½Ð¸."
+          : "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ‚Ðµ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ ÑÐ° Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð½Ð¸.",
       );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Седмичните отчети не можаха да бъдат генерирани.",
+          : "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ‚Ðµ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð½Ðµ Ð¼Ð¾Ð¶Ð°Ñ…Ð° Ð´Ð° Ð±ÑŠÐ´Ð°Ñ‚ Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð½Ð¸.",
       );
     } finally {
       setIsGeneratingReports(false);
@@ -419,7 +425,7 @@ export default function DashboardWeeklyReports({
   ): Promise<void> {
     if (!canWriteReports) {
       setErrorMessage(
-        "Твоята роля няма право да заключва или отключва седмични отчети.",
+        "Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð·Ð°ÐºÐ»ÑŽÑ‡Ð²Ð° Ð¸Ð»Ð¸ Ð¾Ñ‚ÐºÐ»ÑŽÑ‡Ð²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸.",
       );
       return;
     }
@@ -451,7 +457,7 @@ export default function DashboardWeeklyReports({
       if (!response.ok || !responseData?.report) {
         throw new Error(
           responseData?.error ??
-            "Статусът на отчета не можа да бъде обновен.",
+            "Ð¡Ñ‚Ð°Ñ‚ÑƒÑÑŠÑ‚ Ð½Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¾Ð±Ð½Ð¾Ð²ÐµÐ½.",
         );
       }
 
@@ -465,14 +471,14 @@ export default function DashboardWeeklyReports({
 
       setSuccessMessage(
         responseData.report.isLocked
-          ? "Отчетът е заключен."
-          : "Отчетът е отключен.",
+          ? "ÐžÑ‚Ñ‡ÐµÑ‚ÑŠÑ‚ Ðµ Ð·Ð°ÐºÐ»ÑŽÑ‡ÐµÐ½."
+          : "ÐžÑ‚Ñ‡ÐµÑ‚ÑŠÑ‚ Ðµ Ð¾Ñ‚ÐºÐ»ÑŽÑ‡ÐµÐ½.",
       );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Статусът на отчета не можа да бъде обновен.",
+          : "Ð¡Ñ‚Ð°Ñ‚ÑƒÑÑŠÑ‚ Ð½Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¾Ð±Ð½Ð¾Ð²ÐµÐ½.",
       );
     } finally {
       setIsUpdatingLock(null);
@@ -486,14 +492,14 @@ export default function DashboardWeeklyReports({
   }: SaveSettlementInput): Promise<void> {
     if (!canWriteSettlements) {
       setErrorMessage(
-        "Твоята роля няма право да променя признати суми.",
+        "Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð¿Ñ€Ð¾Ð¼ÐµÐ½Ñ Ð¿Ñ€Ð¸Ð·Ð½Ð°Ñ‚Ð¸ ÑÑƒÐ¼Ð¸.",
       );
       return;
     }
 
     if (!course.courseId) {
       setErrorMessage(
-        "Този ред няма връзка към оригиналния курс.",
+        "Ð¢Ð¾Ð·Ð¸ Ñ€ÐµÐ´ Ð½ÑÐ¼Ð° Ð²Ñ€ÑŠÐ·ÐºÐ° ÐºÑŠÐ¼ Ð¾Ñ€Ð¸Ð³Ð¸Ð½Ð°Ð»Ð½Ð¸Ñ ÐºÑƒÑ€Ñ.",
       );
       return;
     }
@@ -503,7 +509,7 @@ export default function DashboardWeeklyReports({
 
     if (parsedSettlementAmount === "INVALID") {
       setErrorMessage(
-        "Признатата сума трябва да бъде валидно неотрицателно число.",
+        "ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð²Ð°Ð»Ð¸Ð´Ð½Ð¾ Ð½ÐµÐ¾Ñ‚Ñ€Ð¸Ñ†Ð°Ñ‚ÐµÐ»Ð½Ð¾ Ñ‡Ð¸ÑÐ»Ð¾.",
       );
       return;
     }
@@ -533,7 +539,7 @@ export default function DashboardWeeklyReports({
       if (!response.ok) {
         throw new Error(
           responseData?.error ??
-            "Признатата сума не можа да бъде записана.",
+            "ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð·Ð°Ð¿Ð¸ÑÐ°Ð½Ð°.",
         );
       }
 
@@ -584,13 +590,13 @@ export default function DashboardWeeklyReports({
       );
 
       setSuccessMessage(
-        "Признатата сума е записана.",
+        "ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ðµ Ð·Ð°Ð¿Ð¸ÑÐ°Ð½Ð°.",
       );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Признатата сума не можа да бъде записана.",
+          : "ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð·Ð°Ð¿Ð¸ÑÐ°Ð½Ð°.",
       );
     } finally {
       setSavingSettlementCourseId(null);
@@ -603,7 +609,7 @@ export default function DashboardWeeklyReports({
 
   if (!canReadReports) {
     return (
-      <DashboardAccessStatusPanel message="Твоята роля няма право да вижда Dashboard и седмични финансови отчети." />
+      <DashboardAccessStatusPanel message="Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð²Ð¸Ð¶Ð´Ð° Dashboard Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ñ„Ð¸Ð½Ð°Ð½ÑÐ¾Ð²Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸." />
     );
   }
 
@@ -613,21 +619,21 @@ export default function DashboardWeeklyReports({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-950">
-              Седмични приходи по камион
+              Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´Ð¸ Ð¿Ð¾ ÐºÐ°Ð¼Ð¸Ð¾Ð½
             </h2>
 
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-              Избери година и седмица, генерирай отчетите за
-              активните камиони и ги отвори по всяко време.
-              Тук се показват приходи по камион. Ако има призната
-              сума от клиента, тя коригира реалния приход спрямо
-              очакваната цена на курса.
+              Ð˜Ð·Ð±ÐµÑ€Ð¸ Ð³Ð¾Ð´Ð¸Ð½Ð° Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ†Ð°, Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð¹ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸Ñ‚Ðµ Ð·Ð°
+              Ð°ÐºÑ‚Ð¸Ð²Ð½Ð¸Ñ‚Ðµ ÐºÐ°Ð¼Ð¸Ð¾Ð½Ð¸ Ð¸ Ð³Ð¸ Ð¾Ñ‚Ð²Ð¾Ñ€Ð¸ Ð¿Ð¾ Ð²ÑÑÐºÐ¾ Ð²Ñ€ÐµÐ¼Ðµ.
+              Ð¢ÑƒÐº ÑÐµ Ð¿Ð¾ÐºÐ°Ð·Ð²Ð°Ñ‚ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´Ð¸ Ð¿Ð¾ ÐºÐ°Ð¼Ð¸Ð¾Ð½. ÐÐºÐ¾ Ð¸Ð¼Ð° Ð¿Ñ€Ð¸Ð·Ð½Ð°Ñ‚Ð°
+              ÑÑƒÐ¼Ð° Ð¾Ñ‚ ÐºÐ»Ð¸ÐµÐ½Ñ‚Ð°, Ñ‚Ñ ÐºÐ¾Ñ€Ð¸Ð³Ð¸Ñ€Ð° Ñ€ÐµÐ°Ð»Ð½Ð¸Ñ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´ ÑÐ¿Ñ€ÑÐ¼Ð¾
+              Ð¾Ñ‡Ð°ÐºÐ²Ð°Ð½Ð°Ñ‚Ð° Ñ†ÐµÐ½Ð° Ð½Ð° ÐºÑƒÑ€ÑÐ°.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
-              Година
+              Ð“Ð¾Ð´Ð¸Ð½Ð°
               <input
                 type="number"
                 min="2020"
@@ -643,7 +649,7 @@ export default function DashboardWeeklyReports({
             </label>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
-              Седмица
+              Ð¡ÐµÐ´Ð¼Ð¸Ñ†Ð°
               <input
                 type="number"
                 min="1"
@@ -668,7 +674,7 @@ export default function DashboardWeeklyReports({
               }
               className="inline-flex h-10 items-center justify-center rounded-md border border-slate-500 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLoadingReports ? "Зарежда..." : "Зареди"}
+              {isLoadingReports ? "Ð—Ð°Ñ€ÐµÐ¶Ð´Ð°..." : "Ð—Ð°Ñ€ÐµÐ´Ð¸"}
             </button>
 
             <button
@@ -682,8 +688,8 @@ export default function DashboardWeeklyReports({
               className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isGeneratingReports
-                ? "Генерира..."
-                : "Генерирай"}
+                ? "Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°..."
+                : "Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð¹"}
             </button>
 
             <button
@@ -703,7 +709,7 @@ export default function DashboardWeeklyReports({
 
         {!canWriteReports && (
           <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-            Твоята роля може да преглежда Dashboard, но не може да генерира, refresh-ва, заключва или отключва отчети.
+            Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð¼Ð¾Ð¶Ðµ Ð´Ð° Ð¿Ñ€ÐµÐ³Ð»ÐµÐ¶Ð´Ð° Dashboard, Ð½Ð¾ Ð½Ðµ Ð¼Ð¾Ð¶Ðµ Ð´Ð° Ð³ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°, refresh-Ð²Ð°, Ð·Ð°ÐºÐ»ÑŽÑ‡Ð²Ð° Ð¸Ð»Ð¸ Ð¾Ñ‚ÐºÐ»ÑŽÑ‡Ð²Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸.
           </p>
         )}
 
@@ -738,7 +744,7 @@ export default function DashboardWeeklyReports({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
-              Клиент
+              ÐšÐ»Ð¸ÐµÐ½Ñ‚
               <select
                 value={customerFilter}
                 onChange={(event) =>
@@ -749,7 +755,7 @@ export default function DashboardWeeklyReports({
                 className="h-10 min-w-52 rounded-md border border-slate-400 bg-white px-3 text-slate-950 shadow-sm outline-none transition hover:border-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
               >
                 <option value="ALL">
-                  Всички клиенти
+                  Ð’ÑÐ¸Ñ‡ÐºÐ¸ ÐºÐ»Ð¸ÐµÐ½Ñ‚Ð¸
                 </option>
 
                 {customerFilterOptions.map((option) => (
@@ -804,14 +810,14 @@ export default function DashboardWeeklyReports({
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
           <span>
-            Показани камиони:{" "}
+            ÐŸÐ¾ÐºÐ°Ð·Ð°Ð½Ð¸ ÐºÐ°Ð¼Ð¸Ð¾Ð½Ð¸:{" "}
             <strong className="text-slate-900">
               {filteredReports.length}
             </strong>
           </span>
 
           <span>
-            Показани курсове:{" "}
+            ÐŸÐ¾ÐºÐ°Ð·Ð°Ð½Ð¸ ÐºÑƒÑ€ÑÐ¾Ð²Ðµ:{" "}
             <strong className="text-slate-900">
               {dashboardTotals.courseCount}
             </strong>
@@ -819,14 +825,14 @@ export default function DashboardWeeklyReports({
 
           {customerFilter !== "ALL" && (
             <span className="font-semibold text-sky-700">
-              Активен клиент:{" "}
+              ÐÐºÑ‚Ð¸Ð²ÐµÐ½ ÐºÐ»Ð¸ÐµÐ½Ñ‚:{" "}
               {customerFilter}
             </span>
           )}
 
           {settlementFilter !== "ALL" && (
             <span className="font-semibold text-sky-700">
-              Активен settlement filter:{" "}
+              ÐÐºÑ‚Ð¸Ð²ÐµÐ½ settlement filter:{" "}
               {getSettlementFilterLabel(settlementFilter)}
             </span>
           )}
@@ -835,16 +841,16 @@ export default function DashboardWeeklyReports({
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Отчети"
+          label="ÐžÑ‚Ñ‡ÐµÑ‚Ð¸"
           value={String(dashboardTotals.reportsCount)}
         />
 
         <MetricCard
-          label="Курсове"
+          label="ÐšÑƒÑ€ÑÐ¾Ð²Ðµ"
           value={String(dashboardTotals.courseCount)}
         />
         <MetricCard
-          label="Реален приход"
+          label="Ð ÐµÐ°Ð»ÐµÐ½ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´"
           value={formatMoney(dashboardTotals.totalRevenue)}
         />
         <MetricCard
@@ -866,7 +872,7 @@ export default function DashboardWeeklyReports({
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Запазени седмични отчети по камион.
+              Ð—Ð°Ð¿Ð°Ð·ÐµÐ½Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð¿Ð¾ ÐºÐ°Ð¼Ð¸Ð¾Ð½.
             </p>
           </div>
 
@@ -875,14 +881,14 @@ export default function DashboardWeeklyReports({
               href="/courses"
               className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
             >
-              Към Courses
+              ÐšÑŠÐ¼ Courses
             </Link>
 
             <Link
               href="/trucks"
               className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
             >
-              Към Trucks
+              ÐšÑŠÐ¼ Trucks
             </Link>
           </div>
         </div>
@@ -891,41 +897,44 @@ export default function DashboardWeeklyReports({
           <div className="px-4 py-10 text-center">
             <p className="text-sm font-medium text-slate-700">
               {reports.length === 0
-                ? "Няма запазени отчети за тази седмица."
-                : "Няма курсове по избрания settlement filter."}
+                ? "ÐÑÐ¼Ð° Ð·Ð°Ð¿Ð°Ð·ÐµÐ½Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð·Ð° Ñ‚Ð°Ð·Ð¸ ÑÐµÐ´Ð¼Ð¸Ñ†Ð°."
+                : "ÐÑÐ¼Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ð¿Ð¾ Ð¸Ð·Ð±Ñ€Ð°Ð½Ð¸Ñ settlement filter."}
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
               {reports.length === 0
-                ? "Натисни “Генерирай”, за да създадеш отчети за активните камиони."
-                : "Промени филтъра или избери All, за да видиш всички курсове."}
+                ? "ÐÐ°Ñ‚Ð¸ÑÐ½Ð¸ â€œÐ“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð¹â€, Ð·Ð° Ð´Ð° ÑÑŠÐ·Ð´Ð°Ð´ÐµÑˆ Ð¾Ñ‚Ñ‡ÐµÑ‚Ð¸ Ð·Ð° Ð°ÐºÑ‚Ð¸Ð²Ð½Ð¸Ñ‚Ðµ ÐºÐ°Ð¼Ð¸Ð¾Ð½Ð¸."
+                : "ÐŸÑ€Ð¾Ð¼ÐµÐ½Ð¸ Ñ„Ð¸Ð»Ñ‚ÑŠÑ€Ð° Ð¸Ð»Ð¸ Ð¸Ð·Ð±ÐµÑ€Ð¸ All, Ð·Ð° Ð´Ð° Ð²Ð¸Ð´Ð¸Ñˆ Ð²ÑÐ¸Ñ‡ÐºÐ¸ ÐºÑƒÑ€ÑÐ¾Ð²Ðµ."}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
               <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                 <tr>
                   <th className="border-b border-slate-300 px-4 py-3">
-                    Камион
+                    ÐšÐ°Ð¼Ð¸Ð¾Ð½
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3">
-                    Седмица
+                    Ð¡ÐµÐ´Ð¼Ð¸Ñ†Ð°
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3 text-right">
-                    Курсове
+                    ÐšÑƒÑ€ÑÐ¾Ð²Ðµ
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3 text-right">
-                    Общ приход
+                    ÐžÐ±Ñ‰Ð¾ ÐºÐ¼
+                  </th>
+                  <th className="border-b border-slate-300 px-4 py-3 text-right">
+                    ÐžÐ±Ñ‰ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3">
-                    Статус
+                    Ð¡Ñ‚Ð°Ñ‚ÑƒÑ
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3">
-                    Генериран
+                    Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð°Ð½
                   </th>
                   <th className="border-b border-slate-300 px-4 py-3 text-right">
-                    Действия
+                    Ð”ÐµÐ¹ÑÑ‚Ð²Ð¸Ñ
                   </th>
                 </tr>
               </thead>
@@ -1097,7 +1106,7 @@ function getSettlementFilterDescription(
     SETTLEMENT_FILTER_OPTIONS.find(
       (option) => option.value === filter,
     )?.description ??
-    "Показва курсове според settlement статуса."
+    "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ ÑÐ¿Ð¾Ñ€ÐµÐ´ settlement ÑÑ‚Ð°Ñ‚ÑƒÑÐ°."
   );
 }
 
@@ -1143,13 +1152,17 @@ function ReportRows({
           </div>
 
           <div className="text-xs text-slate-500">
-            {formatDate(report.weekStartDate)} –{" "}
+            {formatDate(report.weekStartDate)} â€“{" "}
             {formatDate(report.weekEndDate)}
           </div>
         </td>
 
         <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-950">
           {report.courseCount}
+        </td>
+
+        <td className="border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-950">
+          {formatKilometers(report.totalKm)}
         </td>
 
         <td className="border-b border-slate-200 px-4 py-3 text-right">
@@ -1159,7 +1172,7 @@ function ReportRows({
 
           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
             <div>
-              Признат: {formatMoney(report.settlementAmount)}
+              ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚: {formatMoney(report.settlementAmount)}
             </div>
           </div>
         </td>
@@ -1173,7 +1186,7 @@ function ReportRows({
                 : "bg-emerald-100 text-emerald-800",
             ].join(" ")}
           >
-            {report.isLocked ? "Заключен" : "Отворен"}
+            {report.isLocked ? "Ð—Ð°ÐºÐ»ÑŽÑ‡ÐµÐ½" : "ÐžÑ‚Ð²Ð¾Ñ€ÐµÐ½"}
           </span>
 
           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
@@ -1204,7 +1217,7 @@ function ReportRows({
               onClick={onToggleDetails}
               className="inline-flex h-8 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100"
             >
-              {isExpanded ? "Скрий" : "Детайли"}
+              {isExpanded ? "Ð¡ÐºÑ€Ð¸Ð¹" : "Ð”ÐµÑ‚Ð°Ð¹Ð»Ð¸"}
             </button>
 
             {canWriteReports && (
@@ -1217,8 +1230,8 @@ function ReportRows({
                 {isUpdatingLock
                   ? "..."
                   : report.isLocked
-                    ? "Отключи"
-                    : "Заключи"}
+                    ? "ÐžÑ‚ÐºÐ»ÑŽÑ‡Ð¸"
+                    : "Ð—Ð°ÐºÐ»ÑŽÑ‡Ð¸"}
               </button>
             )}
           </div>
@@ -1228,7 +1241,7 @@ function ReportRows({
       {isExpanded && (
         <tr>
           <td
-            colSpan={7}
+            colSpan={8}
             className="border-b border-slate-300 bg-slate-50 px-4 py-4"
           >
             <ReportCoursesTable
@@ -1264,48 +1277,51 @@ function ReportCoursesTable({
   if (report.courses.length === 0) {
     return (
       <p className="rounded-md border border-slate-300 bg-white px-3 py-3 text-sm text-slate-600">
-        Няма курсове в този отчет.
+        ÐÑÐ¼Ð° ÐºÑƒÑ€ÑÐ¾Ð²Ðµ Ð² Ñ‚Ð¾Ð·Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚.
       </p>
     );
   }
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
-      <table className="w-full min-w-[980px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[1080px] border-collapse text-left text-xs">
         <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
           <tr>
             <th className="border-b border-slate-300 px-3 py-2">
-              Дата
+              Ð”Ð°Ñ‚Ð°
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
-              Клиент
+              ÐšÐ»Ð¸ÐµÐ½Ñ‚
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
-              Контейнер
+              ÐšÐ¾Ð½Ñ‚ÐµÐ¹Ð½ÐµÑ€
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
-              Маршрут
+              ÐœÐ°Ñ€ÑˆÑ€ÑƒÑ‚
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
-              Тарифа
+              Ð¢Ð°Ñ€Ð¸Ñ„Ð°
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Цена
+              ÐšÐ¼
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Престой
+              Ð¦ÐµÐ½Ð°
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Призната
+              ÐŸÑ€ÐµÑÑ‚Ð¾Ð¹
+            </th>
+            <th className="border-b border-slate-300 px-3 py-2 text-right">
+              ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð°
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
-              Бележка
+              Ð‘ÐµÐ»ÐµÐ¶ÐºÐ°
             </th>
             <th className="border-b border-slate-300 px-3 py-2">
               Settlement
             </th>
             <th className="border-b border-slate-300 px-3 py-2 text-right">
-              Приход
+              ÐŸÑ€Ð¸Ñ…Ð¾Ð´
             </th>
           </tr>
         </thead>
@@ -1325,7 +1341,7 @@ function ReportCoursesTable({
               </td>
 
               <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
-                {course.containerNumber ?? "—"}
+                {course.containerNumber ?? "â€”"}
               </td>
 
               <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
@@ -1333,7 +1349,11 @@ function ReportCoursesTable({
               </td>
 
               <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
-                {course.tariffNameAtBooking ?? "—"}
+                {course.tariffNameAtBooking ?? "â€”"}
+              </td>
+
+              <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
+                {formatKilometers(course.totalKm)}
               </td>
 
               <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
@@ -1452,9 +1472,9 @@ function CourseSettlementInput({
         min="0"
         step="0.01"
         value={value}
-        placeholder="—"
+        placeholder="â€”"
         disabled={isSaving || !course.courseId}
-        aria-label={`Призната сума за ${course.containerNumber ?? course.customerNameAtReport}`}
+        aria-label={`ÐŸÑ€Ð¸Ð·Ð½Ð°Ñ‚Ð° ÑÑƒÐ¼Ð° Ð·Ð° ${course.containerNumber ?? course.customerNameAtReport}`}
         onChange={(event) =>
           setValue(event.target.value)
         }
@@ -1599,6 +1619,13 @@ function updateReportsWithSettlementAmount(
 function recalculateReportTotals(
   report: WeeklyTruckRevenueReportRow,
 ): WeeklyTruckRevenueReportRow {
+  const totalKm = roundKilometers(
+    report.courses.reduce(
+      (sum, course) => sum + course.totalKm,
+      0,
+    ),
+  );
+
   const expectedRevenue = roundMoney(
     report.courses.reduce(
       (sum, course) =>
@@ -1631,6 +1658,7 @@ function recalculateReportTotals(
   return {
     ...report,
     courseCount: report.courses.length,
+    totalKm,
     expectedRevenue,
     settlementAmount,
     settlementDifference: roundMoney(
@@ -1782,12 +1810,27 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function roundKilometers(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function formatKilometers(value: number): string {
+  const roundedValue = roundKilometers(value);
+
+  const formattedValue = new Intl.NumberFormat("bg-BG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(roundedValue);
+
+  return `${formattedValue} km`;
+}
+
 function formatMoney(value: number): string {
-  return `€${value.toFixed(2)}`;
+  return `â‚¬${value.toFixed(2)}`;
 }
 
 function formatNullableMoney(value: number | null): string {
-  return value === null ? "—" : formatMoney(value);
+  return value === null ? "â€”" : formatMoney(value);
 }
 
 function formatNumberInputValue(value: number): string {
@@ -1812,7 +1855,7 @@ function formatNullableMoneyWithSign(
   value: number | null,
 ): string {
   return value === null
-    ? "—"
+    ? "â€”"
     : formatMoneyWithSign(value);
 }
 
@@ -1846,7 +1889,7 @@ function formatDate(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
 
   return new Intl.DateTimeFormat("bg-BG", {
@@ -1860,7 +1903,7 @@ function formatDateTime(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
 
   return new Intl.DateTimeFormat("bg-BG", {
