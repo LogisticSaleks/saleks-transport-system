@@ -157,7 +157,7 @@ function DashboardAccessDeniedPanel() {
       </h2>
 
       <p className="mt-2 text-sm font-medium leading-6 text-amber-800">
-        Ð¢Ð²Ð¾ÑÑ‚Ð° Ñ€Ð¾Ð»Ñ Ð½ÑÐ¼Ð° Ð¿Ñ€Ð°Ð²Ð¾ Ð´Ð° Ð²Ð¸Ð¶Ð´Ð° Dashboard.
+        Твоята роля няма право да вижда Dashboard.
       </p>
     </section>
   );
@@ -193,16 +193,16 @@ function mapWeeklyReportForDashboard(
     ),
   );
 
-  const totalKm = roundKilometers(
+  const totalRevenue = roundMoney(
     courses.reduce(
-      (sum, course) => sum + course.totalKm,
+      (sum, course) => sum + course.totalRevenue,
       0,
     ),
   );
 
-  const totalRevenue = roundMoney(
+  const totalKm = roundKilometers(
     courses.reduce(
-      (sum, course) => sum + course.totalRevenue,
+      (sum, course) => sum + course.totalKm,
       0,
     ),
   );

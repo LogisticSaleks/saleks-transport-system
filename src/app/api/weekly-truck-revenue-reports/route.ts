@@ -17,7 +17,6 @@ type CourseForWeeklyReport = {
   containerNumber: string | null;
   agreedPrice: unknown;
   waitingAmount: unknown;
-  totalKm: unknown;
   settlementAmount: unknown;
   settlementStatus: SettlementStatusValue;
   settlementReference: string | null;
@@ -129,7 +128,7 @@ export async function GET(request: Request) {
 
       if (!report) {
         return errorResponse(
-          "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ÑÑ‚ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
+          "Седмичният отчет не е намерен.",
           404,
         );
       }
@@ -203,8 +202,8 @@ export async function GET(request: Request) {
  *   "forceRefresh": false
  * }
  *
- * Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€Ð° Ð¸Ð»Ð¸ Ð¾Ð±Ð½Ð¾Ð²ÑÐ²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¿Ñ€Ð¸Ñ…Ð¾Ð´ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð·Ð° ÐµÐ´Ð¸Ð½ ÐºÐ°Ð¼Ð¸Ð¾Ð½.
- * Ð Ð°Ð·Ñ…Ð¾Ð´Ð¸ Ð½Ðµ ÑÐµ Ð·Ð°Ð¿Ð¸ÑÐ²Ð°Ñ‚ Ð¸ Ð½Ðµ ÑÐµ Ð¿Ð¾ÐºÐ°Ð·Ð²Ð°Ñ‚ Ñ‚ÑƒÐº.
+ * Генерира или обновява седмичен приходен отчет за един камион.
+ * Разходи не се записват и не се показват тук.
  */
 export async function POST(request: Request) {
   const permission = await requireApiPermission("reports:write");
@@ -272,7 +271,7 @@ export async function PATCH(request: Request) {
 
     if (!hasOwn(body, "isLocked")) {
       throw new ApiValidationError(
-        "Ð›Ð¸Ð¿ÑÐ²Ð° isLocked Ð·Ð° Ð¾Ð±Ð½Ð¾Ð²ÑÐ²Ð°Ð½Ðµ Ð½Ð° Ð¾Ñ‚Ñ‡ÐµÑ‚Ð°.",
+        "Липсва isLocked за обновяване на отчета.",
       );
     }
 
@@ -334,7 +333,7 @@ async function generateWeeklyTruckRevenueReport(
 
   if (!truck) {
     throw new ApiValidationError(
-      "ÐšÐ°Ð¼Ð¸Ð¾Ð½ÑŠÑ‚ Ð·Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸Ñ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
+      "Камионът за седмичния отчет не е намерен.",
     );
   }
 
@@ -488,7 +487,6 @@ async function findCoursesForTruckWeek(
       containerNumber: true,
       agreedPrice: true,
       waitingAmount: true,
-      totalKm: true,
       settlementAmount: true,
       settlementStatus: true,
       settlementReference: true,
@@ -808,7 +806,7 @@ function buildRouteLabel(course: CourseForWeeklyReport): string {
     .filter((label): label is string => Boolean(label));
 
   if (stopLabels.length > 0) {
-    return stopLabels.join(" â†’ ");
+    return stopLabels.join(" → ");
   }
 
   const pickupLabel = formatAddressForRouteLabel(
@@ -825,10 +823,10 @@ function buildRouteLabel(course: CourseForWeeklyReport): string {
   ].filter((label): label is string => Boolean(label));
 
   if (fallbackLabels.length > 0) {
-    return fallbackLabels.join(" â†’ ");
+    return fallbackLabels.join(" → ");
   }
 
-  return "ÐœÐ°Ñ€ÑˆÑ€ÑƒÑ‚ Ð±ÐµÐ· Ð°Ð´Ñ€ÐµÑÐ¸";
+  return "Маршрут без адреси";
 }
 
 function formatAddressForRouteLabel(
@@ -952,7 +950,7 @@ async function readJsonObject(
     value = await request.json();
   } catch {
     throw new ApiValidationError(
-      "ÐÐµÐ²Ð°Ð»Ð¸Ð´ÐµÐ½ Ð¸Ð»Ð¸ Ð»Ð¸Ð¿ÑÐ²Ð°Ñ‰ JSON body.",
+      "Невалиден или липсващ JSON body.",
     );
   }
 
@@ -969,7 +967,7 @@ function readJsonObjectValue(
     Array.isArray(value)
   ) {
     throw new ApiValidationError(
-      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¾Ð±ÐµÐºÑ‚.`,
+      `${fieldName} трябва да бъде обект.`,
     );
   }
 
@@ -982,7 +980,7 @@ function readRequiredString(
 ): string {
   if (typeof value !== "string") {
     throw new ApiValidationError(
-      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ñ‚ÐµÐºÑÑ‚.`,
+      `${fieldName} трябва да бъде текст.`,
     );
   }
 
@@ -990,7 +988,7 @@ function readRequiredString(
 
   if (normalizedValue === "") {
     throw new ApiValidationError(
-      `${fieldName} Ð½Ðµ Ð¼Ð¾Ð¶Ðµ Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¿Ñ€Ð°Ð·Ð½Ð¾.`,
+      `${fieldName} не може да бъде празно.`,
     );
   }
 
@@ -1032,7 +1030,7 @@ function readRequiredPositiveInteger(
     parsedValue < 1
   ) {
     throw new ApiValidationError(
-      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¿Ð¾Ð»Ð¾Ð¶Ð¸Ñ‚ÐµÐ»Ð½Ð¾ Ñ†ÑÐ»Ð¾ Ñ‡Ð¸ÑÐ»Ð¾.`,
+      `${fieldName} трябва да бъде положително цяло число.`,
     );
   }
 
@@ -1050,7 +1048,7 @@ function readRequiredIsoWeekNumber(
 
   if (weekNumber > 53) {
     throw new ApiValidationError(
-      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¼ÐµÐ¶Ð´Ñƒ 1 Ð¸ 53.`,
+      `${fieldName} трябва да бъде между 1 и 53.`,
     );
   }
 
@@ -1068,7 +1066,7 @@ function readBooleanWithDefault(
 
   if (typeof value !== "boolean") {
     throw new ApiValidationError(
-      `${fieldName} Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ true Ð¸Ð»Ð¸ false.`,
+      `${fieldName} трябва да бъде true или false.`,
     );
   }
 
@@ -1208,19 +1206,19 @@ function handleApiError(error: unknown) {
     switch (error.code) {
       case "P2002":
         return errorResponse(
-          "Ð’ÐµÑ‡Ðµ ÑÑŠÑ‰ÐµÑÑ‚Ð²ÑƒÐ²Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚ ÑÑŠÑ ÑÑŠÑ‰Ð°Ñ‚Ð° ÑÐµÐ´Ð¼Ð¸Ñ†Ð° Ð¸ ÐºÐ°Ð¼Ð¸Ð¾Ð½.",
+          "Вече съществува седмичен отчет със същата седмица и камион.",
           409,
         );
 
       case "P2003":
         return errorResponse(
-          "ÐŸÐ¾ÑÐ¾Ñ‡ÐµÐ½ ÐºÐ°Ð¼Ð¸Ð¾Ð½, ÐºÑƒÑ€Ñ Ð¸Ð»Ð¸ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ ÑÑŠÑ‰ÐµÑÑ‚Ð²ÑƒÐ²Ð°.",
+          "Посочен камион, курс или отчет не съществува.",
           409,
         );
 
       case "P2025":
         return errorResponse(
-          "Ð¡ÐµÐ´Ð¼Ð¸Ñ‡Ð½Ð¸ÑÑ‚ Ð¾Ñ‚Ñ‡ÐµÑ‚ Ð½Ðµ Ðµ Ð½Ð°Ð¼ÐµÑ€ÐµÐ½.",
+          "Седмичният отчет не е намерен.",
           404,
         );
 
@@ -1228,7 +1226,7 @@ function handleApiError(error: unknown) {
         console.error("Prisma weekly reports API error:", error);
 
         return errorResponse(
-          "Ð’ÑŠÐ·Ð½Ð¸ÐºÐ½Ð° Ð³Ñ€ÐµÑˆÐºÐ° Ð¿Ñ€Ð¸ Ñ€Ð°Ð±Ð¾Ñ‚Ð° Ñ Ð±Ð°Ð·Ð°Ñ‚Ð°.",
+          "Възникна грешка при работа с базата.",
           500,
         );
     }
@@ -1238,7 +1236,7 @@ function handleApiError(error: unknown) {
     console.error("Prisma validation error:", error);
 
     return errorResponse(
-      "ÐŸÐ¾Ð´Ð°Ð´ÐµÐ½Ð¸Ñ‚Ðµ Ð´Ð°Ð½Ð½Ð¸ Ð½Ðµ ÑÐ° Ð²Ð°Ð»Ð¸Ð´Ð½Ð¸ Ð·Ð° ÑÐµÐ´Ð¼Ð¸Ñ‡ÐµÐ½ Ð¾Ñ‚Ñ‡ÐµÑ‚.",
+      "Подадените данни не са валидни за седмичен отчет.",
       400,
     );
   }
@@ -1246,7 +1244,7 @@ function handleApiError(error: unknown) {
   console.error("Unexpected weekly reports API error:", error);
 
   return errorResponse(
-    "Ð’ÑŠÐ·Ð½Ð¸ÐºÐ½Ð° Ð½ÐµÐ¾Ñ‡Ð°ÐºÐ²Ð°Ð½Ð° ÑÑŠÑ€Ð²ÑŠÑ€Ð½Ð° Ð³Ñ€ÐµÑˆÐºÐ°.",
+    "Възникна неочаквана сървърна грешка.",
     500,
   );
 }
