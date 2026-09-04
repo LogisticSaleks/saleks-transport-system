@@ -64,6 +64,11 @@ const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     permissions: ["trucks:read"],
   },
   {
+    href: "/fuel",
+    label: "Fuel",
+    permissions: ["fuel:read"],
+  },
+  {
     href: "/reports",
     label: "Reports",
     permissions: ["reports:read"],

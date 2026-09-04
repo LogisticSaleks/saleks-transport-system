@@ -29,7 +29,9 @@ export type Permission =
   | "reports:read"
   | "reports:write"
   | "settlements:read"
-  | "settlements:write";
+  | "settlements:write"
+  | "fuel:read"
+  | "fuel:write";
 
 type ApiPermissionSuccess = {
   ok: true;
@@ -70,6 +72,8 @@ const ALL_PERMISSIONS: readonly Permission[] = [
   "reports:write",
   "settlements:read",
   "settlements:write",
+  "fuel:read",
+  "fuel:write",
 ];
 
 const ADMIN_PERMISSIONS: readonly Permission[] =
@@ -94,6 +98,7 @@ const ROLE_PERMISSIONS: Record<
     "addresses:read",
     "addresses:write",
     "routes:calculate",
+    "fuel:read",
   ],
 
   FINANCE: [
@@ -105,6 +110,8 @@ const ROLE_PERMISSIONS: Record<
     "reports:write",
     "settlements:read",
     "settlements:write",
+    "fuel:read",
+    "fuel:write",
   ],
 
   VIEWER: [
@@ -113,6 +120,7 @@ const ROLE_PERMISSIONS: Record<
     "customers:read",
     "trucks:read",
     "settlements:read",
+    "fuel:read",
   ],
 };
 
