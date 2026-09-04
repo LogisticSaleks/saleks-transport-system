@@ -247,6 +247,111 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  const permission = await requireApiPermission("fuel:write");
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
+  try {
+    const body = await readJsonObject(request);
+
+    const id = readRequiredString(body.id, "Fuel entry id");
+    const truckId = readRequiredString(body.truckId, "Камион");
+    const entryDate = readRequiredDateOnly(body.entryDate, "Дата");
+
+    const odometerKm = readRequiredNonNegativeNumber(
+      body.odometerKm,
+      "Километри",
+    );
+
+    const dieselLiters = readOptionalNonNegativeNumber(
+      body.dieselLiters,
+      "Дизел литри",
+      0,
+    );
+
+    const dieselTotalAmount = readOptionalNonNegativeNumber(
+      body.dieselTotalAmount,
+      "Дизел обща сума",
+      0,
+    );
+
+    const adBlueLiters = readOptionalNonNegativeNumber(
+      body.adBlueLiters,
+      "AdBlue литри",
+      0,
+    );
+
+    const adBlueTotalAmount = readOptionalNonNegativeNumber(
+      body.adBlueTotalAmount,
+      "AdBlue обща сума",
+      0,
+    );
+
+    if (dieselLiters <= 0 && adBlueLiters <= 0) {
+      throw new ApiValidationError(
+        "Въведи поне дизел литри или AdBlue литри.",
+      );
+    }
+
+    if (dieselTotalAmount > 0 && dieselLiters <= 0) {
+      throw new ApiValidationError(
+        "Не може да има сума за дизел без литри дизел.",
+      );
+    }
+
+    if (adBlueTotalAmount > 0 && adBlueLiters <= 0) {
+      throw new ApiValidationError(
+        "Не може да има сума за AdBlue без литри AdBlue.",
+      );
+    }
+
+    const truck = await prisma.truck.findUnique({
+      where: {
+        id: truckId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!truck) {
+      throw new ApiValidationError("Избраният камион не съществува.");
+    }
+
+    const fuelEntry = await prisma.truckFuelEntry.update({
+      where: {
+        id,
+      },
+      data: {
+        truckId,
+        entryDate,
+        odometerKm: new Prisma.Decimal(odometerKm),
+        dieselLiters: new Prisma.Decimal(dieselLiters),
+        dieselTotalAmount: new Prisma.Decimal(dieselTotalAmount),
+        adBlueLiters: new Prisma.Decimal(adBlueLiters),
+        adBlueTotalAmount: new Prisma.Decimal(adBlueTotalAmount),
+        stationName: normalizeOptionalString(body.stationName),
+        location: normalizeOptionalString(body.location),
+        notes: normalizeOptionalString(body.notes),
+      },
+      include: buildFuelEntryInclude(),
+    });
+
+    const entries = buildFuelEntryRows([
+      fuelEntry as FuelEntryForResponse,
+    ]);
+
+    return NextResponse.json({
+      entry: entries[0],
+    });
+  } catch (error) {
+    return handleFuelApiError(error);
+  }
+}
+
 export async function DELETE(request: Request) {
   const permission = await requireApiPermission("fuel:write");
 

@@ -139,6 +139,9 @@ export default function FuelManagement({
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(
     null,
   );
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(
     null,
@@ -167,6 +170,8 @@ export default function FuelManagement({
           null,
     [selectedTruckId, sortedTrucks],
   );
+
+  const isEditingEntry = editingEntryId !== null;
 
   const dieselPricePreview = calculateUnitPriceFromStrings(
     entryForm.dieselTotalAmount,
@@ -249,11 +254,12 @@ export default function FuelManagement({
 
     try {
       const response = await fetch("/api/fuel", {
-        method: "POST",
+        method: isEditingEntry ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          id: editingEntryId,
           truckId: entryForm.truckId,
           entryDate: entryForm.entryDate,
           odometerKm: normalizeDecimalInput(entryForm.odometerKm),
@@ -279,17 +285,24 @@ export default function FuelManagement({
       if (!response.ok || !responseData?.entry) {
         throw new Error(
           responseData?.error ??
-            "Fuel записът не можа да бъде добавен.",
+            (isEditingEntry
+              ? "Fuel записът не можа да бъде обновен."
+              : "Fuel записът не можа да бъде добавен."),
         );
       }
 
       setEntryForm(
         createEmptyFuelEntryForm(entryForm.truckId),
       );
+      setEditingEntryId(null);
 
       await handleLoadEntries();
 
-      setSuccessMessage("Fuel записът е добавен.");
+      setSuccessMessage(
+        isEditingEntry
+          ? "Fuel записът е обновен."
+          : "Fuel записът е добавен.",
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -390,6 +403,39 @@ export default function FuelManagement({
     } finally {
       setIsSavingTruck(false);
     }
+  }
+
+  function handleEditEntry(entry: FuelEntryRow): void {
+    if (!canWriteFuel) {
+      setErrorMessage("Твоята роля няма право да редактира fuel записи.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    setEditingEntryId(entry.id);
+    setEntryForm({
+      truckId: entry.truckId,
+      entryDate: formatDateInputValue(new Date(entry.entryDate)),
+      odometerKm: formatNumber(entry.odometerKm),
+      dieselLiters: formatNumber(entry.dieselLiters),
+      dieselTotalAmount: formatNumber(entry.dieselTotalAmount),
+      adBlueLiters: formatNumber(entry.adBlueLiters),
+      adBlueTotalAmount: formatNumber(entry.adBlueTotalAmount),
+      stationName: entry.stationName ?? "",
+      location: entry.location ?? "",
+      notes: entry.notes ?? "",
+    });
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  }
+
+  function handleCancelEntryEdit(): void {
+    setEditingEntryId(null);
+    setEntryForm(
+      createEmptyFuelEntryForm(entryForm.truckId),
+    );
+    setErrorMessage(null);
+    setSuccessMessage(null);
   }
 
   async function handleDeleteEntry(entry: FuelEntryRow): Promise<void> {
@@ -563,9 +609,19 @@ export default function FuelManagement({
             onSubmit={handleAddFuelEntry}
             className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm"
           >
-            <h2 className="text-base font-bold text-slate-950">
-              Добави зареждане
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-slate-950">
+                {isEditingEntry
+                  ? "Редакция на зареждане"
+                  : "Добави зареждане"}
+              </h2>
+
+              {isEditingEntry && (
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
+                  Edit mode
+                </span>
+              )}
+            </div>
 
             {!canWriteFuel && (
               <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
@@ -746,8 +802,23 @@ export default function FuelManagement({
               }
               className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSavingEntry ? "Записва..." : "Добави зареждане"}
+              {isSavingEntry
+                ? "Записва..."
+                : isEditingEntry
+                  ? "Запази промените"
+                  : "Добави зареждане"}
             </button>
+
+            {isEditingEntry && (
+              <button
+                type="button"
+                onClick={handleCancelEntryEdit}
+                disabled={isSavingEntry}
+                className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-400 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Откажи редакцията
+              </button>
+            )}
           </form>
 
           <form
@@ -982,16 +1053,27 @@ export default function FuelManagement({
 
                       <td className="border-b border-slate-200 px-2 py-2 text-right">
                         {canWriteFuel ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteEntry(entry)}
-                            disabled={deletingEntryId === entry.id}
-                            className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {deletingEntryId === entry.id
-                              ? "..."
-                              : "Изтрий"}
-                          </button>
+                          <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleEditEntry(entry)}
+                              disabled={isSavingEntry || deletingEntryId === entry.id}
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteEntry(entry)}
+                              disabled={deletingEntryId === entry.id}
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingEntryId === entry.id
+                                ? "..."
+                                : "Изтрий"}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
