@@ -41,14 +41,12 @@ export default async function FuelPage() {
     },
   });
 
-  const initialDateRange = getCurrentMonthDateRange();
-
   return (
     <AppShell title="Fuel">
       <FuelManagement
         initialTrucks={trucks.map(mapTruckForFuel)}
-        initialFromDate={initialDateRange.fromDate}
-        initialToDate={initialDateRange.toDate}
+        initialFromDate=""
+        initialToDate=""
       />
     </AppShell>
   );
@@ -80,26 +78,4 @@ function mapTruckForFuel(truck: {
     licensePlate: truck.licensePlate,
     status: truck.status,
   };
-}
-
-function getCurrentMonthDateRange(): {
-  fromDate: string;
-  toDate: string;
-} {
-  const now = new Date();
-
-  return {
-    fromDate: formatDateInputValue(
-      new Date(now.getFullYear(), now.getMonth(), 1),
-    ),
-    toDate: formatDateInputValue(now),
-  };
-}
-
-function formatDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return year + "-" + month + "-" + day;
 }

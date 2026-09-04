@@ -450,46 +450,21 @@ export default function FuelManagement({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">
-              Fuel log
-            </h2>
-
-            <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-600">
-              Отделна справка за дизел, AdBlue, цена на литър,
-              километри и реален разход по камион. Тези стойности
-              не участват в разходите и печалбата на курсовете.
+      {(errorMessage || successMessage) && (
+        <section>
+          {errorMessage && (
+            <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {errorMessage}
             </p>
-          </div>
+          )}
 
-          <button
-            type="button"
-            onClick={() => void handleLoadEntries()}
-            disabled={isLoadingEntries}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-500 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isLoadingEntries ? "Зарежда..." : "Зареди"}
-          </button>
-        </div>
-
-        {(errorMessage || successMessage) && (
-          <div className="mt-4">
-            {errorMessage && (
-              <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                {errorMessage}
-              </p>
-            )}
-
-            {successMessage && (
-              <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-                {successMessage}
-              </p>
-            )}
-          </div>
-        )}
-      </section>
+          {successMessage && (
+            <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+              {successMessage}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="rounded-2xl border border-slate-400 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto] md:items-end">
@@ -582,7 +557,7 @@ export default function FuelManagement({
         />
       </section>
 
-      <section className="grid gap-6 2xl:grid-cols-[520px_1fr]">
+      <section className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="space-y-6">
           <form
             onSubmit={handleAddFuelEntry}
@@ -884,22 +859,22 @@ export default function FuelManagement({
           </form>
         </div>
 
-        <section className="rounded-2xl border border-slate-400 bg-white shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-slate-400 bg-white shadow-sm">
           <div className="border-b border-slate-300 px-4 py-4">
             <h2 className="text-base font-bold text-slate-950">
               Зареждания
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Таблицата показва цена на литър, изминати километри от
-              предишното зареждане и разход L/100 km.
+              По подразбиране се показва цялата история. Използвай
+              датите само когато ти трябва конкретен период.
             </p>
           </div>
 
           {entries.length === 0 ? (
             <div className="px-4 py-10 text-center">
               <p className="text-sm font-medium text-slate-700">
-                Няма fuel записи за избрания период.
+                Няма fuel записи за избрания филтър.
               </p>
               <p className="mt-1 text-sm text-slate-500">
                 Добави първо зареждане или промени филтрите.
@@ -907,49 +882,31 @@ export default function FuelManagement({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1280px] border-collapse text-left text-xs">
+              <table className="w-full min-w-[920px] border-collapse text-left text-[11px]">
                 <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
                   <tr>
-                    <th className="border-b border-slate-300 px-3 py-2">
+                    <th className="border-b border-slate-300 px-2 py-2">
                       Дата
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2">
+                    <th className="border-b border-slate-300 px-2 py-2">
                       Камион
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
+                    <th className="border-b border-slate-300 px-2 py-2 text-right">
                       Километри
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      Изминати км
+                    <th className="border-b border-slate-300 px-2 py-2 text-right">
+                      Дизел
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      Дизел L
+                    <th className="border-b border-slate-300 px-2 py-2 text-right">
+                      AdBlue
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      Дизел €/L
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      Дизел €
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      AdBlue L
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      AdBlue €/L
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
-                      AdBlue €
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
+                    <th className="border-b border-slate-300 px-2 py-2 text-right">
                       Разход
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2">
-                      Място
+                    <th className="border-b border-slate-300 px-2 py-2">
+                      Място / бележка
                     </th>
-                    <th className="border-b border-slate-300 px-3 py-2">
-                      Бележка
-                    </th>
-                    <th className="border-b border-slate-300 px-3 py-2 text-right">
+                    <th className="border-b border-slate-300 px-2 py-2 text-right">
                       Действия
                     </th>
                   </tr>
@@ -958,64 +915,78 @@ export default function FuelManagement({
                 <tbody>
                   {entries.map((entry) => (
                     <tr key={entry.id} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
+                      <td className="border-b border-slate-200 px-2 py-2 text-slate-700">
                         {formatDate(entry.entryDate)}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2">
+
+                      <td className="border-b border-slate-200 px-2 py-2">
                         <div className="font-semibold text-slate-950">
                           {entry.truckName}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[10px] text-slate-500">
                           {entry.truckLicensePlate}
                         </div>
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatKilometers(entry.odometerKm)}
+
+                      <td className="border-b border-slate-200 px-2 py-2 text-right text-slate-700">
+                        <div className="font-semibold text-slate-950">
+                          {formatKilometers(entry.odometerKm)}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          Изминати:{" "}
+                          {formatNullableKilometers(entry.distanceKm)}
+                        </div>
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatNullableKilometers(entry.distanceKm)}
+
+                      <td className="border-b border-slate-200 px-2 py-2 text-right text-slate-700">
+                        <div>{formatLiters(entry.dieselLiters)}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {formatNullableMoney(entry.dieselPricePerLiter)}
+                          /L
+                        </div>
+                        <div className="font-semibold text-slate-950">
+                          {formatMoney(entry.dieselTotalAmount)}
+                        </div>
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatLiters(entry.dieselLiters)}
+
+                      <td className="border-b border-slate-200 px-2 py-2 text-right text-slate-700">
+                        <div>{formatLiters(entry.adBlueLiters)}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {formatNullableMoney(entry.adBluePricePerLiter)}
+                          /L
+                        </div>
+                        <div>{formatMoney(entry.adBlueTotalAmount)}</div>
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatNullableMoney(entry.dieselPricePerLiter)}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right font-semibold text-slate-950">
-                        {formatMoney(entry.dieselTotalAmount)}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatLiters(entry.adBlueLiters)}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatNullableMoney(entry.adBluePricePerLiter)}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right text-slate-700">
-                        {formatMoney(entry.adBlueTotalAmount)}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right font-semibold text-slate-950">
+
+                      <td className="border-b border-slate-200 px-2 py-2 text-right font-semibold text-slate-950">
                         {formatNullableConsumption(
                           entry.consumptionLPer100Km,
                         )}
                       </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-slate-700">
-                        <div>{entry.stationName ?? "—"}</div>
+
+                      <td className="max-w-56 border-b border-slate-200 px-2 py-2 text-slate-700">
+                        <div className="font-medium text-slate-900">
+                          {entry.stationName ?? "—"}
+                        </div>
                         {entry.location && (
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-[10px] text-slate-500">
                             {entry.location}
                           </div>
                         )}
+                        {entry.notes && (
+                          <div className="mt-1 line-clamp-2 text-[10px] text-slate-500">
+                            {entry.notes}
+                          </div>
+                        )}
                       </td>
-                      <td className="max-w-52 border-b border-slate-200 px-3 py-2 text-slate-700">
-                        {entry.notes ?? "—"}
-                      </td>
-                      <td className="border-b border-slate-200 px-3 py-2 text-right">
+
+                      <td className="border-b border-slate-200 px-2 py-2 text-right">
                         {canWriteFuel ? (
                           <button
                             type="button"
                             onClick={() => void handleDeleteEntry(entry)}
                             disabled={deletingEntryId === entry.id}
-                            className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {deletingEntryId === entry.id
                               ? "..."
