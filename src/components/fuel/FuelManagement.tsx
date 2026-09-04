@@ -953,7 +953,7 @@ export default function FuelManagement({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] border-collapse text-left text-[11px]">
+              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
                 <thead className="bg-slate-100 uppercase tracking-wide text-slate-600">
                   <tr>
                     <th className="border-b border-slate-300 px-2 py-2">
@@ -994,7 +994,7 @@ export default function FuelManagement({
                         <div className="font-semibold text-slate-950">
                           {entry.truckName}
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           {entry.truckLicensePlate}
                         </div>
                       </td>
@@ -1003,7 +1003,7 @@ export default function FuelManagement({
                         <div className="font-semibold text-slate-950">
                           {formatKilometers(entry.odometerKm)}
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           Изминати:{" "}
                           {formatNullableKilometers(entry.distanceKm)}
                         </div>
@@ -1011,7 +1011,7 @@ export default function FuelManagement({
 
                       <td className="border-b border-slate-200 px-2 py-2 text-right text-slate-700">
                         <div>{formatLiters(entry.dieselLiters)}</div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           {formatNullableMoney(entry.dieselPricePerLiter)}
                           /L
                         </div>
@@ -1022,7 +1022,7 @@ export default function FuelManagement({
 
                       <td className="border-b border-slate-200 px-2 py-2 text-right text-slate-700">
                         <div>{formatLiters(entry.adBlueLiters)}</div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           {formatNullableMoney(entry.adBluePricePerLiter)}
                           /L
                         </div>
@@ -1040,12 +1040,12 @@ export default function FuelManagement({
                           {entry.stationName ?? "—"}
                         </div>
                         {entry.location && (
-                          <div className="text-[10px] text-slate-500">
+                          <div className="text-xs text-slate-500">
                             {entry.location}
                           </div>
                         )}
                         {entry.notes && (
-                          <div className="mt-1 line-clamp-2 text-[10px] text-slate-500">
+                          <div className="mt-1 line-clamp-2 text-xs text-slate-500">
                             {entry.notes}
                           </div>
                         )}
@@ -1058,7 +1058,7 @@ export default function FuelManagement({
                               type="button"
                               onClick={() => handleEditEntry(entry)}
                               disabled={isSavingEntry || deletingEntryId === entry.id}
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               Edit
                             </button>
@@ -1067,7 +1067,7 @@ export default function FuelManagement({
                               type="button"
                               onClick={() => void handleDeleteEntry(entry)}
                               disabled={deletingEntryId === entry.id}
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-red-300 bg-red-50 px-2 text-xs font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {deletingEntryId === entry.id
                                 ? "..."
