@@ -6,6 +6,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { loadCurrentUserAccess } from "@/lib/auth/currentUser";
 import { roleHasPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  buildTruckDayFixedCostAllocationCounts,
+  calculateCourseTotalCostWithAllocatedTruckFixedCost,
+  createTruckDayFixedCostAllocationKey,
+} from "@/lib/calculations/courseFixedCostAllocation";
 
 export const dynamic = "force-dynamic";
 
@@ -152,6 +157,7 @@ export default async function ReportsPage({
 
   const [
     rawCourses,
+    allocationCourses,
     customerOptions,
     truckOptions,
   ] = await Promise.all([
@@ -187,11 +193,17 @@ export default async function ReportsPage({
             id: true,
             name: true,
             licensePlate: true,
+            monthlyLeaseCost: true,
+            monthlyInsuranceCost: true,
+            monthlyRoadTaxCost: true,
+            monthlyOtherFixedCost: true,
           },
         },
 
         costs: {
           select: {
+            type: true,
+            description: true,
             amount: true,
           },
         },
@@ -205,6 +217,15 @@ export default async function ReportsPage({
           createdAt: "desc",
         },
       ],
+    }),
+
+    prisma.course.findMany({
+      where: buildCourseDateWhere(filters),
+      select: {
+        truckId: true,
+        plannedDate: true,
+        createdAt: true,
+      },
     }),
 
     prisma.customer.findMany({
@@ -263,6 +284,17 @@ export default async function ReportsPage({
   const exportHref =
     buildReportsExportHref(filters);
 
+  const fixedCostAllocationCounts =
+    buildTruckDayFixedCostAllocationCounts(
+      allocationCourses.map((course) => ({
+        truckId: course.truckId,
+        date: formatCourseAllocationDate(
+          course.plannedDate ??
+            course.createdAt,
+        ),
+      })),
+    );
+
   const courses: CourseReportRow[] =
     rawCourses.map((course) => {
       const totalKm = toNumber(
@@ -302,12 +334,29 @@ export default async function ReportsPage({
       const revenue =
         settlementAmount ?? expectedRevenue;
 
-      const cost = course.costs.reduce(
-        (sum, costRecord) =>
-          sum +
-          toNumber(costRecord.amount),
-        0,
-      );
+      const allocationKey =
+        createTruckDayFixedCostAllocationKey(
+          course.truck?.id ?? null,
+          formatCourseAllocationDate(
+            course.plannedDate ??
+              course.createdAt,
+          ),
+        );
+
+      const fixedCostAllocationCourseCount =
+        allocationKey
+          ? fixedCostAllocationCounts.get(
+              allocationKey,
+            ) ?? 1
+          : 1;
+
+      const cost =
+        calculateCourseTotalCostWithAllocatedTruckFixedCost({
+          costs: course.costs,
+          truck: course.truck,
+          courseCount:
+            fixedCostAllocationCourseCount,
+        });
 
       const profit = revenue - cost;
 
@@ -1832,6 +1881,12 @@ function formatDateInput(date: Date): string {
   ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function formatCourseAllocationDate(
+  date: Date,
+): string {
+  return date.toISOString().slice(0, 10);
 }
 
 function toNullableNumber(

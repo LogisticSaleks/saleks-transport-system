@@ -20,6 +20,10 @@ import CourseSummaryBar, {
 import type { CustomerOption } from "./CustomerSelect";
 import type { TruckOption } from "./TruckSelect";
 import type { CalculationSettings } from "@/lib/settings/calculationSettings";
+import {
+  buildTruckDayFixedCostAllocationCounts,
+  createTruckDayFixedCostAllocationKey,
+} from "@/lib/calculations/courseFixedCostAllocation";
 import { useCan } from "@/components/auth/AuthContext";
 
 type CourseTableProps = {
@@ -733,26 +737,16 @@ export default function CourseTable({
 function buildFixedCostAllocationCounts(
   rows: readonly CourseRowData[],
 ): Map<string, number> {
-  const counts = new Map<string, number>();
-
-  for (const row of rows) {
-    const key =
-      createFixedCostAllocationKey(row);
-
-    if (
-      !key ||
-      !isFixedCostAllocationRelevantRow(row)
-    ) {
-      continue;
-    }
-
-    counts.set(
-      key,
-      (counts.get(key) ?? 0) + 1,
-    );
-  }
-
-  return counts;
+  return buildTruckDayFixedCostAllocationCounts(
+    rows
+      .filter(
+        (row) => row.databaseId !== null,
+      )
+      .map((row) => ({
+        truckId: row.truckId,
+        date: row.filterDate,
+      })),
+  );
 }
 
 function getFixedCostAllocationCourseCount(
@@ -766,20 +760,32 @@ function getFixedCostAllocationCourseCount(
     return 1;
   }
 
-  return Math.max(counts.get(key) ?? 1, 1);
+  const savedCourseCount =
+    counts.get(key) ?? 0;
+
+  if (
+    row.databaseId === null &&
+    isFixedCostAllocationRelevantRow(row)
+  ) {
+    return Math.max(
+      savedCourseCount + 1,
+      1,
+    );
+  }
+
+  return Math.max(
+    savedCourseCount,
+    1,
+  );
 }
 
 function createFixedCostAllocationKey(
   row: CourseRowData,
 ): string | null {
-  const truckId = row.truckId.trim();
-  const date = row.filterDate.trim();
-
-  if (!truckId || !date) {
-    return null;
-  }
-
-  return `${truckId}|${date}`;
+  return createTruckDayFixedCostAllocationKey(
+    row.truckId,
+    row.filterDate,
+  );
 }
 
 function isFixedCostAllocationRelevantRow(

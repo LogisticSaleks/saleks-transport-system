@@ -5,6 +5,11 @@ import type { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/auth/permissions";
+import {
+  buildTruckDayFixedCostAllocationCounts,
+  calculateCourseTotalCostWithAllocatedTruckFixedCost,
+  createTruckDayFixedCostAllocationKey,
+} from "@/lib/calculations/courseFixedCostAllocation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,6 +96,7 @@ export async function GET(
 
     const [
       rawCourses,
+      allocationCourses,
       selectedCustomer,
       selectedTruck,
     ] = await Promise.all([
@@ -125,11 +131,17 @@ export async function GET(
               id: true,
               name: true,
               licensePlate: true,
+              monthlyLeaseCost: true,
+              monthlyInsuranceCost: true,
+              monthlyRoadTaxCost: true,
+              monthlyOtherFixedCost: true,
             },
           },
 
           costs: {
             select: {
+              type: true,
+              description: true,
               amount: true,
             },
           },
@@ -143,6 +155,15 @@ export async function GET(
             createdAt: "desc",
           },
         ],
+      }),
+
+      prisma.course.findMany({
+        where: buildCourseDateWhere(filters),
+        select: {
+          truckId: true,
+          plannedDate: true,
+          createdAt: true,
+        },
       }),
 
       filters.customerId === ""
@@ -168,6 +189,17 @@ export async function GET(
             },
           }),
     ]);
+
+    const fixedCostAllocationCounts =
+      buildTruckDayFixedCostAllocationCounts(
+        allocationCourses.map((course) => ({
+          truckId: course.truckId,
+          date: formatCourseAllocationDate(
+            course.plannedDate ??
+              course.createdAt,
+          ),
+        })),
+      );
 
     const courses: CourseReportRow[] =
       rawCourses.map((course) => {
@@ -208,13 +240,29 @@ export async function GET(
         const revenue =
           settlementAmount ?? expectedRevenue;
 
-        const cost =
-          course.costs.reduce(
-            (sum, costRecord) =>
-              sum +
-              toNumber(costRecord.amount),
-            0,
+        const allocationKey =
+          createTruckDayFixedCostAllocationKey(
+            course.truck?.id ?? null,
+            formatCourseAllocationDate(
+              course.plannedDate ??
+                course.createdAt,
+            ),
           );
+
+        const fixedCostAllocationCourseCount =
+          allocationKey
+            ? fixedCostAllocationCounts.get(
+                allocationKey,
+              ) ?? 1
+            : 1;
+
+        const cost =
+          calculateCourseTotalCostWithAllocatedTruckFixedCost({
+            costs: course.costs,
+            truck: course.truck,
+            courseCount:
+              fixedCostAllocationCourseCount,
+          });
 
         const profit = revenue - cost;
 
@@ -1316,6 +1364,12 @@ function parseDateInputExclusiveEnd(
   date.setUTCDate(date.getUTCDate() + 1);
 
   return date;
+}
+
+function formatCourseAllocationDate(
+  date: Date,
+): string {
+  return date.toISOString().slice(0, 10);
 }
 
 function toNullableNumber(

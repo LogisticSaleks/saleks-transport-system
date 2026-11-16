@@ -18,6 +18,11 @@ import {
 } from "@/lib/calculations/calculatePricingStatus";
 import { calculateProfitMargin } from "@/lib/calculations/calculateProfitMargin";
 import {
+  calculateAllocatedTruckFixedCost,
+  calculateTruckDailyFixedCost,
+  COURSE_ROW_FIXED_COST_DESCRIPTION,
+} from "@/lib/calculations/courseFixedCostAllocation";
+import {
   buildCourseDisplayWarnings,
   buildCourseInputWarnings,
 } from "@/lib/calculations/courseWarnings";
@@ -628,45 +633,29 @@ export default function CourseRow({
     [truckOptions, draft.truckId],
   );
 
-  const selectedTruckMonthlyFixedCost = useMemo(() => {
-    if (!selectedTruck) {
-      return 0;
-    }
-
-    return (
-      selectedTruck.monthlyLeaseCost +
-      selectedTruck.monthlyInsuranceCost +
-      selectedTruck.monthlyRoadTaxCost +
-      selectedTruck.monthlyOtherFixedCost
-    );
-  }, [selectedTruck]);
-
   const selectedTruckDailyFixedCost = useMemo(
     () =>
-      Math.round(
-        (selectedTruckMonthlyFixedCost / 30 + Number.EPSILON) *
-          100,
-      ) / 100,
-    [selectedTruckMonthlyFixedCost],
+      selectedTruck
+        ? calculateTruckDailyFixedCost(
+            selectedTruck,
+          )
+        : 0,
+    [selectedTruck],
   );
 
-  const allocatedTruckFixedCost = useMemo(() => {
-    const divisor =
-      Number.isFinite(fixedCostAllocationCourseCount) &&
-      fixedCostAllocationCourseCount > 0
-        ? fixedCostAllocationCourseCount
-        : 1;
-
-    return (
-      Math.round(
-        (selectedTruckDailyFixedCost / divisor + Number.EPSILON) *
-          100,
-      ) / 100
-    );
-  }, [
-    fixedCostAllocationCourseCount,
-    selectedTruckDailyFixedCost,
-  ]);
+  const allocatedTruckFixedCost = useMemo(
+    () =>
+      selectedTruck
+        ? calculateAllocatedTruckFixedCost(
+            selectedTruck,
+            fixedCostAllocationCourseCount,
+          )
+        : 0,
+    [
+      selectedTruck,
+      fixedCostAllocationCourseCount,
+    ],
+  );
 
   const pricing = useMemo(
     () =>
@@ -3911,7 +3900,7 @@ function buildCourseCosts({
     costs,
     truckId,
     "OTHER",
-    "Фиксиран разход за камиона",
+    COURSE_ROW_FIXED_COST_DESCRIPTION,
     truckFixedCost,
   );
 
