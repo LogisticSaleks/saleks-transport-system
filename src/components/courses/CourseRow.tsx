@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -566,6 +567,10 @@ export default function CourseRow({
         canWriteCourses,
     );
 
+  const parentSyncModeRef = useRef<
+    "immediate" | "debounced"
+  >("immediate");
+
   const canSaveFullCourse =
     canWriteCourses;
 
@@ -849,7 +854,12 @@ export default function CourseRow({
       return null;
     }
   }, [
-    draft,
+    draft.totalKm,
+    draft.billableKm,
+    draft.price,
+    draft.tollFee,
+    draft.waitingMinutes,
+    draft.portFee,
     pricing,
     selectedTruck,
     allocatedTruckFixedCost,
@@ -893,7 +903,17 @@ export default function CourseRow({
         draft,
         addressOptions,
       ).length,
-    [draft, addressOptions],
+    [
+      draft.pickupAddressId,
+      draft.pickupAddressText,
+      draft.loadingUnloadingAddressId,
+      draft.loadingUnloadingAddressText,
+      draft.extraAddressId,
+      draft.extraAddressText,
+      draft.returnAddressId,
+      draft.returnAddressText,
+      addressOptions,
+    ],
   );
 
   const canCalculateRoute =
@@ -1010,7 +1030,23 @@ export default function CourseRow({
     );
 
   useEffect(() => {
-    onChange(calculatedRow);
+    if (
+      parentSyncModeRef.current === "immediate"
+    ) {
+      onChange(calculatedRow);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => {
+        onChange(calculatedRow);
+      },
+      500,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [calculatedRow, onChange]);
 
   const panelId =
@@ -1028,6 +1064,11 @@ export default function CourseRow({
     ) {
       return;
     }
+
+    parentSyncModeRef.current =
+      shouldDebounceParentSync(field)
+        ? "debounced"
+        : "immediate";
 
     setDraft((currentDraft) => {
       const nextDraft = {
@@ -1061,6 +1102,8 @@ export default function CourseRow({
       (customer) => customer.id === customerId,
     );
 
+    parentSyncModeRef.current = "immediate";
+
     setDraft((currentDraft) => ({
       ...currentDraft,
       customerId,
@@ -1077,6 +1120,8 @@ export default function CourseRow({
     if (!canWriteCourses) {
       return;
     }
+
+    parentSyncModeRef.current = "immediate";
 
     setDraft((currentDraft) => {
       const currentCustomer = customerOptions.find(
@@ -1130,6 +1175,11 @@ export default function CourseRow({
     }
 
     const textField = ADDRESS_TEXT_FIELD_BY_ID[field];
+
+    parentSyncModeRef.current =
+      value.isNewAddress
+        ? "debounced"
+        : "immediate";
 
     setDraft((currentDraft) => ({
       ...currentDraft,
@@ -1231,6 +1281,8 @@ export default function CourseRow({
 
       const formattedToll =
         formatMoney(tollCost);
+
+      parentSyncModeRef.current = "immediate";
 
       setDraft((currentDraft) =>
         markRouteValuesAsPtv({
@@ -3574,6 +3626,18 @@ function isManualKmField(
   return (
     MANUAL_KM_FIELDS as readonly EditableCourseField[]
   ).includes(field);
+}
+
+function shouldDebounceParentSync(
+  field: EditableCourseField,
+): boolean {
+  return (
+    field === "notes" ||
+    field === "containerNumber" ||
+    field === "settlementReference" ||
+    field === "settlementNotes" ||
+    field === "kmOverrideNotes"
+  );
 }
 
 function getCourseTypeLabel(
