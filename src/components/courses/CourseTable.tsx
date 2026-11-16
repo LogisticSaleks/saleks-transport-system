@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -25,6 +24,7 @@ import {
   createTruckDayFixedCostAllocationKey,
 } from "@/lib/calculations/courseFixedCostAllocation";
 import { useCan } from "@/components/auth/AuthContext";
+import { matchesCourseListFilters } from "@/lib/courses/courseFilters";
 
 type CourseTableProps = {
   trucks: readonly TruckOption[];
@@ -35,6 +35,13 @@ type CourseTableProps = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
+const euroFormatter = new Intl.NumberFormat("bg-BG", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
@@ -114,49 +121,21 @@ export default function CourseTable({
     firstEmptyRowId + 1,
   );
 
-  const [rows, setRows] = useState<
-    CourseRowData[]
-  >(() =>
-    canWriteCourses
-      ? [
-          createEmptyCourseRow(firstEmptyRowId),
-          ...initialCourses,
-        ]
-      : [...initialCourses],
+  // Show the new-course editor only when the user presses "Добави курс".
+  const [rows, setRows] = useState<CourseRowData[]>(
+    () => [...initialCourses],
   );
-
-  useEffect(() => {
-    setRows((currentRows) => {
-      if (!canWriteCourses) {
-        return currentRows.filter(
-          (row) => row.databaseId !== null,
-        );
-      }
-
-      const hasDraftRow = currentRows.some(
-        (row) => row.databaseId === null,
-      );
-
-      if (hasDraftRow) {
-        return currentRows;
-      }
-
-      const newRowId = nextRowId.current;
-
-      nextRowId.current += 1;
-
-      return [
-        createEmptyCourseRow(newRowId),
-        ...currentRows,
-      ];
-    });
-  }, [canWriteCourses]);
 
   const [dateFrom, setDateFrom] =
     useState("");
 
   const [dateTo, setDateTo] =
     useState("");
+
+  const [containerSearch, setContainerSearch] = useState("");
+  const [truckFilter, setTruckFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [settlementFilter, setSettlementFilter] = useState("");
 
   const [pageSize, setPageSize] =
     useState<PageSizeOption>(10);
@@ -187,28 +166,25 @@ export default function CourseTable({
 
   const filteredSavedRows = useMemo(
     () =>
-      rows.filter((row) => {
-        if (row.databaseId === null) {
-          return false;
-        }
-
-        if (
-          dateFrom !== "" &&
-          row.filterDate < dateFrom
-        ) {
-          return false;
-        }
-
-        if (
-          dateTo !== "" &&
-          row.filterDate > dateTo
-        ) {
-          return false;
-        }
-
-        return true;
-      }),
-    [rows, dateFrom, dateTo],
+      rows.filter((row) =>
+        matchesCourseListFilters(row, {
+          dateFrom,
+          dateTo,
+          truckId: truckFilter,
+          customerId: customerFilter,
+          containerSearch,
+          settlementStatus: settlementFilter,
+        }),
+      ),
+    [
+      rows,
+      dateFrom,
+      dateTo,
+      truckFilter,
+      customerFilter,
+      containerSearch,
+      settlementFilter,
+    ],
   );
 
   const totalPages = Math.max(
@@ -278,15 +254,18 @@ export default function CourseTable({
   );
 
   const summary = useMemo(
-    () =>
-      calculateCourseSummary(
-        paginatedSavedRows,
-      ),
+    () => calculateCourseSummary(paginatedSavedRows),
     [paginatedSavedRows],
   );
 
+  const filteredSummary = useMemo(
+    () => calculateCourseSummary(filteredSavedRows),
+    [filteredSavedRows],
+  );
+
   function handleAddRow(): void {
-    if (!canWriteCourses) {
+    // Do not open multiple unsaved editors accidentally.
+    if (!canWriteCourses || draftRows.length > 0) {
       return;
     }
 
@@ -423,6 +402,10 @@ export default function CourseTable({
   function handleClearFilters(): void {
     setDateFrom("");
     setDateTo("");
+    setTruckFilter("");
+    setCustomerFilter("");
+    setContainerSearch("");
+    setSettlementFilter("");
     setCurrentPage(1);
     setExportError(null);
   }
@@ -524,11 +507,15 @@ export default function CourseTable({
             onClick={handleClearFilters}
             disabled={
               dateFrom === "" &&
-              dateTo === ""
+              dateTo === "" &&
+              truckFilter === "" &&
+              customerFilter === "" &&
+              containerSearch === "" &&
+              settlementFilter === ""
             }
             className="inline-flex h-10 items-center justify-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Изчисти филтъра
+            Изчисти филтрите
           </button>
 
           <button
@@ -551,15 +538,80 @@ export default function CourseTable({
             <button
               type="button"
               onClick={handleAddRow}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              disabled={draftRows.length > 0}
+              title={draftRows.length > 0 ? "Първо запази или откажи новия курс" : "Добави нов курс"}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Add Row
+              Добави курс
             </button>
           )}
         </div>
       </div>
 
+      <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          Контейнер
+          <input
+            type="search"
+            value={containerSearch}
+            placeholder="Напр. ENMU 245381"
+            onChange={(event) => { setContainerSearch(event.target.value); setCurrentPage(1); }}
+            className="h-10 min-w-0 rounded-md border border-slate-400 bg-white px-3 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          Камион
+          <select
+            value={truckFilter}
+            onChange={(event) => { setTruckFilter(event.target.value); setCurrentPage(1); }}
+            className="h-10 min-w-0 rounded-md border border-slate-400 bg-white px-3 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">Всички камиони</option>
+            {trucks.map((truck) => (
+              <option key={truck.id} value={truck.id}>{truck.name} ({truck.licensePlate})</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          Клиент
+          <select
+            value={customerFilter}
+            onChange={(event) => { setCustomerFilter(event.target.value); setCurrentPage(1); }}
+            className="h-10 min-w-0 rounded-md border border-slate-400 bg-white px-3 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">Всички клиенти</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          Settlement
+          <select
+            value={settlementFilter}
+            onChange={(event) => { setSettlementFilter(event.target.value); setCurrentPage(1); }}
+            className="h-10 min-w-0 rounded-md border border-slate-400 bg-white px-3 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            <option value="">Всички</option>
+            <option value="NOT_CHECKED">Непроверени</option>
+            <option value="OK">OK</option>
+            <option value="UNDERPAID">Недоплатени</option>
+            <option value="OVERPAID">Надплатени</option>
+            <option value="DISPUTED">Оспорени</option>
+          </select>
+        </label>
+      </div>
+
+      <h2 className="text-sm font-semibold text-slate-800">За страницата</h2>
       <CourseSummaryBar summary={summary} />
+      <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-slate-800">
+        <strong>За филтъра ({filteredSummary.courseCount} курса)</strong>
+        <span>Приход: <strong>{euroFormatter.format(filteredSummary.revenue)}</strong></span>
+        <span>Разход: <strong>{euroFormatter.format(filteredSummary.cost)}</strong></span>
+        <span>Печалба: <strong>{euroFormatter.format(filteredSummary.profit)}</strong></span>
+        <span>Км: <strong>{filteredSummary.totalKm.toLocaleString("bg-BG")}</strong></span>
+        <span>Марж: <strong>{filteredSummary.averageMargin.toLocaleString("bg-BG")}%</strong></span>
+      </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
         <span>
@@ -598,9 +650,13 @@ export default function CourseTable({
         </span>
 
         {(dateFrom !== "" ||
-          dateTo !== "") && (
+          dateTo !== "" ||
+          truckFilter !== "" ||
+          customerFilter !== "" ||
+          containerSearch !== "" ||
+          settlementFilter !== "") && (
           <span className="font-medium text-sky-700">
-            Активен филтър по дата
+            Активни филтри
           </span>
         )}
       </div>
@@ -653,7 +709,7 @@ export default function CourseTable({
       )}
 
       <div className="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-400 bg-slate-300 p-2 shadow-sm">
-        <table className="w-full table-fixed border-separate border-spacing-y-3 text-sm">
+        <table className="min-w-[1140px] w-full table-fixed border-separate border-spacing-y-3 text-sm">
           <thead className="bg-transparent">
             <tr>
               <th className="w-14 rounded-l-lg border-y border-l border-r border-slate-400 bg-slate-300 px-3 py-3 text-center font-semibold text-slate-700">
@@ -676,7 +732,7 @@ export default function CourseTable({
                 ),
               )}
 
-              <th className="w-[220px] whitespace-nowrap rounded-r-lg border-y border-r border-slate-400 bg-slate-300 px-3 py-3 text-left font-semibold text-slate-700">
+              <th className="sticky right-0 z-20 w-[200px] whitespace-nowrap rounded-r-lg border-y border-r border-slate-400 bg-slate-300 px-3 py-3 text-left font-semibold text-slate-700">
                 Действия
               </th>
             </tr>
@@ -728,7 +784,7 @@ export default function CourseTable({
       </div>
 
       <p className="text-xs text-slate-500">
-        Новите курсове се добавят най-отгоре. По подразбиране се показват последните 10 записани курса. Експортът използва всички филтрирани записани курсове, а не само текущата страница.
+        Нов курс се отваря само с „Добави курс“. Финансовите карти са за текущата страница; редът „За филтъра“ и Excel експортът обхващат всички филтрирани записани курсове.
       </p>
     </section>
   );

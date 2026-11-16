@@ -2111,6 +2111,10 @@ export default function CourseRow({
         <td className="border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
           <div className="space-y-1">
             <SummaryLine
+              label="Дата"
+              value={draft.filterDate ? draft.filterDate.split("-").reverse().join(".") : "—"}
+            />
+            <SummaryLine
               label="Камион"
               value={truckSummary}
             />
@@ -2294,7 +2298,7 @@ export default function CourseRow({
           </div>
         </td>
 
-        <td className="rounded-r-xl border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
+        <td className="sticky right-0 z-10 rounded-r-xl border-y border-r border-slate-400 bg-white px-3 py-4 shadow-md group-hover:bg-slate-100">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -2365,6 +2369,17 @@ export default function CourseRow({
             >
               Детайли
             </button>
+
+            {!draft.databaseId && canWriteCourses && (
+              <button
+                type="button"
+                onClick={() => onDelete(draft.id)}
+                disabled={isSaving || isDeleting}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-slate-400 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Откажи
+              </button>
+            )}
 
             {draft.databaseId && canWriteCourses && (
               <button
