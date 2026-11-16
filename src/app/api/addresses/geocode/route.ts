@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/auth/permissions";
+import { selectPtvGeocodingLocation, type PtvGeocodedLocation } from "@/lib/addresses/ptvAddressValidation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,25 +35,6 @@ type AddressRecord =
   Prisma.AddressGetPayload<{
     select: typeof ADDRESS_SELECT;
   }>;
-
-type PtvPosition = {
-  latitude: number;
-  longitude: number;
-};
-
-type PtvGeocodedLocation = {
-  referencePosition?: PtvPosition;
-  roadAccessPosition?: PtvPosition;
-  formattedAddress?: string;
-  address?: {
-    countryName?: string;
-    postalCode?: string;
-    city?: string;
-    street?: string;
-    houseNumber?: string;
-    countryCode?: string;
-  };
-};
 
 type PtvGeocodingResponse = {
   locations?: PtvGeocodedLocation[];
@@ -117,59 +99,53 @@ export async function POST(
         apiKey,
       );
 
-    const location =
-      geocodingResult.locations?.[0];
+    const match = selectPtvGeocodingLocation(
+      address,
+      geocodingResult.locations ?? [],
+    );
 
-    if (!location) {
-      return errorResponse(
-        "PTV did not return a geocoding result for this address.",
-        404,
-      );
+    if (match.kind === "error") {
+      return errorResponse(match.message, match.status);
     }
 
-    const position =
-      location.roadAccessPosition ??
-      location.referencePosition ??
-      null;
-
-    if (
-      !position ||
-      !isValidCoordinate(position)
-    ) {
-      return errorResponse(
-        "PTV returned invalid coordinates for this address.",
-        502,
-      );
-    }
+    const { location, position } = match;
 
     const formattedAddress =
       location.formattedAddress ??
       formatPtvAddress(location);
 
-    const updatedAddress =
-      await prisma.address.update({
-        where: {
-          id,
-        },
-        data: {
-          latitude:
-            roundCoordinate(
-              position.latitude,
-            ).toFixed(7),
-          longitude:
-            roundCoordinate(
-              position.longitude,
-            ).toFixed(7),
-          notes: appendAddressNote(
-            address.notes,
-            buildCoordinateNote({
-              searchText,
-              formattedAddress,
-            }),
-          ),
-        },
-        select: ADDRESS_SELECT,
-      });
+    // No batch backfill. Only a user-triggered geocoding request can save
+    // verified coordinates; concurrent address edits must never be overwritten.
+    const updated = await prisma.address.updateMany({
+      where: {
+        id,
+        updatedAt: address.updatedAt,
+      },
+      data: {
+        latitude: roundCoordinate(position.latitude).toFixed(7),
+        longitude: roundCoordinate(position.longitude).toFixed(7),
+        notes: appendAddressNote(
+          address.notes,
+          buildCoordinateNote({ searchText, formattedAddress }),
+        ),
+      },
+    });
+
+    if (updated.count !== 1) {
+      return errorResponse(
+        "Address changed during PTV geocoding. No coordinates were saved; please retry.",
+        409,
+      );
+    }
+
+    const updatedAddress = await prisma.address.findUnique({
+      where: { id },
+      select: ADDRESS_SELECT,
+    });
+
+    if (!updatedAddress) {
+      return errorResponse("Address not found after geocoding.", 404);
+    }
 
     return NextResponse.json({
       address:
@@ -345,19 +321,6 @@ function appendAddressNote(
   }
 
   return `${trimmedExistingNotes}\n${newNote}`;
-}
-
-function isValidCoordinate(
-  position: PtvPosition,
-): boolean {
-  return (
-    Number.isFinite(position.latitude) &&
-    position.latitude >= -90 &&
-    position.latitude <= 90 &&
-    Number.isFinite(position.longitude) &&
-    position.longitude >= -180 &&
-    position.longitude <= 180
-  );
 }
 
 function readRequiredString(
