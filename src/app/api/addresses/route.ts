@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/auth/permissions";
+import { findAddressDuplicates } from "@/lib/addresses/addressCreation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,13 +99,39 @@ export async function POST(
     const body =
       await readJsonObject(request);
 
-    const address =
-      await prisma.address.create({
-        data: readAddressCreateInput(
-          body,
-        ),
-        select: ADDRESS_SELECT,
-      });
+    const data = readAddressCreateInput(body);
+
+    // The check applies only to creating a new Address; historical rows are read-only.
+    const candidates = await prisma.address.findMany({
+      where: {
+        country: { equals: data.country, mode: "insensitive" },
+      },
+      select: {
+        id: true, name: true, street: true, city: true,
+        postalCode: true, country: true,
+      },
+    });
+    const duplicates = findAddressDuplicates({
+      name: data.name,
+      street: data.street ?? null,
+      city: data.city ?? null,
+      postalCode: data.postalCode ?? null,
+      country: data.country,
+    }, candidates);
+
+    if (duplicates.length > 0 && body.allowDuplicate !== true) {
+      const existing = duplicates[0].address;
+      return NextResponse.json({
+        code: "ADDRESS_DUPLICATE",
+        error: "Възможен дублиращ се адрес. Потвърди създаването само ако това е отделен обект.",
+        duplicate: { id: existing.id, name: existing.name },
+      }, { status: 409 });
+    }
+
+    const address = await prisma.address.create({
+      data,
+      select: ADDRESS_SELECT,
+    });
 
     return NextResponse.json(
       {

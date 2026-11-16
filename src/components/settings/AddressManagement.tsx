@@ -67,6 +67,8 @@ type AddressFormState = {
 type AddressApiResponse = {
   address?: AddressManagementRow;
   error?: string;
+  code?: string;
+  duplicate?: { id: string; name: string };
 };
 
 type AddressGeocodeApiResponse =
@@ -221,45 +223,42 @@ export default function AddressManagement({
     setSuccessMessage("");
 
     try {
-      const response = await fetch(
-        "/api/addresses",
-        {
-          method: isEditing
-            ? "PATCH"
-            : "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(
-            isEditing
-              ? {
-                  id: editingId,
-                  ...createAddressPayload(
-                    form,
-                  ),
-                }
-              : createAddressPayload(
-                  form,
-                ),
-          ),
-        },
-      );
+      const payload = isEditing
+        ? { id: editingId, ...createAddressPayload(form) }
+        : createAddressPayload(form);
+      const sendSave = (allowDuplicate: boolean) => fetch("/api/addresses", {
+        method: isEditing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          ...(allowDuplicate ? { allowDuplicate: true } : {}),
+        }),
+      });
 
-      const data =
-        (await response.json()) as AddressApiResponse;
+      let response = await sendSave(false);
+      let data = (await response.json()) as AddressApiResponse;
+      if (!isEditing && response.status === 409 && data.code === "ADDRESS_DUPLICATE") {
+        const existingName = data.duplicate?.name ?? "съществуващ адрес";
+        const confirmed = window.confirm(
+          `В Address Book вече има подобен адрес: "${existingName}".\n\n` +
+            `Ако това е същото място, натисни Cancel и използвай съществуващия адрес. ` +
+            `Създай отделен адрес само ако действително е различен обект.\n\n` +
+            `Да се създаде ли нов адрес въпреки предупреждението?`,
+        );
+        if (!confirmed) {
+          setSaveError("Добавянето е отменено. Съществуващите адреси не са променени.");
+          return;
+        }
+        response = await sendSave(true);
+        data = (await response.json()) as AddressApiResponse;
+      }
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Address could not be saved.",
-        );
+        throw new Error(data.error || "Address could not be saved.");
       }
 
       if (!data.address) {
-        throw new Error(
-          "Address response is missing.",
-        );
+        throw new Error("Address response is missing.");
       }
 
       setAddresses((currentAddresses) =>

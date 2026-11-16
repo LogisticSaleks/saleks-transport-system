@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { requireApiPermission, type Permission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  AutoAddressParsingError,
+  findAddressDuplicates,
+  parseAutoCreatedAddressText,
+} from "@/lib/addresses/addressCreation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -983,54 +988,43 @@ async function findOrCreateAddressFromText(
   addressText: string,
   stopType: CourseStopTypeValue,
 ): Promise<string> {
-  const parsedAddress =
-    parseAddressText(addressText);
-
-  const exactExistingAddress =
-    await transaction.address.findFirst({
-      where: buildAddressDuplicateWhere(
-        parsedAddress,
-      ),
-      select: {
-        id: true,
-      },
-    });
-
-  if (exactExistingAddress) {
-    return exactExistingAddress.id;
+  let parsedAddress: ParsedAddressData;
+  try {
+    parsedAddress = parseAutoCreatedAddressText(addressText);
+  } catch (error) {
+    if (error instanceof AutoAddressParsingError) {
+      throw new ApiValidationError(error.message);
+    }
+    throw error;
   }
 
-  const candidateAddresses =
-    await transaction.address.findMany({
-      where: buildAddressCandidateWhere(
-        parsedAddress,
-      ),
-      select: {
-        id: true,
-        name: true,
-        street: true,
-        city: true,
-        postalCode: true,
-        country: true,
+  // Only reads existing addresses. Neither their IDs nor their data are changed.
+  const candidateAddresses = await transaction.address.findMany({
+    where: {
+      country: {
+        equals: parsedAddress.country,
+        mode: "insensitive",
       },
-      take: 25,
-    });
+    },
+    select: {
+      id: true,
+      name: true,
+      street: true,
+      city: true,
+      postalCode: true,
+      country: true,
+    },
+  });
+  const duplicates = findAddressDuplicates(parsedAddress, candidateAddresses);
 
-  const parsedAddressKey =
-    createParsedAddressComparisonKey(
-      parsedAddress,
+  if (duplicates.length === 1 && duplicates[0].kind === "exact") {
+    return duplicates[0].address.id;
+  }
+  if (duplicates.length > 0) {
+    throw new ApiValidationError(
+      `Намерен е съществуващ или подобен адрес: "${duplicates[0].address.name}". ` +
+        `Избери го изрично от списъка в Courses, за да запазиш правилната връзка с курсовете и цените.`,
     );
-
-  const matchingCandidate =
-    candidateAddresses.find(
-      (address) =>
-        createExistingAddressComparisonKey(
-          address,
-        ) === parsedAddressKey,
-    );
-
-  if (matchingCandidate) {
-    return matchingCandidate.id;
   }
 
   const createdAddress =
